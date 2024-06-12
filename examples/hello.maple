@@ -1,0 +1,53 @@
+# My NOTES
+
+## ToDo
+- [ ] Question 1
+- [x] Question 2
+
+## Exam dates
+- 12 July 2024
+- 18 August 2024
+
+===
+
+## Equations
+
+### Quadratic formula
+
+This is **very** important
+
+Italics font is *slanted* 
+
+[link](https://en.wikipedia.org/wiki/Quadratic_formula)
+
+It was not discovered by this guy! He was busy making cups?!
+![Pythagoras](https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fcdn.historycollection.com%2Fwp-content%2Fuploads%2F2020%2F07%2F38cross-section-of-a-pythagorean-cup.-pintrest.jpg&f=1&nofb=1&ipt=747723f73a2e6b2aca85a6433a4b20116cedde41676f964c0012d49c0c960636&ipo=images)
+
+```
+x = 123
+y = 123
+```
+
+> Let there be hypotenuse
+
+let x = 123;
+let y = integral(
+    0, 10, 
+    "x^2", 
+    "dx"
+);
+
+integral of x^2 from 0 to 10 w.r.t x can be written as
+
+fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
+
+# This is where the maple 🍁 magic ✨ begins! 
+
+fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
+
+fmt(icap()) prints the math
+fmt(icap)   prints the defined value of icap
+fmt("icap") prints the string "icap"
+"fmt("noshow")" does nothing
+
+fmt(integral(0, 10,"x^2" , "dx"))

@@ -1,0 +1,17 @@
+# Sample
+
+This is a random collections of formulas and notes from my class to test out how
+the language syntax should be.
+
+
+# Vectors
+
+let icap = cap("i")
+let O = [0, 0, 0]
+symbol r
+
+Suppose vec!(r) is the vector from O to (x, y, z), then we can write in vector form
+
+let vec!(r) = icap(i) + jcap(y) + kcap
+
+
