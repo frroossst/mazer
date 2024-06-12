@@ -1,12 +1,14 @@
+# Maple 🍁
+
+A minimal, simple math markup language that compiles to HTML, written in Rust 
+
+
 # Motivations
 
-- Natural Language alternative to LaTeX
+- **Simple:** Natural Language alternative to math markup like LaTeX
 
-- Typing speed is not a concern
+- **Portable:** Plain text files and compiles to HTML
 
-- Expressive and flexible syntax
-
-- Compiles to LaTeX
-
-- Limited features (more to be added as I need them)
-
+- **Verbose:** Typing speed is not a concern which enables expressive and flexible syntax
+  
+- **Minimal:** Limited features (more to be added as I need them)
