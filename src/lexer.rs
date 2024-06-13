@@ -16,10 +16,16 @@ pub enum AtomicData {
 
 #[derive(Debug)]
 pub enum InBuiltFn {
-    icap,
-
+    Cap(Rc<Expression>),
+    Vec(Rc<Expression>),
 }
 
+#[derive(Debug)]
+pub enum LexableTag {
+    Let,
+    Fmt,
+    Eval,
+}
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -35,23 +41,29 @@ impl Lexer {
         }
     }
 
-    pub fn is_lexable(&self, content: &str) -> bool {
+    pub fn is_lexable(&self, content: &str) -> (bool, Option<LexableTag>) {
         let inbuilt: Vec<&str> = vec!["fmt", "eval", "let"];
 
-        for func in inbuilt {
-            if content.contains(func) {
-                return true;
-            }
+        if content.contains(inbuilt[0]) {
+            return (true, Some(LexableTag::Fmt));
+        } else if content.contains(inbuilt[1]) {
+            return (true, Some(LexableTag::Eval));
+        } else if content.contains(inbuilt[2]) {
+            return (true, Some(LexableTag::Let));
+        } else {
+            return (false, None)
         }
-        false
+
     }
 
-    pub fn lex(&self, content: &str) {
-        // if let case
-        if content.contains("let") {
-            // split on whitespace
-            let tokens = content.split(" ");
+    pub fn lex(&self, content: &str, lexable_tag: LexableTag) {
+        match lexable_tag {
+            LexableTag::Let => {
+            },
+            LexableTag::Fmt => {
+            },
+            LexableTag::Eval => {
+            },
         }
-
     }
 }

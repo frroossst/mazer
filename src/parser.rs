@@ -117,8 +117,10 @@ impl Parser {
 
         let mut line = self.src[self.pos].trim();
 
-        if self.ctx.is_lexable(&line) {
+        let is_lexable = self.ctx.is_lexable(&line);
+        if is_lexable.0 {
             dbg!(&line);
+            self.ctx.lex(&line, is_lexable.1.expect("is_lexable returned true but no LexableTag found"));
         }
 
         if self.has_comment(line) {
