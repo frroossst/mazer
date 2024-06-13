@@ -1,4 +1,4 @@
-use crate::lexer::Lexer;
+use crate::{lexer::Lexer, vm::VirtualMachine};
 
 
 #[derive(Debug)]
@@ -22,7 +22,10 @@ pub enum MarkdownTag {
 pub struct Parser {
     src: Vec<String>,
     pos: usize,
+    // symbols: MaybeSolveable
     ctx: Lexer,
+    // executable bytecode
+    exe: VirtualMachine,
 }
 
 impl Parser {
@@ -58,6 +61,7 @@ impl Parser {
             src: lines,
             pos: 0,
             ctx: Lexer::new(),
+            exe: VirtualMachine::new(),
         }
     }
 

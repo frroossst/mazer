@@ -11,6 +11,7 @@ pub enum Token {
     Symbol(String),
     Expression(String),
     Number(f64),
+    Literal(String),
 }
 
 #[derive(Debug)]

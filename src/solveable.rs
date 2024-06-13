@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, rc::Rc};
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Expression {
@@ -10,9 +10,10 @@ pub enum Expression {
 pub enum MaybeSolveable {
     Expression(String),
     Number(f64),
+    // to be shown as is
+    Literal(String),
 }
 
-// maple trait means it is solveable and debuggable
 pub trait Tapable: SolveableT + DebugT {}
 
 // each data structure should be solveable
