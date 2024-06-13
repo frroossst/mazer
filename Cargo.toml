@@ -9,6 +9,7 @@ description = "A minimal, simple math markup language that compiles to HTML, wri
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.86"
 clap = { version = "4.5.4", features = ["derive"] }
 # notify = "6.1.1"
 # tokio = { version = "1.38.0", features = ["full"] }

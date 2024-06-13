@@ -118,9 +118,8 @@ impl Parser {
         let mut line = self.src[self.pos].trim();
 
         let is_lexable = self.ctx.is_lexable(&line);
-        if is_lexable.0 {
-            dbg!(&line);
-            self.ctx.lex(&line, is_lexable.1.expect("is_lexable returned true but no LexableTag found"));
+        if is_lexable {
+            self.ctx.lex(&line)
         }
 
         if self.has_comment(line) {
@@ -139,6 +138,15 @@ impl Parser {
         } else {
             self.pos += 1;
             return Some(LineTag::Text(line.to_string()));
+        }
+    }
+
+    pub fn resolve_ctx(&mut self) {
+        // TODO: resolve ctx
+        // 1. Substitute fmt() with the HTML value in ctx
+        // 2. Substitute eval() if VM is implemented
+        for (k, v) in self.ctx.symbols() {
+            println!("{} = {:?}", k, v);
         }
     }
 }

@@ -1,4 +1,3 @@
-
 use std::io::Write;
 
 use maple::{document::Document, parser::{LineTag, Parser}};
@@ -30,10 +29,13 @@ fn main() {
 
     while let Some(line) = p.next_tagged() {
         match line {
-            LineTag::Markdown(tag) => {
-                document.add_markdown(tag);
+            LineTag::Markdown(line) => {
+                // adds the HTML format of the markdown
+                document.add_markdown(line);
             },  
             LineTag::Let(line) => {
+                // this is the first pass to lex the let 
+                // expression and store it in the ctx, and
                 document.add_let(line);
             },
             LineTag::Text(line) => {
@@ -42,13 +44,15 @@ fn main() {
         }
     }
 
+    // a second pass substitutes fmt() and eval() based on ctx
+    p.resolve_ctx();
 
     let out = document.output();
-    // println!("{:?}", out);
 
     // write document output to output.html 
     let mut file = std::fs::File::create("output.html").unwrap();
     write!(&mut file, "{}", out).unwrap();
 
-
+    dbg!(p);
 }
+
