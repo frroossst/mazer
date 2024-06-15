@@ -5,7 +5,9 @@ A minimal, simple math markup language that compiles to HTML, written in Rust
 
 # Motivations
 
-- **Simple:** Natural Language alternative to math markup like LaTeX
+- **Simple:** Natural Language alternative to math markup like LaTeX or MathML
+
+- **Opinionated:** This is what works for me, your preferences maybe different 
 
 - **Portable:** Plain text files and compiles to HTML
 
