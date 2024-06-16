@@ -1,0 +1,11 @@
+[package]
+name = "maple"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
+
+[dependencies]
+maple-macros = { path = "../maple-macros" }
+maple-data-structures = { path = "../maple-data-structures" }
+anyhow = "1.0.86"

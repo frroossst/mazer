@@ -3,7 +3,6 @@ use std::io::Write;
 use maple::{document::Document, parser::{LineTag, Parser}};
 
 
-
 #[derive(clap::Parser)]
 #[command(version, about, long_about = None)]
 #[derive(Debug, Clone)]

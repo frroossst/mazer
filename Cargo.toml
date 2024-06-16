@@ -1,19 +1,19 @@
 cargo-features = ["codegen-backend"]
-[package]
-name = "maple"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+    "maple-core",
+    "maple-cli",
+    "maple-macros",
+    "maple-data-structures",
+]
+default-members = ["maple-cli"]
 
-[dependencies]
-anyhow = "1.0.86"
-clap = { version = "4.5.4", features = ["derive"] }
-# notify = "6.1.1"
-# tokio = { version = "1.38.0", features = ["full"] }
-# warp = "0.3.7"
+resolver = "2"
+
+[profile.dev]
+debug = 0
+codegen-backend = "cranelift"
 
 [profile.release]
 opt-level = "z"
@@ -21,8 +21,3 @@ strip = true
 lto = true
 codegen-units = 1
 panic = "abort"
-
-[profile.dev]
-debug = 0
-codegen-backend = "cranelift"
-
