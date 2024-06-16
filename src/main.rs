@@ -41,6 +41,8 @@ fn main() {
         }
     }
 
+    p.resolve_ctx();
+
     let out = document.output();
 
     // write document output to output.html 

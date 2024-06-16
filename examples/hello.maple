@@ -7,7 +7,6 @@
 ## Exam dates
 - 12 July 2024
 - 18 August 2024
-
 ===
 
 ## Equations
@@ -41,17 +40,20 @@ let z = dot(
     vec(4, 5, 6)) 
     * 10;
 
+let a = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
+let b = (a * 10) * 10;
+
 integral of x^2 from 0 to 10 w.r.t x can be written as
 
 fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
 
 # This is where the maple 🍁 magic ✨ begins! 
 
-fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
+fmt(icap() + jcap() + kcap()) is the sam;e as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
 
-fmt(icap()) prints the math
-fmt(icap)   prints the defined value of icap
-fmt("icap") prints the string "icap"
-"fmt("noshow")" does nothing
+fmt(icap())     // prints the math
+fmt(icap)       // prints the defined value of icap
+fmt("icap")     // prints the string "icap"
+"fmt("noshow")" // does nothing
 
 fmt(integral(0, 10,"x^2" , "dx"))
