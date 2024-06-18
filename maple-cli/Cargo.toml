@@ -9,6 +9,7 @@ clap = { version = "4.5.4", features = ["derive"] }
 maple = { path = "../maple-core" }
 
 notify = "6.1.1"
+thiserror = "1.0.61"
 tokio = { version = "1.38.0", features = ["full"] }
 warp = "0.3.7"
 

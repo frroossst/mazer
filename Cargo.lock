@@ -739,6 +739,7 @@ dependencies = [
  "ariadne",
  "maple-data-structures",
  "maple-macros",
+ "thiserror",
 ]
 
 [[package]]
@@ -748,6 +749,7 @@ dependencies = [
  "clap",
  "maple",
  "notify",
+ "thiserror",
  "tokio",
  "warp",
 ]

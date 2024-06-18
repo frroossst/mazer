@@ -1,3 +1,7 @@
+use std::fmt::Debug;
+
+use crate::pretty_err::{DebugContext, PrettyErr};
+
 #[derive(Debug)]
 pub enum MarkdownTag {
     Header(HeaderKind, String),
@@ -50,19 +54,21 @@ pub struct Tokenizer {
     src: String,
     pos: usize,
     max: usize,
+    debug_ctx: DebugContext,
 }
 
 impl Tokenizer {
 
-    pub fn new(src: String) -> Self {
+    pub fn new(src: String, ctx: DebugContext) -> Self {
         let max = src.chars().count();
         Tokenizer {
             src,
             pos: 0,
             max,
+            debug_ctx: ctx,
         }
     }
-
+    
     fn char(&mut self) -> char {
         self.src.chars().nth(self.pos).expect("No more characters")
     }
@@ -74,11 +80,13 @@ impl Tokenizer {
         self.pos += 1;
     }
 
-    fn must_consume(&mut self, c: char) {
-        if self.char() != c {
-            panic!("Expected character: {}", c);
+    fn must_consume(&mut self, c: char) -> Result<(), anyhow::Error> {
+        let curr = self.char();
+        if curr != c {
+            // ! how to handle errors
         }
         self.advance_char();
+        Ok(())
     }
 
     fn consume_whitespace(&mut self) {
@@ -114,7 +122,7 @@ impl Tokenizer {
 
         let mut tokens: Vec<Token> = Vec::new();
         while let Some(tok) = self.next_token() {
-            tokens.push(tok);
+            tokens.push(tok)
         }
 
         self.advance_char();

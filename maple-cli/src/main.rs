@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use maple::{document::Document, tokenizer::Tokenizer};
+use maple::{document::Document, pretty_err::DebugContext, tokenizer::Tokenizer};
 
 
 #[derive(clap::Parser)]
@@ -32,7 +32,9 @@ fn main() {
 }
 
 fn to_document2(file_title: &str, content: String) -> Document {
-    let mut t: Tokenizer = Tokenizer::new(content);
+    let debug_info = DebugContext::new(file_title);
+    let mut t: Tokenizer = Tokenizer::new(content, debug_info);
+
 
     while let Some(line) = t.next_line() {
         dbg!(line);
@@ -44,9 +46,10 @@ fn to_document2(file_title: &str, content: String) -> Document {
 }
 
 
-fn to_document(file_title: &str, content: String) -> Document {
+#[allow(dead_code)]
+fn to_document(file_title: &str, _content: String) -> Document {
     // let mut p: Parser = Parser::new(content);
-    let mut document: Document = Document::new(file_title);
+    let document: Document = Document::new(file_title);
 
     /*
     while let Some(line) = p.next_tagged() {

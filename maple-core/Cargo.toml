@@ -10,3 +10,4 @@ maple-macros = { path = "../maple-macros" }
 maple-data-structures = { path = "../maple-data-structures" }
 anyhow = "1.0.86"
 ariadne = "=0.3.0"
+thiserror = "1.0.61"
