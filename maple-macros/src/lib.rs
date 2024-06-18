@@ -1,3 +1,4 @@
+/// VECTORS
 #[macro_export]
 macro_rules! ivec {
     () => {
@@ -28,6 +29,7 @@ macro_rules! kvec {
     };
 }
 
+/// CAPPED VECTORS
 #[macro_export]
 macro_rules! icap {
     () => {
@@ -80,6 +82,7 @@ macro_rules! cap {
     };
 }
 
+/// MATRIX
 #[macro_export]
 macro_rules! matrix {
     ( $( [ $( $x:expr ),* ] ),* ) => {{
@@ -96,7 +99,7 @@ macro_rules! matrix {
 }
 
 
-/// definite integral
+/// INTEGRALS
 #[macro_export]
 macro_rules! defintegral {
     ($a:expr, $b:expr, $f:expr, $dx:expr) => {
@@ -104,7 +107,6 @@ macro_rules! defintegral {
     };
 }
 
-/// indefinite integral
 #[macro_export]
 macro_rules! integral {
     ($f:expr, $dx:expr) => {

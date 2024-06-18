@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use maple::{document::Document, parser::{LineTag, Parser}};
+use maple::{document::Document, tokenizer::Tokenizer};
 
 
 #[derive(clap::Parser)]
@@ -23,9 +23,32 @@ fn main() {
     // get name of the file from the path to act as the title of HTML page
     let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
 
-    let mut p: Parser = Parser::new(content.clone());
-    let mut document: Document = Document::new(file_name_title);
+    let document = to_document2(file_name_title, content);
+    let out = document.output();
 
+    // write document output to output.html 
+    let mut file = std::fs::File::create("output.html").unwrap();
+    write!(&mut file, "{}", out).unwrap();
+}
+
+fn to_document2(file_title: &str, content: String) -> Document {
+    let mut t: Tokenizer = Tokenizer::new(content);
+
+    while let Some(line) = t.next_line() {
+        dbg!(line);
+    }
+
+    let mut document: Document = Document::new(file_title);
+
+    document
+}
+
+
+fn to_document(file_title: &str, content: String) -> Document {
+    // let mut p: Parser = Parser::new(content);
+    let mut document: Document = Document::new(file_title);
+
+    /*
     while let Some(line) = p.next_tagged() {
         match line {
             LineTag::Markdown(tag) => {
@@ -39,15 +62,10 @@ fn main() {
             },
         }
     }
-
     p.resolve_ctx();
+    */
 
-    let out = document.output();
 
-    // write document output to output.html 
-    let mut file = std::fs::File::create("output.html").unwrap();
-    write!(&mut file, "{}", out).unwrap();
-
-    dbg!(p);
+    document
 }
 

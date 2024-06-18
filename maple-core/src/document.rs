@@ -1,4 +1,5 @@
-use crate::parser::MarkdownTag;
+use crate::tokenizer::MarkdownTag;
+
 
 #[derive(Debug)]
 pub struct Document {
@@ -91,14 +92,13 @@ impl Document {
 
     pub fn add_markdown(&mut self, tag: MarkdownTag) {
         match tag {
-            MarkdownTag::Header(mut content) => {
+            MarkdownTag::Header(hk, content) => {
                 // consume # from the content
                 // if 0 then it is a h1 tag
                 // if 1 then it is a h2 tag
                 // if 2 then it is a h3 tag
-                let trimmed_content = content.trim_start_matches('#');
-                let num_hashes = content.len() - trimmed_content.len();
-                content = trimmed_content.to_string();
+                let content = content;
+                let num_hashes: usize = hk.into();
 
                 self.append_wrapped(&format!("h{}", num_hashes), &content);
             },
