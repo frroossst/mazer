@@ -138,6 +138,7 @@ impl Document {
                 }
                 self.append_newlne();
             },
+            _ => { unimplemented!() },
         }
     }
 

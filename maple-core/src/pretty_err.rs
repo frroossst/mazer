@@ -15,13 +15,13 @@ impl DebugContext {
         }
     }
 
-    pub fn panic(&self) -> ! {
+    pub fn panic(&self, msg: &str) -> ! {
         // iterate over all reports and display them
         // finally panic
         for err in self.errs.iter() {
         }
 
-        panic!()
+        panic!("{}", msg)
     }
 
     pub fn push_new_error(&mut self, ctx: PrettyErrContext) {

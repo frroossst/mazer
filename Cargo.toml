@@ -16,8 +16,9 @@ debug = 0
 codegen-backend = "cranelift"
 
 [profile.release]
-opt-level = "z"
-strip = true
-lto = true
 codegen-units = 1
+lto = "fat"
+opt-level = "z"
 panic = "abort"
+strip = "symbols"
+

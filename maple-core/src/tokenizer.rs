@@ -7,6 +7,7 @@ pub enum MarkdownTag {
     Checkbox(bool, String),
     BulletPoint(String),
     Blockquote(String),
+    CodeBlock(String),
     Link(LinkKind, String, String),
 }
 
@@ -46,12 +47,19 @@ impl From<usize> for HeaderKind {
 
 #[derive(Debug)]
 pub enum Token {
-    LetExpr(String),
+    LetExpr(String, String),
     Literal(String),
-    Text(String),
+    Text(Option<Emphasis>, String),
     Comment(String),
     Markdown(MarkdownTag),
     Newline,
+}
+
+#[derive(Debug)]
+pub enum Emphasis {
+    Bold,
+    Italic,
+    Strikethrough,
 }
 
 #[derive(Debug)]
@@ -74,12 +82,21 @@ impl Tokenizer {
         }
     }
 
-    fn panic(&self) -> ! {
-        self.ctx.panic();
+    fn panic(&self, msg: &str) -> ! {
+        self.ctx.panic(msg);
     }
 
     fn char(&mut self) -> char {
         self.src.chars().nth(self.pos).expect("No more characters")
+    }
+
+    fn peek(&mut self) -> char {
+        self.src.chars().nth(self.pos + 1).unwrap_or('\0')
+    }
+
+    // peeks the char after the next char
+    fn peek_n(&mut self, n: usize) -> char {
+        self.src.chars().nth(self.pos + n).unwrap_or('\0')
     }
 
     fn advance_char(&mut self) {
@@ -99,7 +116,7 @@ impl Tokenizer {
                 (self.pos, self.pos + 1),
                 vec![c.to_string(), curr.to_string()]
             ));
-            self.panic();
+            self.panic(&format!("Expected '{}' but found '{}'", c, curr));
         }
         self.advance_char();
     }
@@ -137,10 +154,13 @@ impl Tokenizer {
 
         let mut tokens: Vec<Token> = Vec::new();
         while let Some(tok) = self.next_token() {
-            tokens.push(tok)
+            tokens.push(tok);
         }
-
         self.advance_char();
+
+        if tokens.is_empty() {
+            return Some(vec![Token::Newline]);
+        }
 
         Some(tokens)
     }
@@ -150,10 +170,36 @@ impl Tokenizer {
             return None;
         }
 
-        let curr_token = self.char();
+        let curr_tok = self.char();
 
+        // consume comments
+        if self.char() == '/' && self.peek() == '/' {
+            self.advance_char();
+            self.advance_char();
+            let comment = self.consume_line().trim();
+            return Some(Token::Comment(comment.to_string()));
+        // literals
+        } else if self.char() == '"' {
+            self.advance_char();
+            let literal = self.consume_till('"').to_string();
+            self.must_consume('"');
+
+            return Some(Token::Literal(literal));
+        // let statements
+        } else if self.char() == 'l' && self.peek() == 'e' && self.peek_n(2) == 't' {
+            self.consume_whitespace();
+
+            let var = self.consume_till('=').trim().to_string();
+            // [ERROR] 
+            // TODO: check if variable name is valid
+            self.must_consume('=');
+            self.consume_whitespace();
+
+            let val = self.consume_till(';').trim().to_string();
+
+            return Some(Token::LetExpr(var, val));
         // headers
-        if self.char() == '#' {
+        } else if self.char() == '#' {
             let hash_count = self.consume_until_not('#').len();
 
             let heading = self.consume_line().trim();
@@ -164,8 +210,17 @@ impl Tokenizer {
                     MarkdownTag::Header(header_kind, heading.to_string())
                 )
             );
+        // blockquote
+        } else if curr_tok == '>' {
+            self.advance_char();
+            let blockquote = self.consume_line().trim();
+            return Some(
+                Token::Markdown(
+                    MarkdownTag::Blockquote(blockquote.to_string())
+                )
+            );
         // bullets or checkboxes 
-        } else if curr_token == '-' {
+        } else if curr_tok == '-' {
             self.advance_char();
             self.consume_whitespace();
 
@@ -193,11 +248,11 @@ impl Tokenizer {
                 )
             );
         // line separator
-        } else if curr_token == '=' {
+        } else if curr_tok == '=' {
 
             self.consume_until_not('=');
             if self.consume_line().trim().len() > 0 {
-                self.panic();
+                self.panic(&format!("Line separator should contain only '=' characters"));
             }
 
             // should contain only line separator
@@ -212,8 +267,8 @@ impl Tokenizer {
                 )
             );
         // consume links
-        } else if curr_token == '!' || curr_token == '[' {
-            let is_image = curr_token == '!';
+        } else if (curr_tok == '!' && self.peek() == '[') || curr_tok == '[' {
+            let is_image = curr_tok == '!';
             if is_image {
                 self.advance_char();
             }
@@ -231,9 +286,60 @@ impl Tokenizer {
                     link,
                 )
             ));
-        }
+        // code blocks
+        } else if curr_tok == '`' {
+            // check if inline code block or code block
+            let code: String;
+            if self.peek() == '`' {
+                self.must_consume('`');
+                self.must_consume('`');
+                self.must_consume('`');
 
-        None
+                self.consume_whitespace();
+                code = self.consume_till('`').to_string();
+
+                self.must_consume('`');
+                self.must_consume('`');
+                self.must_consume('`');
+            } else {
+                self.must_consume('`');
+                code = self.consume_till('`').trim().to_string();
+                self.must_consume('`');
+            }
+
+            return Some(Token::Markdown(
+                MarkdownTag::CodeBlock(code)
+            ));
+        // bold
+        } else if self.char() == '*' {
+            if self.peek() == '*' {
+                self.advance_char();
+                self.advance_char();
+                let text = self.consume_till('*').to_string();
+                self.must_consume('*');
+                self.must_consume('*');
+
+                return Some(Token::Text(Some(Emphasis::Bold), text));
+            } else {
+                self.advance_char();
+                let text = self.consume_till('*').to_string();
+                self.must_consume('*');
+
+                return Some(Token::Text(Some(Emphasis::Italic), text));
+            }
+        // strikethrough
+        } else if self.char() == '~' {
+            self.advance_char();
+            let text = self.consume_till('~').to_string();
+            self.must_consume('~');
+
+            return Some(Token::Text(Some(Emphasis::Strikethrough), text));
+        // text
+        } else {
+            let text = curr_tok.to_string();
+            self.advance_char();
+            return Some(Token::Text(None, text));
+        }
     }
 
 } 
