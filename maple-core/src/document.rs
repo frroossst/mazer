@@ -123,7 +123,7 @@ impl Document {
                 self.append_wrapped("blockquote", &content[1..]);
                 self.append_newlne();
             },
-            MarkdownTag::Link(link) => {
+            MarkdownTag::Link(_, text, link) => {
                 let is_image = link.starts_with("!");
 
                 // get content within [ ]

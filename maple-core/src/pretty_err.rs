@@ -1,42 +1,52 @@
-use std::fmt::format;
-
 use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
 
-use thiserror::Error;
 
 #[derive(Debug)]
 pub struct DebugContext {
     file: String,
+    errs: Vec<PrettyErrContext>,
 }
 
 impl DebugContext {
     pub fn new(file_title: &str) -> Self {
         DebugContext {
             file: file_title.to_string(),
+            errs: Vec::new(),
         }
     }
 
-    pub fn expected_err(&self, expected: &str, found: &str, pos: usize) {
+    pub fn panic(&self) -> ! {
+        // iterate over all reports and display them
+        // finally panic
+        for err in self.errs.iter() {
+        }
 
-        let message = format!("Expected {}, found {}", expected, found);
+        panic!()
+    }
 
-        // Create a new color generator for the report
-        let mut colors = ColorGenerator::new();
-
-        // Generate a color for our error
-        let error_color = colors.next();
-
-        // Create a new report
-        Report::build(ReportKind::Error, &self.file, pos)
-            .with_message(message)
-            .with_label(
-                Label::new((&self.file, pos))
-                    .with_message(message)
-                    .with_color(error_color),
-            )
-            .finish()
-            .print((&self.file, Source::from("")))
-            .unwrap();
-
+    pub fn push_new_error(&mut self, ctx: PrettyErrContext) {
     }
 }
+
+#[derive(Debug)]
+pub struct PrettyErrContext {
+    kind: PrettyErrKind,
+    pos: (usize, usize),
+    args: Vec<String>,
+}
+
+impl PrettyErrContext {
+    pub fn new(kind: PrettyErrKind, pos: (usize, usize), args: Vec<String>) -> Self {
+        PrettyErrContext {
+            kind,
+            pos,
+            args,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum PrettyErrKind {
+    ExpectedButNotFound,
+}
+

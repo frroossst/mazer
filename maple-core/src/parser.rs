@@ -55,7 +55,7 @@ impl Parser {
         } else if line.starts_with(">") {
             Some(MarkdownTag::Blockquote(line.to_string()))
         } else if line.contains("[") && line.contains("]") && line.contains("(") && line.contains(")"){
-            Some(MarkdownTag::Link(line.to_string()))
+            unimplemented!();
         } else {
             None
         }

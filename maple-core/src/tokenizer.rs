@@ -1,6 +1,4 @@
-use std::fmt::Debug;
-
-use crate::pretty_err::{DebugContext, PrettyErr};
+use crate::pretty_err::{DebugContext, PrettyErrContext, PrettyErrKind};
 
 #[derive(Debug)]
 pub enum MarkdownTag {
@@ -9,7 +7,13 @@ pub enum MarkdownTag {
     Checkbox(bool, String),
     BulletPoint(String),
     Blockquote(String),
-    Link(String),
+    Link(LinkKind, String, String),
+}
+
+#[derive(Debug)]
+pub enum LinkKind {
+    Image,
+    Hyperlink,
 }
 
 #[derive(Debug)]
@@ -47,6 +51,7 @@ pub enum Token {
     Text(String),
     Comment(String),
     Markdown(MarkdownTag),
+    Newline,
 }
 
 #[derive(Debug)]
@@ -54,7 +59,7 @@ pub struct Tokenizer {
     src: String,
     pos: usize,
     max: usize,
-    debug_ctx: DebugContext,
+    ctx: DebugContext,
 }
 
 impl Tokenizer {
@@ -65,10 +70,14 @@ impl Tokenizer {
             src,
             pos: 0,
             max,
-            debug_ctx: ctx,
+            ctx,
         }
     }
-    
+
+    fn panic(&self) -> ! {
+        self.ctx.panic();
+    }
+
     fn char(&mut self) -> char {
         self.src.chars().nth(self.pos).expect("No more characters")
     }
@@ -80,13 +89,19 @@ impl Tokenizer {
         self.pos += 1;
     }
 
-    fn must_consume(&mut self, c: char) -> Result<(), anyhow::Error> {
+    fn must_consume(&mut self, c: char) {
         let curr = self.char();
+        // [ERROR]
         if curr != c {
             // ! how to handle errors
+            self.ctx.push_new_error(PrettyErrContext::new(
+                PrettyErrKind::ExpectedButNotFound,
+                (self.pos, self.pos + 1),
+                vec![c.to_string(), curr.to_string()]
+            ));
+            self.panic();
         }
         self.advance_char();
-        Ok(())
     }
 
     fn consume_whitespace(&mut self) {
@@ -177,6 +192,45 @@ impl Tokenizer {
                     MarkdownTag::Checkbox(is_checked, checkbox.to_string())
                 )
             );
+        // line separator
+        } else if curr_token == '=' {
+
+            self.consume_until_not('=');
+            if self.consume_line().trim().len() > 0 {
+                self.panic();
+            }
+
+            // should contain only line separator
+            // [ERROR]
+            // if self.consume_line().trim().len() > 0 {
+            //     self.panic();
+            // }
+
+            return Some(
+                Token::Markdown(
+                    MarkdownTag::LineSeparator
+                )
+            );
+        // consume links
+        } else if curr_token == '!' || curr_token == '[' {
+            let is_image = curr_token == '!';
+            if is_image {
+                self.advance_char();
+            }
+            self.must_consume('[');
+            let text = self.consume_till(']').to_string();
+            self.must_consume(']');
+            self.must_consume('(');
+            let link = self.consume_till(')').to_string();
+            self.must_consume(')');
+
+            return Some(Token::Markdown(
+                MarkdownTag::Link(
+                    if is_image { LinkKind::Image } else { LinkKind::Hyperlink },
+                    text,
+                    link,
+                )
+            ));
         }
 
         None
