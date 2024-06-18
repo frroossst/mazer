@@ -48,11 +48,18 @@ impl From<usize> for HeaderKind {
 #[derive(Debug)]
 pub enum Token {
     LetExpr(String, String),
+    Fn(FnKind, String),
     Literal(String),
     Text(Option<Emphasis>, String),
     Comment(String),
     Markdown(MarkdownTag),
     Newline,
+}
+
+#[derive(Debug)]
+pub enum FnKind {
+    Fmt,
+    Eval,
 }
 
 #[derive(Debug)]
@@ -147,6 +154,39 @@ impl Tokenizer {
         self.consume_till('\n')
     }
 
+    // helper for consuming nested parenthesis
+    fn consume_nested_parenthesis(&mut self) -> String {
+        let mut store = String::from(self.char().to_string());
+        dbg!(store.clone());
+
+        let mut stack: Vec<()> = Vec::new();
+        stack.push(());
+
+        while !stack.is_empty() {
+            self.advance_char();
+            let curr = self.char();
+            if curr == '(' {
+                stack.push(());
+                store.push(curr);
+            } else if curr == ')' {
+                stack.pop();
+                store.push(curr);
+            } else {
+                store.push_str(&curr.to_string());
+            }
+        }
+
+        match store.pop() {
+            Some(')') => {},
+            _ => {
+                // [ERROR]
+                self.panic("Unbalanced parenthesis");
+            }
+        }
+
+        return store;
+    }
+
     pub fn next_line(&mut self) -> Option<Vec<Token>> {
         if self.pos >= self.max {
             return None;
@@ -173,20 +213,20 @@ impl Tokenizer {
         let curr_tok = self.char();
 
         // consume comments
-        if self.char() == '/' && self.peek() == '/' {
+        if curr_tok == '/' && self.peek() == '/' {
             self.advance_char();
             self.advance_char();
             let comment = self.consume_line().trim();
             return Some(Token::Comment(comment.to_string()));
         // literals
-        } else if self.char() == '"' {
+        } else if curr_tok == '"' {
             self.advance_char();
             let literal = self.consume_till('"').to_string();
             self.must_consume('"');
 
             return Some(Token::Literal(literal));
         // let statements
-        } else if self.char() == 'l' && self.peek() == 'e' && self.peek_n(2) == 't' {
+        } else if curr_tok == 'l' && self.peek() == 'e' && self.peek_n(2) == 't' {
             self.consume_whitespace();
 
             let var = self.consume_till('=').trim().to_string();
@@ -198,8 +238,32 @@ impl Tokenizer {
             let val = self.consume_till(';').trim().to_string();
 
             return Some(Token::LetExpr(var, val));
+        // fmt calls
+        } else if curr_tok == 'f' && self.peek() == 'm' && self.peek_n(2) == 't' {
+            self.advance_char();
+            self.advance_char();
+            self.advance_char();
+            self.must_consume('(');
+
+            // the body expression may have parenthesis in it, so need to maintain a stack and 
+            // consume until the stack is empty
+            let fmt = self.consume_nested_parenthesis().trim().to_string();
+
+            return Some(Token::Fn(FnKind::Fmt, fmt));
+        // eval calls
+        } else if curr_tok == 'e' && self.peek() == 'v' && self.peek_n(2) == 'a' && self.peek_n(3) == 'l' {
+            self.advance_char();
+            self.advance_char();
+            self.advance_char();
+            self.advance_char();
+
+            self.must_consume('(');
+            let eval = self.consume_nested_parenthesis().trim().to_string();
+            self.must_consume(')');
+
+            return Some(Token::Fn(FnKind::Eval, eval));
         // headers
-        } else if self.char() == '#' {
+        } else if curr_tok == '#' {
             let hash_count = self.consume_until_not('#').len();
 
             let heading = self.consume_line().trim();
@@ -311,7 +375,7 @@ impl Tokenizer {
                 MarkdownTag::CodeBlock(code)
             ));
         // bold
-        } else if self.char() == '*' {
+        } else if curr_tok == '*' {
             if self.peek() == '*' {
                 self.advance_char();
                 self.advance_char();
@@ -328,7 +392,7 @@ impl Tokenizer {
                 return Some(Token::Text(Some(Emphasis::Italic), text));
             }
         // strikethrough
-        } else if self.char() == '~' {
+        } else if curr_tok == '~' {
             self.advance_char();
             let text = self.consume_till('~').to_string();
             self.must_consume('~');

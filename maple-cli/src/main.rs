@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use maple::{document::Document, pretty_err::DebugContext, tokenizer::Tokenizer};
+use maple::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 
 
 #[derive(clap::Parser)]
@@ -35,10 +35,21 @@ fn to_document2(file_title: &str, content: String) -> Document {
     let debug_info = DebugContext::new(file_title);
     let mut t: Tokenizer = Tokenizer::new(content, debug_info);
 
-
+    let mut all_tokens: Vec<Token> = Vec::with_capacity(512);
     while let Some(line) = t.next_line() {
-        dbg!(line);
+        dbg!(&line);
+        all_tokens.extend(line);
     }
+
+    // the vector might have repeated Text tokens that need to be merged
+    // into one. 
+    // Vec[Token::Text('a'), Token::Text('b'), Token::Text('c'), Token::Text('d')]
+    // should be translated to
+    // Vec[Token::Text('abcd')]
+    // Token::Text(Option<Emphasis>, Sting), only text pieces with None emphasis should combine
+
+
+    dbg!(all_tokens.len());
 
     let mut document: Document = Document::new(file_title);
 
