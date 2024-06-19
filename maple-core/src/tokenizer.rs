@@ -1,6 +1,6 @@
 use crate::pretty_err::{DebugContext, PrettyErrContext, PrettyErrKind};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MarkdownTag {
     Header(HeaderKind, String),
     LineSeparator,
@@ -11,13 +11,13 @@ pub enum MarkdownTag {
     Link(LinkKind, String, String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LinkKind {
     Image,
     Hyperlink,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HeaderKind {
     H1,
     H2,
@@ -45,7 +45,7 @@ impl From<usize> for HeaderKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     LetExpr(String, String),
     Fn(FnKind, String),
@@ -56,13 +56,13 @@ pub enum Token {
     Newline,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FnKind {
     Fmt,
     Eval,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Emphasis {
     Bold,
     Italic,
@@ -405,5 +405,33 @@ impl Tokenizer {
             return Some(Token::Text(None, text));
         }
     }
+
+    /// Takes in a collection of tokens and tries
+    /// to compacts the repeated text tokens into one
+    /// only if they have the same emphasis
+    pub fn compact(tokens: Vec<Token>) -> Vec<Token> {
+        let mut compacted = Vec::new();
+        let mut iter = tokens.iter().peekable();
+
+        while let Some(token) = iter.next() {
+            match token {
+                Token::Text(emphasis, text) => {
+                    let mut combined_text = text.clone();
+                    while let Some(&Token::Text(next_emphasis, next_text)) = iter.peek() {
+                        if emphasis == next_emphasis {
+                            combined_text.push_str(next_text);
+                            iter.next(); // consume the token
+                        } else {
+                            break;
+                        }
+                    }
+                    compacted.push(Token::Text(emphasis.clone(), combined_text));
+                }
+                _ => compacted.push(token.clone()),
+            }
+        }
+
+        compacted
+        }
 
 } 

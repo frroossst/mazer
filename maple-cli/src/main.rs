@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use maple::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
+use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 
 
 #[derive(clap::Parser)]
@@ -55,31 +55,3 @@ fn to_document2(file_title: &str, content: String) -> Document {
 
     document
 }
-
-
-#[allow(dead_code)]
-fn to_document(file_title: &str, _content: String) -> Document {
-    // let mut p: Parser = Parser::new(content);
-    let document: Document = Document::new(file_title);
-
-    /*
-    while let Some(line) = p.next_tagged() {
-        match line {
-            LineTag::Markdown(tag) => {
-                document.add_markdown(tag);
-            },  
-            LineTag::Let(line) => {
-                document.add_let(line);
-            },
-            LineTag::Text(line) => {
-                document.add_text(line);
-            },
-        }
-    }
-    p.resolve_ctx();
-    */
-
-
-    document
-}
-

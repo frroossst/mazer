@@ -5,8 +5,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-# maple-core = { path = "../maple-core" }
-maple = { path = "../maple-core" }
+maple-core = { path = "../maple-core" }
 
 notify = "6.1.1"
 thiserror = "1.0.61"
