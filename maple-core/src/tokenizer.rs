@@ -24,16 +24,6 @@ pub enum HeaderKind {
     H3
 }
 
-impl Into<usize> for HeaderKind {
-    fn into(self) -> usize {
-        match self {
-            HeaderKind::H1 => { 1 },
-            HeaderKind::H2 => { 2 },
-            HeaderKind::H3 => { 3 },
-        }
-    }
-}
-
 impl From<usize> for HeaderKind {
     fn from(val: usize) -> Self {
         match val {
