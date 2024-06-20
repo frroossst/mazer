@@ -1,0 +1,7 @@
+# ToDo
+
+- [ ] Tokenize the fmt() section better
+- [ ] Catch and display errors on client
+- [ ] Run cargo clippy lint
+- [ ] Reduce vertical space between headers 
+- [ ] Make a little terminal CSS for code (diff between code and maple)

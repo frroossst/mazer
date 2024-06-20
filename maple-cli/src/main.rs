@@ -3,7 +3,7 @@ use std::{convert::Infallible, sync::{Arc, Mutex}};
 use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 
 use crypto_hash::{Algorithm, hex_digest};
-use warp::{reject::Rejection, reply::Reply, Filter};
+use warp::{filters::fs::file, reject::Rejection, reply::Reply, Filter};
 
 
 #[derive(clap::Parser)]
@@ -75,12 +75,12 @@ async fn main() {
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
-
-    let doc = Document::new(file_name_title);
+    let (content, _) = read_file(&args.file, None).expect("Failed to read file");
+    let doc= to_document(file_name_title, content);
     let out = doc.output();
-    // write to output.html
-    std::fs::write(format!("{}.html", doc.title()), &out).expect("Failed to write to output.html");
-
+    // create and write to file
+    let mut file = std::fs::File::create(format!("{}.html", file_name_title)).expect("Failed to create file");
+    std::io::Write::write_all(&mut file, out.as_bytes()).expect("Failed to write to file");
 }
 
 async fn version_route() -> Result<impl warp::Reply, Infallible> {
@@ -114,7 +114,7 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
     let (new_content, new_hash) = file_read.unwrap();
     state.set_hash(new_hash);
 
-    let document = to_document2(&title, new_content);
+    let document = to_document(&title, new_content);
     let out = document.output();
 
     Ok(
@@ -142,7 +142,7 @@ fn read_file(file_path: &str, hash: Option<String>) -> Option<(String, String)> 
 }
 
 
-fn to_document2(file_title: &str, content: String) -> Document {
+fn to_document(file_title: &str, content: String) -> Document {
     let debug_info = DebugContext::new(file_title);
     let mut t: Tokenizer = Tokenizer::new(content, debug_info);
 
@@ -157,7 +157,7 @@ fn to_document2(file_title: &str, content: String) -> Document {
     for t in tokens { 
         match t {
             Token::LetExpr(var, val) => {
-                document.append_code(&format!("let {} = {}", var, val));
+                document.append_code(&format!("{} = {}", var, val));
                 document.append_newline();
             },
             Token::Fn(kind, expr) => {

@@ -62,5 +62,3 @@ fmt("icap")     // prints the string "icap"
 "fmt("noshow")" // does nothing
 
 fmt(integral(0, 10,"x^2" , "dx"))
-
-THIS IS THE END!
