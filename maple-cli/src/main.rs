@@ -74,6 +74,13 @@ async fn main() {
         println!("Press Ctrl+C to stop the server\n");
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
+
+
+    let doc = Document::new(file_name_title);
+    let out = doc.output();
+    // write to output.html
+    std::fs::write(format!("{}.html", doc.title()), &out).expect("Failed to write to output.html");
+
 }
 
 async fn version_route() -> Result<impl warp::Reply, Infallible> {
@@ -110,9 +117,6 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
 
     let document = to_document2(&title, new_content);
     let out = document.output();
-
-    // write to output.html
-    std::fs::write("output.html", &out).expect("Failed to write to output.html");
 
     Ok(
         Box::new(
@@ -159,7 +163,7 @@ fn to_document2(file_title: &str, content: String) -> Document {
             },
             Token::Fn(kind, expr) => {
                 let kind_str: String = kind.into();
-                document.append_wrapped_with_attr("pre", "class=inline-code", &format!("{}({})", kind_str, expr));
+                document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, expr));
             },
             Token::Literal(lit) => {
                 document.append_text( None, &lit);

@@ -16,12 +16,13 @@ impl Document {
 
     }
 
+    pub fn title(&self) -> String {
+        self.title.clone()
+    }
+
     pub fn output(&self) -> String {
         let mut body = String::new();
         body.push_str(&self.title);
-
-        // write bpdy vector to output.log
-        std::fs::write("output.log", format!("{:#?}", self.body)).unwrap();
 
         for content in self.body.clone() {
             body.push_str(&content);

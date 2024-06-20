@@ -40,9 +40,11 @@
             overflow-x: auto; /* Add a horizontal scrollbar if needed */
         }
 
-        inline-code {
+        .inline-code {
             font-family: monospace;
-            background-color: #f0f0f0;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            display: inline;
             border-radius: 3px;
             padding: 2px 4px;
         }
@@ -72,9 +74,10 @@
             color: #333; /* Same as light-mode text color */
         }
 
-        body.light-mode inline-code {
-            background-color: #f0f0f0;
+        body.light-mode .inline-code {
+            background-color: #f9f9f9;
             color: #333;
+            display: inline;
         }
         
         blockquote.light-mode {
