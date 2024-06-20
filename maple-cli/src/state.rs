@@ -3,6 +3,7 @@ use notify::{Error, Event, Watcher};
 pub struct State {
     path: String,
     title: String,
+    cold_start: bool,
     rx: std::sync::mpsc::Receiver<Result<Event, Error>>,
     _watcher: notify::RecommendedWatcher,
 }
@@ -14,10 +15,20 @@ impl State {
         let mut watcher = notify::RecommendedWatcher::new(tx, notify::Config::default()).unwrap();
         watcher.watch(&path_t, notify::RecursiveMode::Recursive).unwrap();
 
-        Self { path, title, rx, _watcher: watcher }
+        Self { 
+            path, 
+            title, 
+            cold_start: true,
+            rx, 
+            _watcher: watcher }
     }
 
+    // NOTE: do not call this function directly for debugging
     pub fn has_file_changed(&mut self) -> bool {
+        if self.cold_start {
+            self.cold_start = false;
+            return true;
+        }
         let mut has_changed = false;
         while let Ok(event) = self.rx.try_recv() {
             match event {

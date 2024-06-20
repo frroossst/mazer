@@ -15,6 +15,9 @@ struct Args {
     /// Serve the file on a local server
     #[clap(short, long)]
     serve: bool,
+    /// Open the file in the default browser
+    #[clap(short, long)]
+    open: bool,
 }
 
 
@@ -43,8 +46,14 @@ async fn main() {
         let routes = index_route.or(serve_route).or(version_route);
 
         let port: u16 = 58050;
-        println!("Serving on http://127.0.0.1:{}", port);
+        let link = format!("http://127.0.0.1:{}", port);
+        println!("Serving on {}", link);
         println!("Press Ctrl+C to stop the server\n");
+
+        if args.open {
+            opener::open(link).expect("Failed to open the default browser");
+        }
+
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
@@ -69,17 +78,15 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
     let path = state.path();
     let title = state.title();
 
-    if !state.has_file_changed() {
-        // I want to return something so that if the client
-        // has data if doesn't go blank or change the data
-        // insert code
-        return Ok(
+    let has_changed = state.has_file_changed();
+    if !has_changed {
+        Ok(
             Box::new(
                 warp::reply::with_status(
                     "", 
                     warp::http::StatusCode::NOT_MODIFIED)
             )
-        );
+        )
     } else {
         let content = read_file(&path);
         let document = to_document(&title, content);
