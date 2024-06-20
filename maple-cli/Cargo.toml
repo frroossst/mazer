@@ -5,13 +5,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-crypto-hash = "0.3.4"
 maple-core = { path = "../maple-core" }
 notify = "6.1.1"
-
 tokio = { version = "1.38.0", features = ["full"] }
 warp = "0.3.7"
-warp-sessions = "1.0.19"
 
 [[bin]]
 name = "maple"
