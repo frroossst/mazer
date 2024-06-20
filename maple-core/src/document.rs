@@ -1,72 +1,33 @@
-use crate::tokenizer::MarkdownTag;
+use crate::tokenizer::{Emphasis, LinkKind, MarkdownTag};
 
 
 #[derive(Debug)]
 pub struct Document {
-    top: String,
+    title: String,
     body: Vec<String>,
-    btm: String,
-    let_idx: Vec<usize>,
 }
 
 impl Document {
     pub fn new(title: &str) -> Self {
-
-        let html = format!("<!DOCTYPE html>\n<html lang=\"en-US\">\n");
-        let meta = r#"
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            "#;
-        let style = r#"
-        <style>
-            blockquote {
-                background-color: #0d1117;
-                border-left: 4px solid #58a6ff;
-                color: #c9d1d9;
-                margin: 20px 0;
-                padding: 10px 20px;
-                position: relative;
-            }
-
-            blockquote p {
-                margin: 0;
-                color: #8b949e;
-                }
-            img {
-                width: 600px;
-                height: 400px;
-            }
-            /* GitHub Style Dark Mode CSS */
-
-            body {
-                background-color: #0d1117;
-                color: #c9d1d9;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
-                margin: 0;
-                padding: 0;
-            }
-
-        </style>
-        "#;
-        let title = format!("<head>\n<title>{}</title>\n</head><body>", title);
-
-        let end = format!("</body></html>");
-
         Document {
-            top: html + &meta +&style + &title,
+            title: format!("<title> Maple - {} </title>", title),
             body: Vec::new(),
-            btm: end,
-            let_idx: Vec::new(),
         }
 
     }
 
     pub fn output(&self) -> String {
         let mut body = String::new();
+        body.push_str(&self.title);
+
+        // write bpdy vector to output.log
+        std::fs::write("output.log", format!("{:#?}", self.body)).unwrap();
+
         for content in self.body.clone() {
             body.push_str(&content);
         }
-        self.top.clone() + &body + &self.btm
+
+        return body;
     }
 
     // appends to the body tag
@@ -86,7 +47,67 @@ impl Document {
         self.body.push(format!("<{}>{}</{}>", tag, content, tag));
     }
 
-    pub fn append_newlne(&mut self) {
+    pub fn append_newline(&mut self) {
         self.body.push(String::from("<br>\n"));
+    }
+
+    pub fn append_code(&mut self, content: &str) {
+        self.append_wrapped("code", &content);
+    }
+
+    pub fn append_text(&mut self, emphasis: Option<Emphasis>, content: &str) {
+        if emphasis.is_none() {
+            self.append(content.to_string());
+        } else {
+            match emphasis.unwrap() {
+                Emphasis::Bold => {
+                    self.append_wrapped("b", content);
+                },
+                Emphasis::Italic => {
+                    self.append_wrapped("i", content);
+                },
+                Emphasis::Strikethrough => {
+                    self.append_wrapped("s", content);
+                },
+            }
+        }
+    }
+
+    pub fn add_markdown(&mut self, markdown: MarkdownTag) {
+        match markdown {
+            MarkdownTag::Header(level, content ) => {
+                let header_count: usize = level.into();
+                self.append_wrapped(&format!("h{}", header_count), &content);
+            },
+            MarkdownTag::LineSeparator => {
+                self.append_void("hr");
+            }, 
+            MarkdownTag::Checkbox(state, content) => {
+                let checked = if state { "checked" } else { "" };
+                self.append_wrapped_with_attr("input", &format!("type=\"checkbox\" disabled {}", checked), &content);
+                self.append_newline();
+            },
+            MarkdownTag::BulletPoint(content) => {
+                self.append_wrapped("li", &content);
+            },
+            MarkdownTag::Blockquote(content) => {
+                self.append_wrapped("blockquote", &content);
+            },
+            MarkdownTag::CodeBlock(content) => {
+                let content = content.replace("\n", "<br>");
+                self.append_wrapped("pre", &content);
+            },
+            MarkdownTag::Link(kind, display, link) => {
+                match kind {
+                    LinkKind::Image => {
+                        self.append_newline();
+                        self.append_wrapped_with_attr("img", &format!("src=\"{}\" alt=\"{}\"", link, display), "");
+                    },
+                    LinkKind::Hyperlink => {
+                        self.append_wrapped_with_attr("a", &format!("href=\"{}\" target=\"_blank\" ", link), &display);
+                    }
+                }
+            }
+        }
     }
 }

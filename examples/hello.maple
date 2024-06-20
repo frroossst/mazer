@@ -54,7 +54,7 @@ fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
 
 # This is where the maple 🍁 magic ✨ begins! 
 
-fmt(icap() + jcap() + kcap()) is the sam;e as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
+fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
 
 fmt(icap())     // prints the math
 fmt(icap)       // prints the defined value of icap

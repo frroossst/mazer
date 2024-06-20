@@ -24,6 +24,17 @@ pub enum HeaderKind {
     H3
 }
 
+impl Into<usize> for HeaderKind {
+    fn into(self) -> usize {
+        match self {
+            HeaderKind::H1 => 1,
+            HeaderKind::H2 => 2,
+            HeaderKind::H3 => 3,
+        }
+    }
+
+}
+
 impl From<usize> for HeaderKind {
     fn from(val: usize) -> Self {
         match val {
@@ -50,6 +61,15 @@ pub enum Token {
 pub enum FnKind {
     Fmt,
     Eval,
+}
+
+impl Into<String> for FnKind {
+    fn into(self) -> String {
+        match self {
+            FnKind::Fmt => "fmt".to_string(),
+            FnKind::Eval => "eval".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -147,8 +167,6 @@ impl Tokenizer {
     // helper for consuming nested parenthesis
     fn consume_nested_parenthesis(&mut self) -> String {
         let mut store = String::from(self.char().to_string());
-        dbg!(store.clone());
-
         let mut stack: Vec<()> = Vec::new();
         stack.push(());
 
@@ -223,9 +241,11 @@ impl Tokenizer {
             // [ERROR] 
             // TODO: check if variable name is valid
             self.must_consume('=');
-            self.consume_whitespace();
+            // self.consume_whitespace();
 
-            let val = self.consume_till(';').trim().to_string();
+            let mut val = self.consume_till(';').trim().to_string();
+            self.must_consume(';');
+            val.push_str(";");
 
             return Some(Token::LetExpr(var, val));
         // fmt calls
@@ -239,6 +259,8 @@ impl Tokenizer {
             // consume until the stack is empty
             let fmt = self.consume_nested_parenthesis().trim().to_string();
 
+            self.must_consume(')');
+
             return Some(Token::Fn(FnKind::Fmt, fmt));
         // eval calls
         } else if curr_tok == 'e' && self.peek() == 'v' && self.peek_n(2) == 'a' && self.peek_n(3) == 'l' {
@@ -249,6 +271,7 @@ impl Tokenizer {
 
             self.must_consume('(');
             let eval = self.consume_nested_parenthesis().trim().to_string();
+
             self.must_consume(')');
 
             return Some(Token::Fn(FnKind::Eval, eval));

@@ -3,7 +3,7 @@ use std::{convert::Infallible, sync::{Arc, Mutex}};
 use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 
 use crypto_hash::{Algorithm, hex_digest};
-use warp::{reject::{Reject, Rejection}, reply::Reply, Filter};
+use warp::{reject::Rejection, reply::Reply, Filter};
 
 
 #[derive(clap::Parser)]
@@ -84,8 +84,6 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
 
-    dbg!("hit");
-
     // check if a hash exists
     let mut state = state.lock().expect("Failed to lock state");
     let hash = state.hash();
@@ -112,7 +110,9 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
 
     let document = to_document2(&title, new_content);
     let out = document.output();
-    let out = "hello world!";
+
+    // write to output.html
+    std::fs::write("output.html", &out).expect("Failed to write to output.html");
 
     Ok(
         Box::new(
@@ -145,13 +145,39 @@ fn to_document2(file_title: &str, content: String) -> Document {
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
     while let Some(line) = t.next_line() {
-        dbg!(&line);
         tokens.extend(line);
     }
 
     let tokens = Tokenizer::compact(tokens);
-
     let mut document: Document = Document::new(file_title);
+
+    for t in tokens { 
+        match t {
+            Token::LetExpr(var, val) => {
+                document.append_code(&format!("let {} = {}", var, val));
+                document.append_newline();
+            },
+            Token::Fn(kind, expr) => {
+                let kind_str: String = kind.into();
+                document.append_wrapped_with_attr("pre", "class=inline-code", &format!("{}({})", kind_str, expr));
+            },
+            Token::Literal(lit) => {
+                document.append_text( None, &lit);
+            },
+            Token::Text(emp, txt) => {
+                document.append_text(emp, &txt);
+            },
+            Token::Comment(_) => {
+                // do nothing
+            },
+            Token::Markdown(tag) => {
+                document.add_markdown(tag);
+            },
+            Token::Newline => {
+                document.append_newline();
+            },
+        }
+    }
 
     document
 }
