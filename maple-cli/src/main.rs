@@ -1,7 +1,9 @@
-use std::{convert::Infallible, io::Write};
+use std::{convert::Infallible, sync::{Arc, Mutex}};
 
 use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
-use warp::Filter;
+
+use crypto_hash::{Algorithm, hex_digest};
+use warp::{reject::{Reject, Rejection}, reply::Reply, Filter};
 
 
 #[derive(clap::Parser)]
@@ -15,26 +17,52 @@ struct Args {
     serve: bool,
 }
 
+struct State {
+    path: String,
+    title: String,
+    hash: Option<String>,
+}
 
+impl State {
+    fn new(path: String, title: String, hash: Option<String>) -> Self {
+        Self { path, title, hash }
+    }
+
+    fn title(&self) -> String {
+        self.title.clone()
+    }
+
+    fn path(&self) -> String {
+        self.path.clone()
+    }
+
+    fn hash(&self) -> Option<String> {
+        self.hash.clone()
+    }
+
+    fn set_hash(&mut self, hash: String) {
+        self.hash = Some(hash);
+    }
+}
 
 #[tokio::main]
 async fn main() {
 
     let args = <Args as clap::Parser>::parse();
 
-    let file = std::fs::File::open(args.file.clone()).unwrap();
-    let mut reader = std::io::BufReader::new(file);
-    let mut content = String::new();
-    std::io::Read::read_to_string(&mut reader, &mut content).unwrap();
 
     // get name of the file from the path to act as the title of HTML page
     let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
 
+    let state = State::new(args.file.clone(), file_name_title.to_string(), None);
+    let state = Arc::new(Mutex::new(state));
+
     if args.serve {
-        let index_route = warp::path::end().and(warp::fs::file("output.html"));
+        let index_route = warp::path::end().and(warp::fs::file("maple-cli/index.html"));
         let serve_route = warp::path("serve")
                                 .and(warp::get())
-                                .and_then(serve_route);
+                                .and_then(move || serve_route(state.clone()));
+
         let version_route = warp::path("version")
                                 .and(warp::get())
                                 .and_then(version_route);
@@ -42,19 +70,10 @@ async fn main() {
         let routes = index_route.or(serve_route).or(version_route);
 
         let port: u16 = 58050;
-
         println!("Serving on http://127.0.0.1:{}", port);
         println!("Press Ctrl+C to stop the server\n");
-
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
-
-    let document = to_document2(file_name_title, content);
-    let out = document.output();
-
-    // write document output to output.html 
-    let mut file = std::fs::File::create("output.html").unwrap();
-    write!(&mut file, "{}", out).unwrap();
 }
 
 async fn version_route() -> Result<impl warp::Reply, Infallible> {
@@ -63,9 +82,62 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
     Ok(warp::reply::html(version))
 }
 
-async fn serve_route() -> Result<impl warp::Reply, Infallible> {
-    Ok(warp::reply::html("Hello, World!"))
+async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
+
+    dbg!("hit");
+
+    // check if a hash exists
+    let mut state = state.lock().expect("Failed to lock state");
+    let hash = state.hash();
+
+    let path = state.path();
+    let title = state.title();
+
+    let file_read = read_file(&path, hash);
+    if file_read.is_none() {
+        // I want to return something so that if the client
+        // has data if doesn't go blank or change the data
+        // insert code
+        return Ok(
+            Box::new(
+                warp::reply::with_status(
+                    "", 
+                    warp::http::StatusCode::NOT_MODIFIED)
+            )
+        );
+    }
+
+    let (new_content, new_hash) = file_read.unwrap();
+    state.set_hash(new_hash);
+
+    let document = to_document2(&title, new_content);
+    let out = document.output();
+    let out = "hello world!";
+
+    Ok(
+        Box::new(
+            warp::reply::html(out)
+        )
+    )
 }
+
+/// Read a file and return its content and hash
+/// Only returns the content if the hash has changed
+fn read_file(file_path: &str, hash: Option<String>) -> Option<(String, String)> {
+    let fobj = std::fs::File::open(file_path).expect("Failed to open file");
+    let mut reader = std::io::BufReader::new(fobj);
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut reader, &mut content).unwrap();
+
+    let new_hash = hex_digest(Algorithm::SHA256, content.as_bytes());
+
+    if hash.is_some() && hash.unwrap() == new_hash {
+        None
+    } else {
+        Some((content, new_hash))
+    }
+}
+
 
 fn to_document2(file_title: &str, content: String) -> Document {
     let debug_info = DebugContext::new(file_title);
@@ -78,16 +150,6 @@ fn to_document2(file_title: &str, content: String) -> Document {
     }
 
     let tokens = Tokenizer::compact(tokens);
-
-    // the vector might have repeated Text tokens that need to be merged
-    // into one. 
-    // Vec[Token::Text('a'), Token::Text('b'), Token::Text('c'), Token::Text('d')]
-    // should be translated to
-    // Vec[Token::Text('abcd')]
-    // Token::Text(Option<Emphasis>, Sting), only text pieces with None emphasis should combine
-
-
-    dbg!(tokens.len());
 
     let mut document: Document = Document::new(file_title);
 

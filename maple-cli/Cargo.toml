@@ -1,14 +1,16 @@
 [package]
 name = "maple-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+crypto-hash = "0.3.4"
 maple-core = { path = "../maple-core" }
 
 tokio = { version = "1.38.0", features = ["full"] }
 warp = "0.3.7"
+warp-sessions = "1.0.19"
 
 [[bin]]
 name = "maple"

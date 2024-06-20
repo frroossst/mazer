@@ -5,7 +5,7 @@ members = [
     "maple-core",
     "maple-cli",
     "maple-macros",
-    "maple-data-structures", "maple-serve",
+    "maple-data-structures", 
 ]
 default-members = ["maple-cli"]
 
