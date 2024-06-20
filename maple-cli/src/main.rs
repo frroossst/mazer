@@ -1,9 +1,9 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
 use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
+use maple_cli::state::State;
 
-use crypto_hash::{Algorithm, hex_digest};
-use warp::{filters::fs::file, reject::Rejection, reply::Reply, Filter};
+use warp::{reject::Rejection, reply::Reply, Filter};
 
 
 #[derive(clap::Parser)]
@@ -17,44 +17,17 @@ struct Args {
     serve: bool,
 }
 
-struct State {
-    path: String,
-    title: String,
-    hash: Option<String>,
-}
 
-impl State {
-    fn new(path: String, title: String, hash: Option<String>) -> Self {
-        Self { path, title, hash }
-    }
-
-    fn title(&self) -> String {
-        self.title.clone()
-    }
-
-    fn path(&self) -> String {
-        self.path.clone()
-    }
-
-    fn hash(&self) -> Option<String> {
-        self.hash.clone()
-    }
-
-    fn set_hash(&mut self, hash: String) {
-        self.hash = Some(hash);
-    }
-}
 
 #[tokio::main]
 async fn main() {
 
     let args = <Args as clap::Parser>::parse();
 
-
     // get name of the file from the path to act as the title of HTML page
     let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
 
-    let state = State::new(args.file.clone(), file_name_title.to_string(), None);
+    let state = State::new(args.file.clone(), file_name_title.to_string());
     let state = Arc::new(Mutex::new(state));
 
     if args.serve {
@@ -75,7 +48,7 @@ async fn main() {
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
-    let (content, _) = read_file(&args.file, None).expect("Failed to read file");
+    let content = read_file(&args.file);
     let doc= to_document(file_name_title, content);
     let out = doc.output();
     // create and write to file
@@ -92,13 +65,11 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
     // check if a hash exists
     let mut state = state.lock().expect("Failed to lock state");
-    let hash = state.hash();
 
     let path = state.path();
     let title = state.title();
 
-    let file_read = read_file(&path, hash);
-    if file_read.is_none() {
+    if !state.has_file_changed() {
         // I want to return something so that if the client
         // has data if doesn't go blank or change the data
         // insert code
@@ -109,36 +80,29 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
                     warp::http::StatusCode::NOT_MODIFIED)
             )
         );
+    } else {
+        let content = read_file(&path);
+        let document = to_document(&title, content);
+        let out = document.output();
+
+        Ok(
+            Box::new(
+                warp::reply::html(out)
+            )
+        )
     }
 
-    let (new_content, new_hash) = file_read.unwrap();
-    state.set_hash(new_hash);
 
-    let document = to_document(&title, new_content);
-    let out = document.output();
-
-    Ok(
-        Box::new(
-            warp::reply::html(out)
-        )
-    )
 }
 
-/// Read a file and return its content and hash
-/// Only returns the content if the hash has changed
-fn read_file(file_path: &str, hash: Option<String>) -> Option<(String, String)> {
+/// Read a file and return its content 
+fn read_file(file_path: &str) -> String {
     let fobj = std::fs::File::open(file_path).expect("Failed to open file");
     let mut reader = std::io::BufReader::new(fobj);
     let mut content = String::new();
     std::io::Read::read_to_string(&mut reader, &mut content).unwrap();
 
-    let new_hash = hex_digest(Algorithm::SHA256, content.as_bytes());
-
-    if hash.is_some() && hash.unwrap() == new_hash {
-        None
-    } else {
-        Some((content, new_hash))
-    }
+    content
 }
 
 
