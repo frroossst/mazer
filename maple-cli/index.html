@@ -182,11 +182,9 @@
         // listen to hx:beforeSwap event and if new conent is empty
         // or returns NOT_MODIFIED, then do not update with the new
         // content and keep the old content
-        document.addEventListener('hx:beforeSwap', function (event) {
-            console.log("before swap");
-            console.warn(event.detail.xhr.response);
-            console.warn(event.detail.xhr.status);
-            if (event.detail.xhr.response === '' || event.detail.xhr.status === 304) {
+        let mapleContainer = document.getElementById('maple-container');
+        mapleContainer.addEventListener('htmx:beforeSwap', function(event) {
+            if (event.detail.xhr.statusCode === 304 || event.detail.xhr.responseText === '') {
                 event.preventDefault();
             }
         });
