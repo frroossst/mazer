@@ -24,20 +24,20 @@
             color: #c9d1d9;
         }
 
-        blockquote {
-            background-color: #0d1117;
-            border-left: 4px solid #58a6ff;
-            color: #c9d1d9;
-            margin: 20px 0;
+        body.dark-mode blockquote {
             padding: 10px 20px;
-            position: relative;
+            margin: 20px 0;
+            border-left: 3px solid #8b949e;
+            background-color: #161b22;
+            color: #c9d1d9;
         }
 
-        code {
-            background-color: #0d1117; /* Same as blockquote background color */
-            color: #c9d1d9; /* Same as blockquote text color */
-            padding: 10px 20px; /* Same as blockquote padding */
-            overflow-x: auto; /* Add a horizontal scrollbar if needed */
+        code.dark-mode {
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            padding: 10px 20px;
+            overflow-x: auto;
+            border-radius: 15px;
         }
 
         .inline-code {
@@ -47,11 +47,6 @@
             display: inline;
             border-radius: 3px;
             padding: 2px 4px;
-        }
-
-        blockquote p {
-            margin: 0;
-            color: #8b949e;
         }
 
         img {
@@ -69,25 +64,23 @@
             color: #333; 
         }
 
+        body.light-mode blockquote {
+            padding: 10px 20px;
+            margin: 20px 0;
+            border-left: 3px solid #444d56;
+            background-color: #f6f8fa;
+            color: #24292e;
+        }
+
         body.light-mode code {
-            background-color: #f9f9f9; /* Same as light-mode blockquote background color */
-            color: #333; /* Same as light-mode text color */
+            background-color: #f9f9f9;
+            color: #333;
         }
 
         body.light-mode .inline-code {
             background-color: #f9f9f9;
             color: #333;
             display: inline;
-        }
-        
-        blockquote.light-mode {
-            background-color: #f9f9f9;
-            border-left: 4px solid #ccc;
-            color: #333;
-        }
-
-        blockquote.light-mode p {
-            color: #666;
         }
 
         /* Toggle switch styles */
@@ -182,21 +175,26 @@
         hx-get="/serve" 
         hx-trigger="load, every 5s"
         hx-swap="innerHTML oob:maple-container scroll:keep"
+    >
     </div>
 
     <script>
+        // listen to hx:beforeSwap event and if new conent is empty
+        // or returns NOT_MODIFIED, then do not update with the new
+        // content and keep the old content
+        document.addEventListener('hx:beforeSwap', function (event) {
+            console.log("before swap");
+            console.warn(event.detail.xhr.response);
+            console.warn(event.detail.xhr.status);
+            if (event.detail.xhr.response === '' || event.detail.xhr.status === 304) {
+                event.preventDefault();
+            }
+        });
+
         function toggleTheme() {
             const body = document.body;
             body.classList.toggle('dark-mode');
             body.classList.toggle('light-mode');
-            updateBlockquoteTheme();
-        }
-
-        function updateBlockquoteTheme() {
-            const blockquotes = document.querySelectorAll('blockquote');
-            blockquotes.forEach(blockquote => {
-                blockquote.classList.toggle('light-mode', document.body.classList.contains('light-mode'));
-            });
         }
 
         // Automatically set the toggle switch based on current theme

@@ -90,7 +90,6 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 }
 
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
-
     // check if a hash exists
     let mut state = state.lock().expect("Failed to lock state");
     let hash = state.hash();
