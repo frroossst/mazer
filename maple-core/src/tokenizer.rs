@@ -1,4 +1,4 @@
-use crate::pretty_err::{DebugContext, PrettyErrContext, PrettyErrKind};
+use crate::pretty_err::DebugContext;
 
 #[derive(Debug, Clone)]
 pub enum MarkdownTag {
@@ -83,6 +83,7 @@ pub enum Emphasis {
 pub struct Tokenizer {
     src: String,
     pos: usize,
+    line: usize,
     max: usize,
     ctx: DebugContext,
 }
@@ -94,6 +95,7 @@ impl Tokenizer {
         Tokenizer {
             src,
             pos: 0,
+            line: 0,
             max,
             ctx,
         }
@@ -128,12 +130,7 @@ impl Tokenizer {
         // [ERROR]
         if curr != c {
             // ! how to handle errors
-            self.ctx.push_new_error(PrettyErrContext::new(
-                PrettyErrKind::ExpectedButNotFound,
-                (self.pos, self.pos + 1),
-                vec![c.to_string(), curr.to_string()]
-            ));
-            self.panic(&format!("Expected '{}' but found '{}'", c, curr));
+            // output an ariadne error
         }
         self.advance_char();
     }
@@ -209,6 +206,8 @@ impl Tokenizer {
         if tokens.is_empty() {
             return Some(vec![Token::Newline]);
         }
+
+        self.line += 1;
 
         Some(tokens)
     }
