@@ -85,7 +85,15 @@ impl Document {
             }, 
             MarkdownTag::Checkbox(state, content) => {
                 let checked = if state { "checked" } else { "" };
-                self.append_wrapped_with_attr("input", &format!("type=\"checkbox\" disabled {}", checked), &content);
+
+                self.append_wrapped_with_attr("input", &format!("type=\"checkbox\" disabled {}", checked), "");
+
+                if state {
+                    self.append_text(Some(Emphasis::Strikethrough), &content);
+                } else {
+                    self.append_text(None, &content);
+                }
+
                 self.append_newline();
             },
             MarkdownTag::BulletPoint(content) => {
