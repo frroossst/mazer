@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
+use maple_core::{document::Document, parser::Parser, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 use maple_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
@@ -123,17 +123,29 @@ fn to_document(file_title: &str, content: String) -> Document {
     }
 
     let tokens = Tokenizer::compact(tokens);
+
+    dbg!(&tokens);
+
+    // handle for the document that outputs HTML
     let mut document: Document = Document::new(file_title);
+
+    // a collection of all the code that gets fed to the compiler
+    let mut parsable: Vec<Token> = Vec::new();
 
     for t in tokens { 
         match t {
             Token::LetExpr(var, val) => {
-                document.append_code(&format!("{} = {}", var, val));
+                document.append_code(&format!("{} = {}", &var, &val));
                 document.append_newline();
+
+                // skips let + one whitespace
+                parsable.push(Token::LetExpr(var, val));
             },
             Token::Fn(kind, expr) => {
-                let kind_str: String = kind.into();
-                document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, expr));
+                let kind_str: String = kind.clone().into();
+                document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
+
+                parsable.push(Token::Fn(kind, expr));
             },
             Token::Literal(lit) => {
                 document.append_text( None, &lit);
@@ -152,6 +164,17 @@ fn to_document(file_title: &str, content: String) -> Document {
             },
         }
     }
+
+    // call language parser
+    // let mut parser = Parser::new(parsable);
+    // parser.parse();
+
+    // type checking and syntax errors
+    // compile the language to bytecode?
+
+    // get doc replacements
+    // let replacements = parser.get_replacements();
+    // document.replace(Vec<(orig, new)>);
 
     document
 }

@@ -1,4 +1,5 @@
 pub mod tokenizer;
+pub mod parser;
 pub mod pretty_err;
 pub mod document;
 pub mod inbuilt;

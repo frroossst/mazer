@@ -11,6 +11,7 @@ maple-core = { path = "../maple-core" }
 notify = "6.1.1"
 opener = "0.7.1"
 tokio = { version = "1.38.0", features = ["full"] }
+unicode-segmentation = "1.11.0"
 warp = "0.3.7"
 
 [[bin]]
