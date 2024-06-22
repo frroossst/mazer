@@ -123,26 +123,10 @@ impl Tokenizer {
             }
         });
 
-        // get the line where the error is and then get the line
-        // get the position and then go back on the iterator to find a newline
-        // and go forward to find the a newline and extract an error line
-        let mut start = 0;
-        let mut end = 0;
-        let mut line = 0;
-        for (i, x) in self.src.iter().enumerate() {
-            if x == "\n" {
-                if line == err_pos {
-                    end = i;
-                    break;
-                }
-                start = i;
-                line += 1;
-            }
-        }
+        let src = self.src.join("");
+        let src = src.split("\n").collect::<Vec<&str>>();
 
-        let err_line = self.src[start..end].join("");
-        dbg!(&err_line);
-
+        let err_line = src[self.line - 1].to_string();
         self.ctx.set_source_code(err_line);
         self.ctx.set_position(self.line, err_pos);
         self.ctx.set_error(err);
