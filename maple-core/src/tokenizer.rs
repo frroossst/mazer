@@ -1,8 +1,6 @@
-use std::fmt::format;
+use unicode_segmentation::UnicodeSegmentation;
 
-use unicode_segmentation::{Graphemes, UnicodeSegmentation};
-
-use crate::pretty_err::DebugContext;
+use crate::pretty_err::{DebugContext, ErrorKind};
 
 
 #[derive(Debug, Clone)]
@@ -113,11 +111,49 @@ impl Tokenizer {
         }
     }
 
-    fn panic(&self, msg: &str) -> ! {
-        self.ctx.panic(msg);
+    fn panic(&mut self, err: ErrorKind) -> ! {
+        // need to calculate what character the error is at
+        // go through all the tokens, count \n and then calculate
+        // the position of the error
+        let err_pos = self.src.iter().take(self.pos).fold(0, |acc, x| {
+            if x == "\n" {
+                acc + 1
+            } else {
+                acc
+            }
+        });
+
+        // get the line where the error is and then get the line
+        // get the position and then go back on the iterator to find a newline
+        // and go forward to find the a newline and extract an error line
+        let mut start = 0;
+        let mut end = 0;
+        let mut line = 0;
+        for (i, x) in self.src.iter().enumerate() {
+            if x == "\n" {
+                if line == err_pos {
+                    end = i;
+                    break;
+                }
+                start = i;
+                line += 1;
+            }
+        }
+
+        let err_line = self.src[start..end].join("");
+        dbg!(&err_line);
+
+        self.ctx.set_source_code(err_line);
+        self.ctx.set_position(self.line, err_pos);
+        self.ctx.set_error(err);
+        self.ctx.panic();
     }
 
     fn char(&mut self) -> String {
+        if self.pos >= self.max {
+            // [ERROR]
+            self.panic(ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos)));
+        }
         self.src[self.pos].clone()
     }
 
@@ -141,9 +177,7 @@ impl Tokenizer {
         let curr = self.char();
         // [ERROR]
         if curr != c {
-            // ! how to handle errors
-            // output an ariadne error
-            self.panic(&format!("Expected '{}' but found '{}'", c, curr));
+            self.panic(ErrorKind::BrokenExpectations(format!("Expected '{}' but found '{}'", c, curr)));
         }
         self.advance_char();
     }
@@ -197,18 +231,16 @@ impl Tokenizer {
             }
         }
 
-        match store.pop() {
-            Some(')') => {},
-            _ => {
-                // [ERROR]
-                self.panic("Unbalanced parenthesis");
-            }
+        if stack.len() != 0 {
+            // [ERROR]
+            self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
         }
 
         return store;
     }
 
     pub fn next_line(&mut self) -> Option<Vec<Token>> {
+        self.line += 1;
         if self.pos >= self.max {
             return None;
         }
@@ -222,8 +254,6 @@ impl Tokenizer {
         if tokens.is_empty() {
             return Some(vec![Token::Newline]);
         }
-
-        self.line += 1;
 
         Some(tokens)
     }
@@ -258,14 +288,14 @@ impl Tokenizer {
 
             if self.char() != " " {
                 // [ERROR]
-                self.panic("Let statement should be followed by a space");
+                self.panic(ErrorKind::GrammarGoblin("Let statement should be followed by a space".to_string()));
             }
 
             let var = self.consume_till("=").trim().to_string();
             // [ERROR] 
             // TODO: check if variable name is valid
             if var.is_empty() {
-                self.panic("Variable name cannot be empty");
+                self.panic(ErrorKind::NamelessNomad("Variable name cannot be empty".to_string()));
             }
 
             self.must_consume("=");
@@ -308,7 +338,8 @@ impl Tokenizer {
             let hash_count = self.consume_until_not("#").len();
 
             let heading = self.consume_line();
-            dbg!(&heading);
+            let heading = heading.trim();
+
             let header_kind: HeaderKind = hash_count.into();
 
             return Some(
@@ -361,14 +392,8 @@ impl Tokenizer {
 
             self.consume_until_not("=");
             if self.consume_line().trim().len() > 0 {
-                self.panic(&format!("Line separator should contain only '=' characters"));
+                self.panic(ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string()));
             }
-
-            // should contain only line separator
-            // [ERROR]
-            // if self.consume_line().trim().len() > 0 {
-            //     self.panic();
-            // }
 
             return Some(
                 Token::Markdown(

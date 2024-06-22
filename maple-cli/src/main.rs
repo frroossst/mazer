@@ -58,7 +58,8 @@ async fn main() {
     }
 
     let content = read_file(&args.file);
-    let doc= to_document(file_name_title, content);
+    let debug_info = DebugContext::new(&args.file);
+    let doc= to_document(file_name_title, content, debug_info);
     let out = doc.output();
     // create and write to file
     let mut file = std::fs::File::create(format!("{}.html", file_name_title)).expect("Failed to create file");
@@ -89,7 +90,8 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
         )
     } else {
         let content = read_file(&path);
-        let document = to_document(&title, content);
+        let debug_info = DebugContext::new(&path);
+        let document = to_document(&title, content, debug_info);
         let out = document.output();
 
         Ok(
@@ -113,8 +115,7 @@ fn read_file(file_path: &str) -> String {
 }
 
 
-fn to_document(file_title: &str, content: String) -> Document {
-    let debug_info = DebugContext::new(file_title);
+fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> Document {
     let mut t: Tokenizer = Tokenizer::new(content, debug_info);
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
