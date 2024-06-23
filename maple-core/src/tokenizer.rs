@@ -197,16 +197,33 @@ impl Tokenizer {
 
     // helper for consuming nested parenthesis
     fn consume_nested_parenthesis(&mut self) -> String {
-        let mut store = String::from(self.char());
 
         // iterate over source from current position
         // keep adding when ( is encountered
         // and decreasing when ) is encountered
         // if underflow then less opening
         // if overflow or reaches end of file then 
+        let mut store = String::from(self.char());
+        let mut count = 1;
 
-            // [ERROR]
-            // self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
+        while count > 0 {
+            self.advance_char();
+            if self.pos >= self.max {
+                // [ERROR]
+                self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
+            }
+
+            let curr = self.char();
+            store.push_str(&curr);
+
+            if curr == "(" {
+                count += 1;
+            } else if curr == ")" {
+                count -= 1;
+            }
+        }
+
+        return store;
     }
 
     pub fn next_line(&mut self) -> Option<Vec<Token>> {
@@ -281,7 +298,7 @@ impl Tokenizer {
             self.advance_char();
             self.advance_char();
             self.advance_char();
-            self.must_consume("(");
+            // self.must_consume("(");
 
             let mut fmt = String::new();
             if self.char() != ")" {
@@ -289,8 +306,6 @@ impl Tokenizer {
                 // consume until the stack is empty
                 fmt = self.consume_nested_parenthesis().trim().to_string();
             }
-
-            self.must_consume(")");
 
             return Some(Token::Fn(FnKind::Fmt, fmt));
         // eval calls

@@ -1,6 +1,6 @@
 use colored::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DebugContext {
     file_path: String,
     err_kind: Option<ErrorKind>,
@@ -19,6 +19,10 @@ impl DebugContext {
             line: 0,
             column: 0,
         }
+    }
+
+    pub fn is_err(&self) -> bool {
+        self.err_kind.is_some()
     }
     
     pub fn set_source_code(&mut self, src: String) {
@@ -55,7 +59,7 @@ impl DebugContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorKind {
     BrokenExpectations(String),
     UnpleasantSurprise(String),

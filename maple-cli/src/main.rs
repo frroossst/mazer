@@ -173,7 +173,7 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> D
     }
 
     // call language parser
-    // let mut parser = Parser::new(parsable);
+    let mut _parser = Parser::new(parsable);
     // parser.parse();
 
     // type checking and syntax errors
