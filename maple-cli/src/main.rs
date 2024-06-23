@@ -18,6 +18,9 @@ struct Args {
     /// Open the file in the default browser
     #[clap(short, long)]
     open: bool,
+    /// Dry-run, does not create html file as output
+    #[clap(short, long)]
+    dry_run: bool,
 }
 
 
@@ -61,9 +64,12 @@ async fn main() {
     let debug_info = DebugContext::new(&args.file);
     let doc= to_document(file_name_title, content, debug_info);
     let out = doc.output();
-    // create and write to file
-    let mut file = std::fs::File::create(format!("{}.html", file_name_title)).expect("Failed to create file");
-    std::io::Write::write_all(&mut file, out.as_bytes()).expect("Failed to write to file");
+    
+    if !args.dry_run {
+        // create and write to file
+        let mut file = std::fs::File::create(format!("{}.html", file_name_title)).expect("Failed to create file");
+        std::io::Write::write_all(&mut file, out.as_bytes()).expect("Failed to write to file");
+    }
 }
 
 async fn version_route() -> Result<impl warp::Reply, Infallible> {

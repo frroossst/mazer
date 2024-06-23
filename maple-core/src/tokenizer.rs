@@ -198,29 +198,15 @@ impl Tokenizer {
     // helper for consuming nested parenthesis
     fn consume_nested_parenthesis(&mut self) -> String {
         let mut store = String::from(self.char());
-        let mut stack: Vec<()> = Vec::new();
-        stack.push(());
 
-        while !stack.is_empty() {
-            self.advance_char();
-            let curr = self.char();
-            if curr == "(" {
-                stack.push(());
-                store.push_str(&curr);
-            } else if curr == ")" {
-                stack.pop();
-                store.push_str(&curr);
-            } else {
-                store.push_str(&curr.to_string());
-            }
-        }
+        // iterate over source from current position
+        // keep adding when ( is encountered
+        // and decreasing when ) is encountered
+        // if underflow then less opening
+        // if overflow or reaches end of file then 
 
-        if stack.len() != 0 {
             // [ERROR]
-            self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
-        }
-
-        return store;
+            // self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
     }
 
     pub fn next_line(&mut self) -> Option<Vec<Token>> {
@@ -297,9 +283,12 @@ impl Tokenizer {
             self.advance_char();
             self.must_consume("(");
 
-            // the body expression may have parenthesis in it, so need to maintain a stack and 
-            // consume until the stack is empty
-            let fmt = self.consume_nested_parenthesis().trim().to_string();
+            let mut fmt = String::new();
+            if self.char() != ")" {
+                // the body expression may have parenthesis in it, so need to maintain a stack and 
+                // consume until the stack is empty
+                fmt = self.consume_nested_parenthesis().trim().to_string();
+            }
 
             self.must_consume(")");
 
@@ -312,7 +301,11 @@ impl Tokenizer {
             self.advance_char();
 
             self.must_consume("(");
-            let eval = self.consume_nested_parenthesis().trim().to_string();
+
+            let mut eval = String::new();
+            if self.char() != ")" {
+                eval = self.consume_nested_parenthesis().trim().to_string();
+            }
 
             self.must_consume(")");
 

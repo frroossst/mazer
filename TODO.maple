@@ -1,6 +1,7 @@
 # ToDo
 
 - [x] Tokenize the fmt() section better
+- [ ] Make mdbook style continous code changes while mistakes happen
 - [ ] Check unbalanced parenthesis in consume_nested_parenthesis
 - [ ] Catch and display errors on client
 - [ ] Run cargo clippy lint
