@@ -84,8 +84,6 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 }
 
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
-    // let mut state = state.lock().expect("Failed to lock state");
-
     let (path, title, has_changed) = {
         let mut state = state.lock().expect("Failed to lock state");
         (state.path().clone(), state.title().clone(), state.has_file_changed())
@@ -106,6 +104,8 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
         let (document, context) = to_document(&title, content, debug_info);
         if context.is_some() {
             context.unwrap().display();
+        } else {
+            println!("{}", format!("[INFO] No errors, {} ", "OK".green().bold()));
         }
         let out = document.output();
 
@@ -136,10 +136,6 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
 
     let mut ctx: Option<DebugContext> = None;
-    // while let Some(line) = t.next_line() {
-    //     tokens.extend(line);
-    // }
-    // tokens
     loop {
         match t.next_line() {
             Ok(Some(l)) => {

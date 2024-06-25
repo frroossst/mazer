@@ -31,11 +31,8 @@ impl State {
         }
         let mut has_changed = false;
         while let Ok(event) = self.rx.try_recv() {
-            match event {
-                Ok(Event { kind: notify::EventKind::Modify(_), .. }) => {
-                    has_changed = true;
-                },
-                _ => {},
+            if let Ok(Event { kind: notify::EventKind::Modify(_), .. }) = event {
+                has_changed = true;
             }
         }
         has_changed

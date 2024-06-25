@@ -29,15 +29,14 @@ pub enum HeaderKind {
     H3
 }
 
-impl Into<usize> for HeaderKind {
-    fn into(self) -> usize {
-        match self {
+impl From<HeaderKind> for usize {
+    fn from(value: HeaderKind) -> Self {
+        match value {
             HeaderKind::H1 => 1,
             HeaderKind::H2 => 2,
             HeaderKind::H3 => 3,
         }
     }
-
 }
 
 impl From<usize> for HeaderKind {
@@ -68,9 +67,9 @@ pub enum FnKind {
     Eval,
 }
 
-impl Into<String> for FnKind {
-    fn into(self) -> String {
-        match self {
+impl From<FnKind> for String {
+    fn from(value: FnKind) -> Self {
+        match value {
             FnKind::Fmt => "fmt".to_string(),
             FnKind::Eval => "eval".to_string(),
         }
@@ -149,7 +148,7 @@ impl Tokenizer {
             // [ERROR]
             let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
             self.create_error(e);
-            return Err(self.ctx.clone());
+            Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + 1].clone())
         }
@@ -161,7 +160,7 @@ impl Tokenizer {
             // [ERROR]
             let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
             self.create_error(e);
-            return Err(self.ctx.clone());
+            Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + n].clone())
         }
@@ -250,7 +249,7 @@ impl Tokenizer {
             }
         }
 
-        return Ok(store);
+        Ok(store)
     }
 
     pub fn next_line(&mut self) -> Result<Option<Vec<Token>>, DebugContext> {
@@ -285,7 +284,7 @@ impl Tokenizer {
             self.advance_char()?;
             let comment = self.consume_line()?;
             let comment = comment.trim();
-            return Ok(Some(Token::Comment(comment.to_string())));
+            Ok(Some(Token::Comment(comment.to_string())))
         // literals
         } else if curr_tok == "\"" {
             self.advance_char()?;
@@ -414,7 +413,7 @@ impl Tokenizer {
         } else if curr_tok == "=" {
 
             self.consume_until_not("=")?;
-            if self.consume_line()?.trim().len() > 0 {
+            if !self.consume_line()?.trim().is_empty() {
                 let e = ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string());
                 self.create_error(e);
                 return Err(self.ctx.clone());
@@ -528,5 +527,4 @@ impl Tokenizer {
 
         compacted
         }
-
 } 

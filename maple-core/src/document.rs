@@ -28,7 +28,7 @@ impl Document {
             body.push_str(&content);
         }
 
-        return body;
+        body
     }
 
     // appends to the body tag
