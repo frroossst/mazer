@@ -38,7 +38,7 @@ impl DebugContext {
         self.column = column;
     }
 
-    pub fn panic(&self) -> ! {
+    pub fn display(&self) {
         if let Some(err_kind) = &self.err_kind {
             eprintln!("{} {}", "[ERROR]".red().bold(), err_kind.error().red());
             eprintln!("{} {}:{}:{}", "  -->".blue().bold(), self.file_path, self.line, self.column);
@@ -50,12 +50,10 @@ impl DebugContext {
             eprintln!(" {}: {:?}", "help".bold(), err_kind.message());
             let maple_colour = Color::TrueColor { r: 236, g: 166, b: 124 };
             eprintln!("\n{} {}", "  Maple says".color(maple_colour), err_kind.name().bold().white());
-
         } else {
             eprintln!("{}", "Oh no! something went terribly wrong, but we don't know what!".red().italic());
             eprintln!("{}", "Please report this issue to the Maple project on GitHub.".red().italic());
         }
-        std::process::exit(1);
     }
 }
 

@@ -12,7 +12,7 @@ default-members = ["maple-cli"]
 resolver = "2"
 
 [profile.dev]
-debug = 0
+debug = "full"
 codegen-backend = "cranelift"
 
 [profile.release]

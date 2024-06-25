@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::pretty_err::{DebugContext, ErrorKind};
@@ -111,7 +113,7 @@ impl Tokenizer {
         }
     }
 
-    fn panic(&mut self, err: ErrorKind) -> ! {
+    fn create_error(&mut self, err: ErrorKind) {
         // need to calculate what character the error is at
         // go through all the tokens, count \n and then calculate
         // the position of the error
@@ -130,90 +132,115 @@ impl Tokenizer {
         self.ctx.set_source_code(err_line);
         self.ctx.set_position(self.line, err_pos);
         self.ctx.set_error(err);
-        self.ctx.panic();
     }
 
-    fn char(&mut self) -> String {
+    fn char(&mut self) -> Result<String, DebugContext> {
         if self.pos >= self.max {
             // [ERROR]
-            self.panic(ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos)));
+            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            self.create_error(e);
+            return Err(self.ctx.clone());
         }
-        self.src[self.pos].clone()
+        Ok(self.src[self.pos].clone())
     }
 
-    fn peek(&mut self) -> String {
-        self.src[self.pos + 1].clone()
+    fn peek(&mut self) -> Result<String, DebugContext> {
+        if self.pos >= self.max {
+            // [ERROR]
+            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            self.create_error(e);
+            return Err(self.ctx.clone());
+        } else {
+            Ok(self.src[self.pos + 1].clone())
+        }
     }
 
     // peeks the char after the next char
-    fn peek_n(&mut self, n: usize) -> String {
-        self.src[self.pos + n].clone()
+    fn peek_n(&mut self, n: usize) -> Result<String, DebugContext> {
+        if self.pos >= self.max {
+            // [ERROR]
+            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            self.create_error(e);
+            return Err(self.ctx.clone());
+        } else {
+            Ok(self.src[self.pos + n].clone())
+        }
     }
 
-    fn advance_char(&mut self) {
+    fn advance_char(&mut self)-> Result<(), DebugContext> {
         if self.pos >= self.max {
-            return;
+            let e = ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            self.create_error(e);
+            return Err(self.ctx.clone());
         }
         self.pos += 1;
+        Ok(())
     }
 
-    fn must_consume(&mut self, c: &str) {
-        let curr = self.char();
+    fn must_consume(&mut self, c: &str) -> Result<(), DebugContext> {
+        let curr = self.char()?;
         // [ERROR]
         if curr != c {
-            self.panic(ErrorKind::BrokenExpectations(format!("Expected '{}' but found '{}'", c, curr)));
+            let e = ErrorKind::BrokenExpectations(format!("Expected '{}' but found '{}'", c, curr));
+            self.create_error(e);
+            return Err(self.ctx.clone());
         }
-        self.advance_char();
+        self.advance_char()?;
+        Ok(())
     }
 
-    fn consume_whitespace(&mut self) {
+    fn consume_whitespace(&mut self) -> Result<(), DebugContext> {
         // keep moving forward if current string is made up of
         // whitespaces
-        while self.char().trim().is_empty() {
-            self.advance_char();
+        while self.char()?.trim().is_empty() {
+            self.advance_char()?;
         }
+
+        Ok(())
     }
 
-    fn consume_until_not(&mut self, c: &str) -> String {
+    fn consume_until_not(&mut self, c: &str) -> Result<String, DebugContext> {
         let start= self.pos;
-        while self.char() == c {
+        while self.char()? == c {
             self.pos += 1;
         }
 
-        self.src[start..self.pos].join("")
+        Ok(self.src[start..self.pos].join(""))
     }
 
-    fn consume_till(&mut self, c: &str) -> String {
+    fn consume_till(&mut self, c: &str) -> Result<String, DebugContext> {
         let start = self.pos;
-        while self.char() != c {
+        while self.char()? != c {
             self.pos += 1;
         }
-        self.src[start..self.pos].join("")
+        Ok(self.src[start..self.pos].join(""))
     }
 
-    fn consume_line(&mut self) -> String {
+    fn consume_line(&mut self) -> Result<String, DebugContext> {
         self.consume_till("\n")
     }
 
     // helper for consuming nested parenthesis
-    fn consume_nested_parenthesis(&mut self) -> String {
+    fn consume_nested_parenthesis(&mut self) -> Result<String, DebugContext> {
 
         // iterate over source from current position
         // keep adding when ( is encountered
         // and decreasing when ) is encountered
         // if underflow then less opening
         // if overflow or reaches end of file then 
-        let mut store = String::from(self.char());
+        let mut store = String::from(self.char()?);
         let mut count = 1;
 
         while count > 0 {
-            self.advance_char();
+            self.advance_char()?;
             if self.pos >= self.max {
                 // [ERROR]
-                self.panic(ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string()));
+                let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
+                self.create_error(e);
+                return Err(self.ctx.clone());
             }
 
-            let curr = self.char();
+            let curr = self.char()?;
             store.push_str(&curr);
 
             if curr == "(" {
@@ -223,248 +250,254 @@ impl Tokenizer {
             }
         }
 
-        return store;
+        return Ok(store);
     }
 
-    pub fn next_line(&mut self) -> Option<Vec<Token>> {
+    pub fn next_line(&mut self) -> Result<Option<Vec<Token>>, DebugContext> {
         self.line += 1;
         if self.pos >= self.max {
-            return None;
+            return Ok(None);
         }
 
         let mut tokens: Vec<Token> = Vec::new();
-        while let Some(tok) = self.next_token() {
+        while let Some(tok) = self.next_token()? {
             tokens.push(tok);
         }
-        self.advance_char();
+        self.advance_char()?;
 
         if tokens.is_empty() {
-            return Some(vec![Token::Newline]);
+            return Ok(Some(vec![Token::Newline]));
         }
 
-        Some(tokens)
+        Ok(Some(tokens))
     }
 
-    fn next_token(&mut self) -> Option<Token> {
-        if self.pos >= self.max || self.char() == "\n" {
-            return None;
+    fn next_token(&mut self) -> Result<Option<Token>, DebugContext> {
+        if self.pos >= self.max || self.char()? == "\n" {
+            return Ok(None);
         }
 
-        let curr_tok = self.char();
+        let curr_tok = self.char()?;
 
         // consume comments
-        if curr_tok == "/" && self.peek() == "/" {
-            self.advance_char();
-            self.advance_char();
-            let comment = self.consume_line();
+        if curr_tok == "/" && self.peek()? == "/" {
+            self.advance_char()?;
+            self.advance_char()?;
+            let comment = self.consume_line()?;
             let comment = comment.trim();
-            return Some(Token::Comment(comment.to_string()));
+            return Ok(Some(Token::Comment(comment.to_string())));
         // literals
         } else if curr_tok == "\"" {
-            self.advance_char();
-            let literal = self.consume_till("\"").to_string();
-            self.must_consume("\"");
+            self.advance_char()?;
+            let literal = self.consume_till("\"")?.to_string();
+            self.must_consume("\"")?;
 
-            return Some(Token::Literal(literal));
+            return Ok(Some(Token::Literal(literal)));
         // let statements
-        } else if curr_tok == "l" && self.peek() == "e" && self.peek_n(2) == "t" {
+        } else if curr_tok == "l" && self.peek()? == "e" && self.peek_n(2)? == "t" {
 
-            self.advance_char();
-            self.advance_char();
-            self.advance_char();
+            self.advance_char()?;
+            self.advance_char()?;
+            self.advance_char()?;
 
-            if self.char() != " " {
+            if self.char()? != " " {
                 // [ERROR]
-                self.panic(ErrorKind::GrammarGoblin("Let statement should be followed by a space".to_string()));
+                let e = ErrorKind::GrammarGoblin("Let statement should be followed by a space".to_string());
+                self.create_error(e);
+                return Err(self.ctx.clone());
             }
 
-            let var = self.consume_till("=").trim().to_string();
+            let var = self.consume_till("=")?.trim().to_string();
             // [ERROR] 
             // TODO: check if variable name is valid
             if var.is_empty() {
-                self.panic(ErrorKind::NamelessNomad("Variable name cannot be empty".to_string()));
+                let e = ErrorKind::NamelessNomad("Variable name cannot be empty".to_string());
+                self.create_error(e);
+                return Err(self.ctx.clone());
             }
 
-            self.must_consume("=");
+            self.must_consume("=")?;
             // self.consume_whitespace();
 
-            let mut val = self.consume_till(";").trim().to_string();
-            self.must_consume(";");
+            let mut val = self.consume_till(";")?.trim().to_string();
+            self.must_consume(";")?;
             val.push_str(";");
 
-            return Some(Token::LetExpr(var, val));
+            return Ok(Some(Token::LetExpr(var, val)));
         // fmt calls
-        } else if curr_tok == "f" && self.peek() == "m" && self.peek_n(2) == "t" {
-            self.advance_char();
-            self.advance_char();
-            self.advance_char();
+        } else if curr_tok == "f" && self.peek()? == "m" && self.peek_n(2)? == "t" {
+            self.advance_char()?;
+            self.advance_char()?;
+            self.advance_char()?;
             // self.must_consume("(");
 
             let mut fmt = String::new();
-            if self.char() != ")" {
+            if self.char()? != ")" {
                 // the body expression may have parenthesis in it, so need to maintain a stack and 
                 // consume until the stack is empty
-                fmt = self.consume_nested_parenthesis().trim().to_string();
+                fmt = self.consume_nested_parenthesis()?.trim().to_string();
             }
 
-            return Some(Token::Fn(FnKind::Fmt, fmt));
+            return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // eval calls
-        } else if curr_tok == "e" && self.peek() == "v" && self.peek_n(2) == "a" && self.peek_n(3) == "l" {
-            self.advance_char();
-            self.advance_char();
-            self.advance_char();
-            self.advance_char();
+        } else if curr_tok == "e" && self.peek()? == "v" && self.peek_n(2)? == "a" && self.peek_n(3)? == "l" {
+            self.advance_char()?;
+            self.advance_char()?;
+            self.advance_char()?;
+            self.advance_char()?;
 
-            self.must_consume("(");
+            self.must_consume("(")?;
 
             let mut eval = String::new();
-            if self.char() != ")" {
-                eval = self.consume_nested_parenthesis().trim().to_string();
+            if self.char()? != ")" {
+                eval = self.consume_nested_parenthesis()?.trim().to_string();
             }
 
-            self.must_consume(")");
+            self.must_consume(")")?;
 
-            return Some(Token::Fn(FnKind::Eval, eval));
+            return Ok(Some(Token::Fn(FnKind::Eval, eval)));
         // headers
         } else if curr_tok == "#" {
-            let hash_count = self.consume_until_not("#").len();
+            let hash_count = self.consume_until_not("#")?.len();
 
-            let heading = self.consume_line();
+            let heading = self.consume_line()?;
             let heading = heading.trim();
 
             let header_kind: HeaderKind = hash_count.into();
 
-            return Some(
+            return Ok(Some(
                 Token::Markdown(
                     MarkdownTag::Header(header_kind, heading.to_string())
                 )
-            );
+            ));
         // blockquote
         } else if curr_tok == ">" {
-            self.advance_char();
-            let blockquote = self.consume_line();
+            self.advance_char()?;
+            let blockquote = self.consume_line()?;
             let blockquote= blockquote.trim();
-            return Some(
+            return Ok(Some(
                 Token::Markdown(
                     MarkdownTag::Blockquote(blockquote.to_string())
                 )
-            );
+            ));
         // bullets or checkboxes 
         } else if curr_tok == "-" {
-            self.advance_char();
-            self.consume_whitespace();
+            self.advance_char()?;
+            self.consume_whitespace()?;
 
-            let is_bullet = self.char() != "[";
+            let is_bullet = self.char()? != "[";
             if is_bullet {
-                let bullet = self.consume_line();
+                let bullet = self.consume_line()?;
                 let bullet = bullet.trim();
-                return Some(
+                return Ok(Some(
                     Token::Markdown(
                         MarkdownTag::BulletPoint(bullet.to_string())
                     )
-                );
+                ));
             }
 
-            self.advance_char();
-            let is_checked = self.char() == "x";
+            self.advance_char()?;
+            let is_checked = self.char()? == "x";
 
-            self.advance_char();
-            self.must_consume("]");
-            self.consume_whitespace();
+            self.advance_char()?;
+            self.must_consume("]")?;
+            self.consume_whitespace()?;
 
-            let checkbox = self.consume_line();
+            let checkbox = self.consume_line()?;
             let checkbox = checkbox.trim();
-            return Some(
+            return Ok(Some(
                 Token::Markdown(
                     MarkdownTag::Checkbox(is_checked, checkbox.to_string())
                 )
-            );
+            ));
         // line separator
         } else if curr_tok == "=" {
 
-            self.consume_until_not("=");
-            if self.consume_line().trim().len() > 0 {
-                self.panic(ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string()));
+            self.consume_until_not("=")?;
+            if self.consume_line()?.trim().len() > 0 {
+                let e = ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string());
+                self.create_error(e);
+                return Err(self.ctx.clone());
             }
 
-            return Some(
+            return Ok(Some(
                 Token::Markdown(
                     MarkdownTag::LineSeparator
                 )
-            );
+            ));
         // consume links
-        } else if (curr_tok == "!" && self.peek() == "[") || curr_tok == "[" {
+        } else if (curr_tok == "!" && self.peek()? == "[") || curr_tok == "[" {
             let is_image = curr_tok == "!";
             if is_image {
-                self.advance_char();
+                self.advance_char()?;
             }
-            self.must_consume("[");
-            let text = self.consume_till("]").to_string();
-            self.must_consume("]");
-            self.must_consume("(");
-            let link = self.consume_till(")").to_string();
-            self.must_consume(")");
+            self.must_consume("[")?;
+            let text = self.consume_till("]")?.to_string();
+            self.must_consume("]")?;
+            self.must_consume("(")?;
+            let link = self.consume_till(")")?.to_string();
+            self.must_consume(")")?;
 
-            return Some(Token::Markdown(
+            return Ok(Some(Token::Markdown(
                 MarkdownTag::Link(
                     if is_image { LinkKind::Image } else { LinkKind::Hyperlink },
                     text,
                     link,
                 )
-            ));
+            )));
         // code blocks
         } else if curr_tok == "`" {
             // check if inline code block or code block
             let code: String;
-            if self.peek() == "`" {
-                self.must_consume("`");
-                self.must_consume("`");
-                self.must_consume("`");
+            if self.peek()? == "`" {
+                self.must_consume("`")?;
+                self.must_consume("`")?;
+                self.must_consume("`")?;
 
-                self.consume_whitespace();
-                code = self.consume_till("`").to_string();
+                self.consume_whitespace()?;
+                code = self.consume_till("`")?.to_string();
 
-                self.must_consume("`");
-                self.must_consume("`");
-                self.must_consume("`");
+                self.must_consume("`")?;
+                self.must_consume("`")?;
+                self.must_consume("`")?;
             } else {
-                self.must_consume("`");
-                code = self.consume_till("`").trim().to_string();
-                self.must_consume("`");
+                self.must_consume("`")?;
+                code = self.consume_till("`")?.trim().to_string();
+                self.must_consume("`")?;
             }
 
-            return Some(Token::Markdown(
+            return Ok(Some(Token::Markdown(
                 MarkdownTag::CodeBlock(code)
-            ));
+            )));
         // bold
         } else if curr_tok == "*" {
-            if self.peek() == "*" {
-                self.advance_char();
-                self.advance_char();
-                let text = self.consume_till("*").to_string();
-                self.must_consume("*");
-                self.must_consume("*");
+            if self.peek()? == "*" {
+                self.advance_char()?;
+                self.advance_char()?;
+                let text = self.consume_till("*")?.to_string();
+                self.must_consume("*")?;
+                self.must_consume("*")?;
 
-                return Some(Token::Text(Some(Emphasis::Bold), text));
+                return Ok(Some(Token::Text(Some(Emphasis::Bold), text)));
             } else {
-                self.advance_char();
-                let text = self.consume_till("*").to_string();
-                self.must_consume("*");
+                self.advance_char()?;
+                let text = self.consume_till("*")?.to_string();
+                self.must_consume("*")?;
 
-                return Some(Token::Text(Some(Emphasis::Italic), text));
+                return Ok(Some(Token::Text(Some(Emphasis::Italic), text)));
             }
         // strikethrough
         } else if curr_tok == "~" {
-            self.advance_char();
-            let text = self.consume_till("~").to_string();
-            self.must_consume("~");
+            self.advance_char()?;
+            let text = self.consume_till("~")?.to_string();
+            self.must_consume("~")?;
 
-            return Some(Token::Text(Some(Emphasis::Strikethrough), text));
+            return Ok(Some(Token::Text(Some(Emphasis::Strikethrough), text)));
         // text
         } else {
             let text = curr_tok.to_string();
-            self.advance_char();
-            return Some(Token::Text(None, text));
+            self.advance_char()?;
+            return Ok(Some(Token::Text(None, text)));
         }
     }
 

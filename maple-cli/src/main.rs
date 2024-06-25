@@ -4,10 +4,10 @@ use maple_core::{document::Document, parser::Parser, pretty_err::DebugContext, t
 use maple_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
+use colored::*;
 
 
-#[derive(clap::Parser)]
-#[command(version, about, long_about = None)]
+#[derive(clap::Parser)] #[command(version, about, long_about = None)]
 #[derive(Debug, Clone)]
 struct Args {
     /// Maple file to run
@@ -62,7 +62,12 @@ async fn main() {
 
     let content = read_file(&args.file);
     let debug_info = DebugContext::new(&args.file);
-    let doc= to_document(file_name_title, content, debug_info);
+    let (doc, ctx)= to_document(file_name_title, content, debug_info);
+    if ctx.is_some() {
+        ctx.unwrap().display();
+    } else {
+        println!("{}", format!("[INFO] No errors, {} ", "OK".green().bold()));
+    }
     let out = doc.output();
     
     if !args.dry_run {
@@ -79,13 +84,13 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 }
 
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
-    // check if a hash exists
-    let mut state = state.lock().expect("Failed to lock state");
+    // let mut state = state.lock().expect("Failed to lock state");
 
-    let path = state.path();
-    let title = state.title();
+    let (path, title, has_changed) = {
+        let mut state = state.lock().expect("Failed to lock state");
+        (state.path().clone(), state.title().clone(), state.has_file_changed())
+    };
 
-    let has_changed = state.has_file_changed();
     if !has_changed {
         Ok(
             Box::new(
@@ -95,9 +100,13 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
             )
         )
     } else {
+
         let content = read_file(&path);
         let debug_info = DebugContext::new(&path);
-        let document = to_document(&title, content, debug_info);
+        let (document, context) = to_document(&title, content, debug_info);
+        if context.is_some() {
+            context.unwrap().display();
+        }
         let out = document.output();
 
         Ok(
@@ -121,17 +130,30 @@ fn read_file(file_path: &str) -> String {
 }
 
 
-fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> Document {
+fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (Document, Option<DebugContext>) {
     let mut t: Tokenizer = Tokenizer::new(content, debug_info);
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
-    while let Some(line) = t.next_line() {
-        tokens.extend(line);
+
+    let mut ctx: Option<DebugContext> = None;
+    // while let Some(line) = t.next_line() {
+    //     tokens.extend(line);
+    // }
+    // tokens
+    loop {
+        match t.next_line() {
+            Ok(Some(l)) => {
+                tokens.extend(l);
+            },
+            Ok(None) => break,
+            Err(e) => {
+                ctx = Some(e);
+                break;
+            }
+        }
     }
 
     let tokens = Tokenizer::compact(tokens);
-
-    dbg!(&tokens);
 
     // handle for the document that outputs HTML
     let mut document: Document = Document::new(file_title);
@@ -183,5 +205,5 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> D
     // let replacements = parser.get_replacements();
     // document.replace(Vec<(orig, new)>);
 
-    document
+    (document, ctx)
 }
