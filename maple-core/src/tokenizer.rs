@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use unicode_segmentation::UnicodeSegmentation;
+use rayon::prelude::*;
 
 use crate::pretty_err::{DebugContext, ErrorKind};
 
@@ -98,7 +99,7 @@ impl Tokenizer {
 
         let uni_vec = UnicodeSegmentation::graphemes(src.as_str(), true)
                                     .collect::<Vec<&str>>()
-                                    .iter()
+                                    .par_iter()
                                     .map(|&x| x.to_string())
                                     .collect::<Vec<String>>();
 
@@ -116,13 +117,13 @@ impl Tokenizer {
         // need to calculate what character the error is at
         // go through all the tokens, count \n and then calculate
         // the position of the error
-        let err_pos = self.src.iter().take(self.pos).fold(0, |acc, x| {
+        let err_pos = self.src.par_iter().take(self.pos).fold(|| 0, |acc, x| {
             if x == "\n" {
                 acc + 1
             } else {
                 acc
             }
-        });
+        }).sum::<usize>();
 
         let src = self.src.join("");
         let src = src.split("\n").collect::<Vec<&str>>();
@@ -308,7 +309,6 @@ impl Tokenizer {
 
             let var = self.consume_till("=")?.trim().to_string();
             // [ERROR] 
-            // TODO: check if variable name is valid
             if var.is_empty() {
                 let e = ErrorKind::NamelessNomad("Variable name cannot be empty".to_string());
                 self.create_error(e);
@@ -316,7 +316,6 @@ impl Tokenizer {
             }
 
             self.must_consume("=")?;
-            // self.consume_whitespace();
 
             let mut val = self.consume_till(";")?.trim().to_string();
             self.must_consume(";")?;

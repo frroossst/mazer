@@ -3,9 +3,7 @@
 ## ToDo
 - [ ] Question 1
 - [x] Question 2
-
-## Exam dates
-- 12 July 2024
+## Exam dates - 12 July 2024
 - 18 August 2024
 
 ===
@@ -44,6 +42,12 @@ let z = dot(
     vec(1, 2, 3), 
     vec(4, 5, 6)) 
     * 10;
+
+// this is the same as above except the new syntax
+// allows binary functions to capture arguments
+// from lhs and rhs scope, making some syntax 
+// more ergonomic
+let new_syntax0 = vec(1, 2, 3) dot vec(4, 5, 6);
 
 let a = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
 let b = (a * 10) * 10;

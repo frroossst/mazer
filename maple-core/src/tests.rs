@@ -3,7 +3,7 @@ mod tests {
 
     use core::panic;
 
-    use crate::tokenizer::{Tokenizer, Token, Emphasis};
+    use crate::{parser::{Parser, ShuntingYard}, tokenizer::{Emphasis, Token, Tokenizer}};
 
     #[test]
     fn test_compact() {
