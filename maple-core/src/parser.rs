@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, str::FromStr};
+use std::collections::VecDeque;
 
 use bigdecimal::BigDecimal;
 
@@ -58,7 +58,7 @@ impl Operators {
 #[derive(Debug, Clone)]
 pub enum MToken {
     Operator(Operators),
-    InFixFn(String),
+    InFixFn(String, String),
     Variable(String),
     Call(String, Vec<MToken>),
     Number(BigDecimal),
@@ -142,4 +142,15 @@ impl Parser {
             shunted: Vec::new(),
         }
     }
+
+    pub fn tokenize(&mut self) {
+        for tok in self.src.clone() {
+            match tok {
+                Token::LetExpr(var, val) => {
+                },
+                _ => {},
+            }
+        }
+    }
 }
+

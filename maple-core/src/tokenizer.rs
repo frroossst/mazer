@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
@@ -318,6 +317,7 @@ impl Tokenizer {
             self.must_consume("=")?;
 
             let mut val = self.consume_till(";")?.trim().to_string();
+
             self.must_consume(";")?;
             val.push_str(";");
 
@@ -327,13 +327,15 @@ impl Tokenizer {
             self.advance_char()?;
             self.advance_char()?;
             self.advance_char()?;
-            // self.must_consume("(");
+            self.must_consume("(")?;
 
             let mut fmt = String::new();
             if self.char()? != ")" {
                 // the body expression may have parenthesis in it, so need to maintain a stack and 
                 // consume until the stack is empty
                 fmt = self.consume_nested_parenthesis()?.trim().to_string();
+                // remove the last character
+                fmt.pop();
             }
 
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
@@ -343,15 +345,14 @@ impl Tokenizer {
             self.advance_char()?;
             self.advance_char()?;
             self.advance_char()?;
-
             self.must_consume("(")?;
 
             let mut eval = String::new();
             if self.char()? != ")" {
                 eval = self.consume_nested_parenthesis()?.trim().to_string();
+                // remove the last character
+                eval.pop();
             }
-
-            self.must_consume(")")?;
 
             return Ok(Some(Token::Fn(FnKind::Eval, eval)));
         // headers
@@ -523,7 +524,6 @@ impl Tokenizer {
                 _ => compacted.push(token.clone()),
             }
         }
-
         compacted
-        }
+    }
 } 
