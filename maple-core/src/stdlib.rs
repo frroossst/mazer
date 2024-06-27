@@ -13,6 +13,9 @@ impl InBuiltFunctionRegistry {
                 String::from("dot"),
                 String::from("vec"),
                 String::from("matrix"),
+                "foo".to_string(),
+                "bar".to_string(),
+                "qux".to_string(),
             ]
         }
     }

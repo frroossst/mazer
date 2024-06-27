@@ -190,10 +190,6 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
         }
     }
 
-    // call language parser
-    let mut parser = Parser::new(parsable);
-    parser.tokenize();
-
     // type checking and syntax errors
     // compile the language to bytecode?
 

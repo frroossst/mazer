@@ -2,7 +2,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
 
-use crate::pretty_err::{DebugContext, ErrorKind};
+use crate::{parser::Parser, pretty_err::{DebugContext, ErrorKind}};
 
 
 #[derive(Debug, Clone)]
@@ -319,6 +319,11 @@ impl Tokenizer {
             let mut val = self.consume_till(";")?.trim().to_string();
 
             self.must_consume(";")?;
+
+            dbg!(&var);
+            let mut p = Parser::new(val.clone());
+            p.tokenize();
+
             val.push_str(";");
 
             return Ok(Some(Token::LetExpr(var, val)));

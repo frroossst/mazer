@@ -1,8 +1,8 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Debug, str::FromStr};
 
 use bigdecimal::BigDecimal;
 
-use crate::tokenizer::Token;
+use crate::stdlib::InBuiltFunctionRegistry;
 
 
 #[derive(Debug, Clone)]
@@ -13,6 +13,7 @@ pub enum Operators {
     Divide,
     Exponent,
     Modulus,
+    InFixFn(String),
     Eq,
 }
 
@@ -48,9 +49,10 @@ impl Operators {
     pub fn precedence(&self) -> u8 {
         match self {
             Operators::Eq => 0,
-            Operators::Add | Operators::Subtract => 1,
-            Operators::Multiply | Operators::Divide | Operators::Modulus => 2,
-            Operators::Exponent => 3,
+            Operators::InFixFn(_) => 1,
+            Operators::Add | Operators::Subtract => 2,
+            Operators::Multiply | Operators::Divide | Operators::Modulus => 3,
+            Operators::Exponent => 4,
         }
     }
 }
@@ -58,9 +60,10 @@ impl Operators {
 #[derive(Debug, Clone)]
 pub enum MToken {
     Operator(Operators),
-    InFixFn(String, String),
+    InFixFn(String),
     Variable(String),
-    Call(String, Vec<MToken>),
+    // Call(String, Vec<MToken>),
+    Call,
     Number(BigDecimal),
     OpenParen,
     CloseParen,
@@ -128,29 +131,54 @@ impl ShuntingYard {
 }
 
 
-#[derive(Debug)]
 pub struct Parser {
-    src: Vec<Token>,
-    shunted: Vec<MToken>,
+    src: Vec::<char>,
+    pos: usize,
+    max: usize,
+    reg: InBuiltFunctionRegistry,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Self {
-        dbg!(&tokens);
+    pub fn new(stream: String) -> Self {
+
+        // check if the stream is empty and if the stream
+        // is made up of only ascii characters
+        if stream.is_empty() {
+            // [ERROR]
+            panic!("Empty stream");
+        } 
+        
+        if !stream.is_ascii() {
+            // [ERROR]
+            panic!("Stream contains non-ascii characters");
+        }
+
+        let src = stream.chars().collect::<Vec<char>>();
+
+        let max = src.len();
         Parser {
-            src: tokens,
-            shunted: Vec::new(),
+            src,
+            pos: 0,
+            max,
+            reg: InBuiltFunctionRegistry::new(),
         }
     }
 
-    pub fn tokenize(&mut self) {
-        for tok in self.src.clone() {
-            match tok {
-                Token::LetExpr(var, val) => {
-                },
-                _ => {},
-            }
-        }
+    fn peek(&self) -> char {
+        self.src.get(self.pos + 1).unwrap_or(&' ').clone()
     }
+
+    pub fn tokenize(&mut self) -> Vec<MToken> {
+        let mut tokens: Vec<MToken> = Vec::new();
+
+        while self.pos < self.max {
+            // implement shunting yard and add a CALL tag as the first argument to a function
+        
+        self.pos += 1;
+        }
+        tokens
+    }
+
+
 }
 

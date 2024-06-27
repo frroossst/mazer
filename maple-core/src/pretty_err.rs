@@ -33,6 +33,10 @@ impl DebugContext {
         self.err_kind = Some(kind);
     }
 
+    pub fn get_position(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
+
     pub fn set_position(&mut self, line: usize, column: usize) {
         self.line = line;
         self.column = column;
