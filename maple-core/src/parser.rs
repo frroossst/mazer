@@ -61,10 +61,10 @@ impl Operators {
 pub enum MToken {
     Operator(Operators),
     InFixFn(String),
-    Variable(String),
-    // Call(String, Vec<MToken>),
-    Call,
+    Identifier(String),
+    Literal(String),
     Number(BigDecimal),
+    Comma,
     OpenParen,
     CloseParen,
     EoF,
@@ -168,17 +168,158 @@ impl Parser {
         self.src.get(self.pos + 1).unwrap_or(&' ').clone()
     }
 
+    fn consume_whitespace(&mut self) {
+        while self.pos < self.max {
+            let curr = self.src[self.pos];
+            if curr.is_ascii_whitespace() {
+                self.pos += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn consume_number(&mut self) -> BigDecimal {
+        let mut num = String::new();
+        let mut dot = false;
+        let mut neg = false;
+
+        while self.pos < self.max {
+            let curr = self.src[self.pos];
+
+            if curr.is_ascii_digit() {
+                num.push(curr);
+            } else if curr == '.' && !dot {
+                num.push(curr);
+                dot = true;
+            } else if curr == '-' && !neg {
+                num.push('-');
+                neg = true
+            } else {
+                break;
+            }
+
+            self.pos += 1;
+        }
+        BigDecimal::from_str(&num).unwrap()
+    }
+
+    fn consume_identifier(&mut self) -> String {
+        let mut ident = String::new();
+
+        while self.pos < self.max {
+            let curr = self.src[self.pos];
+
+            if ident.is_empty() && curr.is_ascii_digit() {
+                panic!("Invalid identifier");
+            }
+
+            if curr.is_ascii_alphabetic() {
+                ident.push(curr);
+            } else {
+                break;
+            }
+
+            self.pos += 1;
+        }
+        ident
+    }
+
+    fn is_operator(&mut self, c: char) -> bool {
+        match c {
+            '+' | '-' | '*' | '/' | '^' | '%' => true,
+            _ => false,
+        }
+    }
+
+    fn consume_operator(&mut self) -> Operators {
+        let curr = self.src[self.pos];
+        let op = match curr {
+            '+' => Operators::Add,
+            '-' => Operators::Subtract,
+            '*' => Operators::Multiply,
+            '/' => Operators::Divide,
+            '^' => Operators::Exponent,
+            '%' => Operators::Modulus,
+            _ => { panic!("should not parse infix yet!") }
+        };
+        self.pos += 1;
+        op
+    }
+
+    fn consume_till(&mut self, c: char) -> String {
+        let mut ident = String::new();
+
+        while self.pos < self.max {
+            let curr = self.src[self.pos];
+
+            if curr == c {
+                break;
+            }
+
+            ident.push(curr);
+            self.pos += 1;
+        }
+        ident
+    }
+
     pub fn tokenize(&mut self) -> Vec<MToken> {
         let mut tokens: Vec<MToken> = Vec::new();
 
-        while self.pos < self.max {
-            // implement shunting yard and add a CALL tag as the first argument to a function
-        
-        self.pos += 1;
+        while let Some(tok) = self.next_token() {
+            tokens.push(tok);
         }
+
+        dbg!(&tokens);
         tokens
     }
 
+    fn next_token(&mut self) -> Option<MToken> {
+        if self.pos >= self.max {
+            return None;
+        }
+
+        let curr = self.src[self.pos];
+
+        if curr.is_ascii_whitespace() {
+            self.consume_whitespace();
+            return self.next_token();
+        } else if curr == '"' {
+            self.pos += 1;
+            let literal = self.consume_till('\"');
+            self.pos += 1;
+            return Some(MToken::Literal(literal));
+        } else if (curr == '-' && self.peek().is_ascii_digit()) || curr.is_ascii_digit() {
+            return Some(MToken::Number(self.consume_number()));
+        } else if curr.is_ascii_alphabetic() {
+            let ident = self.consume_identifier();
+            if self.reg.is_function(&ident) {
+                return Some(MToken::InFixFn(ident));
+            }
+            return Some(MToken::Identifier(ident));
+        } else if self.is_operator(curr) {
+            return Some(MToken::Operator(self.consume_operator()));
+        } else {
+            match curr {
+                '(' => {
+                    self.pos += 1;
+                    return Some(MToken::OpenParen);
+                }
+                ')' => {
+                    self.pos += 1;
+                    return Some(MToken::CloseParen);
+                }
+                ',' => {
+                    self.pos += 1;
+                    return Some(MToken::Comma);
+                }
+                _ => {
+                    self.pos += 1;
+                    return None;
+                }
+            }
+        }
+    }
 
 }
 
