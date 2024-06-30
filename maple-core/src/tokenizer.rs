@@ -321,8 +321,8 @@ impl Tokenizer {
             self.must_consume(";")?;
 
             dbg!(&var);
-            let mut p = Parser::new(val.clone());
-            p.tokenize();
+            let mut p = Parser::new(format!("let {} = {};", var, val));
+            dbg!(p.parse());
 
             val.push_str(";");
 

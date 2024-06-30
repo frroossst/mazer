@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use maple_core::{document::Document, parser::Parser, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
+use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
 use maple_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
