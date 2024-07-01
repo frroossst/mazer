@@ -86,7 +86,7 @@ pub enum Emphasis {
 }
 
 #[derive(Debug)]
-pub struct Tokenizer {
+pub struct Lexer {
     src: Vec<String>,
     pos: usize,
     line: usize,
@@ -95,7 +95,7 @@ pub struct Tokenizer {
     byc: Vec<ASTNode>,
 }
 
-impl Tokenizer {
+impl Lexer {
 
     pub fn new(src: String, ctx: DebugContext) -> Self {
 
@@ -106,7 +106,7 @@ impl Tokenizer {
                                     .collect::<Vec<String>>();
 
         let max = uni_vec.len();
-        Tokenizer {
+        Lexer {
             src: uni_vec,
             pos: 0,
             line: 0,

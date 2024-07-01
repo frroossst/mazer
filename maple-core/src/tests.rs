@@ -3,7 +3,7 @@ mod tests {
 
     use core::panic;
 
-    use crate::{parser::{ASTNode, Parser}, tokenizer::{Emphasis, Token, Tokenizer}};
+    use crate::{parser::{ASTNode, Parser}, tokenizer::{Emphasis, Token, Lexer}};
 
     #[test]
     fn test_compact() {
@@ -14,7 +14,7 @@ mod tests {
             Token::Text(None, "d".to_string()),
         ];
 
-        let compacted = Tokenizer::compact(tokens.clone());
+        let compacted = Lexer::compact(tokens.clone());
 
         assert_ne!(tokens.len(), compacted.len());
         assert_eq!(compacted.len(), 1);
@@ -36,7 +36,7 @@ mod tests {
             Token::Text(Some(Emphasis::Bold), "d".to_string()),
         ];
 
-        let compacted = Tokenizer::compact(tokens.clone());
+        let compacted = Lexer::compact(tokens.clone());
 
         assert_ne!(tokens.len(), compacted.len());
         assert_eq!(compacted.len(), 1);
@@ -62,7 +62,7 @@ mod tests {
             Token::Text(Some(Emphasis::Strikethrough),"h".to_string()),
         ];
 
-        let compacted = Tokenizer::compact(tokens.clone());
+        let compacted = Lexer::compact(tokens.clone());
 
         assert_ne!(tokens.len(), compacted.len());
         assert_eq!(compacted.len(), 4);
@@ -115,7 +115,7 @@ mod tests {
             Token::Text(Some(Emphasis::Strikethrough),"h".to_string()),
         ];
 
-        let compacted = Tokenizer::compact(tokens.clone());
+        let compacted = Lexer::compact(tokens.clone());
 
         assert_eq!(tokens.len(), compacted.len());
         assert_eq!(compacted.len(), 8);

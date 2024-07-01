@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Tokenizer}};
+use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Lexer}};
 use maple_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
@@ -131,7 +131,7 @@ fn read_file(file_path: &str) -> String {
 
 
 fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (Document, Option<DebugContext>) {
-    let mut t: Tokenizer = Tokenizer::new(content, debug_info);
+    let mut t: Lexer = Lexer::new(content, debug_info);
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
 
@@ -149,28 +149,22 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
         }
     }
 
-    let tokens = Tokenizer::compact(tokens);
+    let tokens = Lexer::compact(tokens);
 
     // handle for the document that outputs HTML
     let mut document: Document = Document::new(file_title);
-
-    // a collection of all the code that gets fed to the compiler
-    let mut parsable: Vec<Token> = Vec::new();
 
     for t in tokens { 
         match t {
             Token::LetExpr(var, val) => {
                 document.append_code(&format!("{} = {}", &var, &val));
                 document.append_newline();
-
-                // skips let + one whitespace
-                parsable.push(Token::LetExpr(var, val));
             },
             Token::Fn(kind, expr) => {
+                // TODO: replace fmt calls with MathML
+                // TODO: replace eval calls with value
                 let kind_str: String = kind.clone().into();
                 document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
-
-                parsable.push(Token::Fn(kind, expr));
             },
             Token::Literal(lit) => {
                 document.append_text( None, &lit);

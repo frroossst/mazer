@@ -1,11 +1,12 @@
 # ToDo
 
 - [x] Tokenize the fmt() section better
-- [ ] Make mdbook style continous code changes while mistakes happen
+- [x] Make mdbook style continous code changes while mistakes happen
 - [ ] Check unbalanced parenthesis in consume_nested_parenthesis
-- [ ] Catch and display errors on client
+- [x] Catch and display errors on client
 - [ ] Run cargo clippy lint
 - [x] Reduce vertical space between headers 
 - [ ] Make a little terminal CSS for code (diff between code and maple)
 - [ ] After fmt and eval are replaced, user can hover to view original text
-
+- [ ] Better errors for the parsing of let statements
+- [ ] More ergonomic fmt() and eval() APIs
