@@ -1,8 +1,5 @@
 use std::collections::VecDeque;
 
-use crate::stdlib::InBuiltFunctionRegistry;
-
-
 #[derive(Debug, Clone)]
 pub enum Operators {
     Add,
@@ -141,6 +138,8 @@ impl Parser {
         let stream: VecDeque<MToken> = stream.replace(";", " ; ")
             .replace("[", " [ ")
             .replace("]", " ] ")
+            .replace("(", " ( ")
+            .replace(")", " ) ")
             .replace(",", " , ")
             .split_whitespace()
             .map(|s| match s {
