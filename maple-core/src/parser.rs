@@ -208,7 +208,7 @@ impl Parser {
                 "]" => MToken::RightSquareBracket,
                 "(" => MToken::LeftParen,
                 ")" => MToken::RightParen,
-                "+" | "-" | "*" | "/" | "**" => MToken::Operator(s.to_string()),
+                "+" | "-" | "*" | "/" | "^" => MToken::Operator(s.to_string()),
                 "," => MToken::Comma,
                 s if s.parse::<f64>().is_ok() => MToken::Number(s.parse().unwrap()),
                 _ => MToken::Identifier(s.to_string()),
@@ -377,7 +377,7 @@ impl Parser {
         match op {
             "+" | "-" => 1,
             "*" | "/" => 2,
-            "**" => 3,
+            "^" => 3,
             _ => 0,
         }
     }
