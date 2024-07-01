@@ -2,7 +2,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
 
-use crate::{parser::Parser, pretty_err::{DebugContext, ErrorKind}};
+use crate::{interpreter::Interpreter, parser::{ASTNode, Parser}, pretty_err::{DebugContext, ErrorKind}};
 
 
 #[derive(Debug, Clone)]
@@ -322,7 +322,9 @@ impl Tokenizer {
 
             dbg!(&var);
             let mut p = Parser::new(format!("let {} = {};", var, val));
-            dbg!(p.parse());
+            let parsed = p.parse();
+            let mut interp = Interpreter::new(parsed.get(0).unwrap().clone());
+            interp.fmt();
 
             val.push_str(";");
 

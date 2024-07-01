@@ -91,6 +91,48 @@ pub enum ASTNode {
     Array(Vec<ASTNode>),
 }
 
+// TODO: make this Into<Vec<ByteCode>> later
+impl ASTNode {
+    pub fn to_postfix(node: &Self) -> Vec<String> {
+        match node {
+            ASTNode::Number(n) => vec![n.to_string()],
+            ASTNode::Variable(name) => vec![name.clone()],
+            ASTNode::BinaryOp { op, left, right } => {
+                let mut result = Self::to_postfix(left);
+                result.extend(Self::to_postfix(right));
+                result.push(op.clone());
+                result
+            }
+            ASTNode::UnaryOp { op, operand } => {
+                let mut result = Self::to_postfix(operand);
+                result.push(op.clone());
+                result
+            }
+            ASTNode::FunctionCall { name, args } => {
+                let mut result = Vec::new();
+                for arg in args {
+                    result.extend(Self::to_postfix(arg));
+                }
+                result.push(format!("{}_{}", name, args.len()));
+                result
+            }
+            ASTNode::Assignment { name, value } => {
+                let mut result = Self::to_postfix(value);
+                result.push(format!("STORE_{}", name));
+                result
+            },
+            ASTNode::Array(elements) => {
+                let mut result = Vec::new();
+                for element in elements {
+                    result.extend(Self::to_postfix(element));
+                }
+                result.push(format!("ARRAY_{}", elements.len()));
+                result
+            },
+        }
+    }
+}
+
 impl PartialEq for ASTNode {
     fn eq(&self, other: &Self) -> bool {
         let result = match (self, other) {
