@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn test_simple_assignment() {
         let mut parser = Parser::new("let x = 123 ;".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         assert_eq!(ast, vec![
             ASTNode::Assignment {
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_binary_operation() {
         let mut parser = Parser::new("let a = 1 + 2 * 3 ;".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         assert_eq!(ast, vec![
             ASTNode::Assignment {
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_nested_function_calls() {
         let mut parser = Parser::new("let nest = foo ( bar ( qux ( 0 ) , 1 ) , 2 ) ;".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         assert_eq!(ast, vec![
             ASTNode::Assignment {
@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_new_binary_function_syntax() {
         let mut parser = Parser::new("let dvec = vec ( 1 , 2 , 3 ) dot vec ( 4 , 5 , 6 ) ;".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         assert_eq!(ast, vec![
             ASTNode::Assignment {
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_complex_expression() {
         let mut parser = Parser::new("let z = dot ( vec ( 1 , 2 , 3 ) , vec ( 4 , 5 , 6 ) ) * 10 ;".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         assert_eq!(ast, vec![
             ASTNode::Assignment {
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_nested_arrays() {
         let mut parser = Parser::new("let matrix = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];".to_string());
-        let ast = parser.parse();
+        let ast = parser.parse().unwrap();
 
         let expected = vec![
             ASTNode::Assignment {

@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use crate::pretty_err::DebugContext;
+
 #[derive(Debug, Clone)]
 pub enum Operators {
     Add,
@@ -220,59 +222,60 @@ impl Parser {
         self.current = self.tokens.pop_front();
     }
 
-    fn expect(&mut self, expected: MToken) {
+    fn expect(&mut self, expected: MToken) -> Result<(), DebugContext> {
         if self.current == Some(expected.clone()) {
             self.advance();
+            Ok(())
         } else {
             panic!("Expected {:?}, found {:?}", expected, self.current);
         }
     }
 
-    pub fn parse(&mut self) -> Vec<ASTNode> {
+    pub fn parse(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let mut ast = Vec::new();
         while self.current.is_some() {
-            ast.push(self.parse_statement());
+            ast.push(self.parse_statement()?);
         }
         assert_eq!(ast.len(), 1);
-        ast
+        Ok(ast)
     }
 
-    fn parse_array_elements(&mut self) -> Vec<ASTNode> {
+    fn parse_array_elements(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let mut elements = Vec::new();
         if self.current != Some(MToken::RightSquareBracket) {
             loop {
-                elements.push(self.parse_expression());
+                elements.push(self.parse_expression()?);
                 if self.current != Some(MToken::Comma) {
                     break;
                 }
                 self.advance(); // Consume comma
             }
         }
-        elements
+        Ok(elements)
     }
 
-    fn parse_statement(&mut self) -> ASTNode {
-        self.expect(MToken::Identifier("let".to_string()));
+    fn parse_statement(&mut self) -> Result<ASTNode, DebugContext> {
+        self.expect(MToken::Identifier("let".to_string()))?;
         if let Some(MToken::Identifier(name)) = self.current.clone() {
             self.advance();
-            self.expect(MToken::Equals);
-            let value = self.parse_expression();
-            self.expect(MToken::Semicolon);
-            ASTNode::Assignment {
+            self.expect(MToken::Equals)?;
+            let value = self.parse_expression()?;
+            self.expect(MToken::Semicolon)?;
+            Ok(ASTNode::Assignment {
                 name,
                 value: Box::new(value),
-            }
+            })
         } else {
             panic!("Expected identifier after 'let'");
         }
     }
 
-    fn parse_expression(&mut self) -> ASTNode {
+    fn parse_expression(&mut self) -> Result<ASTNode, DebugContext> {
         self.parse_binary_expression(0)
     }
 
-    fn parse_binary_expression(&mut self, min_precedence: i32) -> ASTNode {
-        let mut left = self.parse_primary();
+    fn parse_binary_expression(&mut self, min_precedence: i32) -> Result<ASTNode, DebugContext> {
+        let mut left = self.parse_primary()?;
 
         while let Some(MToken::Operator(op)) = &self.current {
             let precedence = self.get_precedence(op);
@@ -283,7 +286,7 @@ impl Parser {
             let op = op.clone();
             self.advance(); // Consume operator
 
-            let right = self.parse_binary_expression(precedence + 1);
+            let right = self.parse_binary_expression(precedence + 1)?;
             left = ASTNode::BinaryOp {
                 op,
                 left: Box::new(left),
@@ -291,10 +294,10 @@ impl Parser {
             };
         }
 
-        left
+        Ok(left)
     }
 
-    fn parse_primary(&mut self) -> ASTNode {
+    fn parse_primary(&mut self) -> Result<ASTNode, DebugContext> {
         let node = match self.current.clone() {
             Some(MToken::Number(n)) => {
                 self.advance();
@@ -304,8 +307,8 @@ impl Parser {
                 self.advance();
                 if self.current == Some(MToken::LeftParen) {
                     self.advance(); // Consume left paren
-                    let args = self.parse_function_arguments();
-                    self.expect(MToken::RightParen);
+                    let args = self.parse_function_arguments()?;
+                    self.expect(MToken::RightParen)?;
                     ASTNode::FunctionCall { name, args }
                 } else {
                     // it is a literal if begins and ends with double quotes
@@ -319,13 +322,13 @@ impl Parser {
             }
             Some(MToken::LeftParen) => {
                 self.advance();
-                let expr = self.parse_expression();
-                self.expect(MToken::RightParen);
+                let expr = self.parse_expression()?;
+                self.expect(MToken::RightParen)?;
                 expr
             }
             Some(MToken::Operator(op)) if op == "-" => {
                 self.advance();
-                let operand = self.parse_primary();
+                let operand = self.parse_primary()?;
                 ASTNode::UnaryOp {
                     op,
                     operand: Box::new(operand),
@@ -333,8 +336,8 @@ impl Parser {
             },
             Some(MToken::LeftSquareBracket) => {
                 self.advance(); // Consume '['
-                let elements = self.parse_array_elements();
-                self.expect(MToken::RightSquareBracket);
+                let elements = self.parse_array_elements()?;
+                self.expect(MToken::RightSquareBracket)?;
                 ASTNode::Array(elements)
             },
             _ => panic!("Unexpected token: {:?}", self.current),
@@ -345,29 +348,29 @@ impl Parser {
             if let ASTNode::FunctionCall { .. } = node {
                 let func_name = func_name.clone();
                 self.advance(); // Consume function name
-                let right = self.parse_primary();
-                return ASTNode::FunctionCall {
+                let right = self.parse_primary()?;
+                return Ok(ASTNode::FunctionCall {
                     name: func_name,
                     args: vec![node, right],
-                };
+                });
             }
         }
 
-        node
+        Ok(node)
     }
 
-    fn parse_function_arguments(&mut self) -> Vec<ASTNode> {
+    fn parse_function_arguments(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let mut args = Vec::new();
         if self.current != Some(MToken::RightParen) {
             loop {
-                args.push(self.parse_expression());
+                args.push(self.parse_expression()?);
                 if self.current != Some(MToken::Comma) {
                     break;
                 }
                 self.advance(); // Consume comma
             }
         }
-        args
+        Ok(args)
     }
 
     fn get_precedence(&self, op: &str) -> i32 {

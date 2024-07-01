@@ -1,10 +1,7 @@
-
-use std::ops::Deref;
-
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
 
-use crate::{interpreter::Interpreter, parser::{ASTNode, Parser}, pretty_err::{DebugContext, ErrorKind}};
+use crate::{parser::{ASTNode, Parser}, pretty_err::{DebugContext, ErrorKind}};
 
 
 #[derive(Debug, Clone)]
@@ -326,7 +323,7 @@ impl Lexer {
 
             dbg!(&var);
             let mut p = Parser::new(format!("let {} = {};", var, val));
-            self.byc.push(p.parse().get(0).unwrap().clone());
+            self.byc.push(p.parse()?.get(0).unwrap().clone());
 
             val.push_str(";");
 

@@ -42,6 +42,10 @@ impl DebugContext {
         self.column = column;
     }
 
+    pub fn position(&self) -> (usize, usize) {
+        (self.line, self.column)
+    }
+
     pub fn display(&self) {
         if let Some(err_kind) = &self.err_kind {
             eprintln!("{} {}", "[ERROR]".red().bold(), err_kind.error().red());
