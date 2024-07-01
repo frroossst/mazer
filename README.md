@@ -1,4 +1,6 @@
-# Maple 🍁
+# Project Maple 🍁
+
+## Syrup Script
 
 A minimal, simple math markup language that compiles to HTML, written in Rust.  
 
