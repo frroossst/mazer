@@ -1,19 +1,19 @@
 # Maple 🍁
 
-A minimal, simple math markup language that compiles to HTML, written in Rust 
+A minimal, simple math markup language that compiles to HTML, written in Rust.  
 
 
 # Motivations
 
-- **Simple:** Natural Language alternative to math markup like LaTeX or MathML
+- **Simple:** Natural Language alternative to math markup like LaTeX or MathML  
 
-- **Opinionated:** This is what works for me, your preferences maybe different 
+- **Opinionated:** This is what works for me, your preferences may be different  
 
-- **Portable:** Plain text files and compiles to HTML
+- **Portable:** Plain text files that compile to HTML  
 
-- **Verbose:** Typing speed is not a concern which enables expressive and flexible syntax
+- **Verbose:** Typing speed is not a concern which enables expressive and flexible syntax  
   
-- **Minimal:** Limited features (more to be added as I need them)
+- **Minimal:** Limited features (more to be added as I need them)  
 
 
 # Installation
@@ -26,5 +26,11 @@ A minimal, simple math markup language that compiles to HTML, written in Rust
 > maple <path to file>
 Outputs a HTML file of the same name
 
-> maple serve
+> maple <path to file> --serve
 Starts a server to serve HTML file and watch for file changes
+ 
+> maple <path to file> --serve --open
+Starts a server and opens the page in the default web browser (open only works in conjunction with serve)
+
+> maple <path to file> --dry-run
+Runs the maple compiler without creating the HTML file, useful for debugging!
