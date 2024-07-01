@@ -1,4 +1,4 @@
-use crate::parser::ASTNode;
+use crate::{parser::ASTNode, stdlib::{Integral, Maple}};
 
 pub struct Interpreter(ASTNode);
 
@@ -12,14 +12,14 @@ impl Interpreter {
             ASTNode::FunctionCall { name, args } => {
                 match name.as_str() {
                     "integral" => {
+                        return Integral::new(args.clone()).fmt();
                     },
                     _ => unimplemented!(),
                 }
             }
-            _ => unimplemented!(),
+            _ => {
+                unimplemented!();
+            }
         }
-        unimplemented!();
-
-        String::new()
     }
 }

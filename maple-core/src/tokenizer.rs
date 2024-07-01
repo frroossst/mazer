@@ -1,8 +1,10 @@
 
+use std::ops::Deref;
+
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
 
-use crate::{interpreter::Interpreter, parser::Parser, pretty_err::{DebugContext, ErrorKind}};
+use crate::{interpreter::Interpreter, parser::{ASTNode, Parser}, pretty_err::{DebugContext, ErrorKind}};
 
 
 #[derive(Debug, Clone)]
@@ -90,6 +92,7 @@ pub struct Tokenizer {
     line: usize,
     max: usize,
     ctx: DebugContext,
+    byc: Vec<ASTNode>,
 }
 
 impl Tokenizer {
@@ -109,6 +112,7 @@ impl Tokenizer {
             line: 0,
             max,
             ctx,
+            byc: Vec::new(),
         }
     }
 
@@ -322,10 +326,7 @@ impl Tokenizer {
 
             dbg!(&var);
             let mut p = Parser::new(format!("let {} = {};", var, val));
-            let parsed = p.parse();
-            dbg!(&parsed);
-            let interp = Interpreter::new(parsed.get(0).unwrap().clone());
-            interp.fmt();
+            self.byc.push(p.parse().get(0).unwrap().clone());
 
             val.push_str(";");
 

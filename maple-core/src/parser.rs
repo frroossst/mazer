@@ -92,6 +92,17 @@ pub enum ASTNode {
     Array(Vec<ASTNode>),
 }
 
+impl Into<String> for ASTNode {
+    fn into(self) -> String {
+        match self {
+            ASTNode::Number(n) => n.to_string(),
+            ASTNode::Variable(name) => name,
+            ASTNode::Literal(lit) => lit,
+            _ => unimplemented!(),
+        }
+    }
+}
+
 // TODO: make this Into<Vec<ByteCode>> later
 impl ASTNode {
     pub fn to_postfix(node: &Self) -> Vec<String> {
@@ -222,6 +233,7 @@ impl Parser {
         while self.current.is_some() {
             ast.push(self.parse_statement());
         }
+        assert_eq!(ast.len(), 1);
         ast
     }
 
