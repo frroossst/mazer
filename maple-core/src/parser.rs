@@ -71,6 +71,7 @@ pub enum MToken {
 pub enum ASTNode {
     Number(f64),
     Variable(String),
+    Literal(String),
     BinaryOp {
         op: String,
         left: Box<ASTNode>,
@@ -97,6 +98,7 @@ impl ASTNode {
         match node {
             ASTNode::Number(n) => vec![n.to_string()],
             ASTNode::Variable(name) => vec![name.clone()],
+            ASTNode::Literal(lit) => vec![lit.clone()],
             ASTNode::BinaryOp { op, left, right } => {
                 let mut result = Self::to_postfix(left);
                 result.extend(Self::to_postfix(right));
@@ -138,6 +140,7 @@ impl PartialEq for ASTNode {
         let result = match (self, other) {
             (ASTNode::Number(a), ASTNode::Number(b)) => (a - b).abs() < f64::EPSILON,
             (ASTNode::Variable(a), ASTNode::Variable(b)) => a == b,
+            (ASTNode::Literal(a), ASTNode::Literal(b)) => a == b,
             (ASTNode::BinaryOp { op: op1, left: left1, right: right1 },
              ASTNode::BinaryOp { op: op2, left: left2, right: right2 }) =>
                 op1 == op2 && left1 == left2 && right1 == right2,
@@ -293,7 +296,13 @@ impl Parser {
                     self.expect(MToken::RightParen);
                     ASTNode::FunctionCall { name, args }
                 } else {
-                    ASTNode::Variable(name)
+                    // it is a literal if begins and ends with double quotes
+                    let maybe_literal = name.trim_end_matches('"');
+                    if maybe_literal.len() != name.len() {
+                        ASTNode::Literal(maybe_literal.to_string())
+                    } else {
+                        ASTNode::Variable(name)
+                    }
                 }
             }
             Some(MToken::LeftParen) => {

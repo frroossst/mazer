@@ -8,9 +8,18 @@ impl Interpreter {
     }
 
     pub fn fmt(&self) -> String {
-        dbg!(&self.0);
+        match &self.0 {
+            ASTNode::FunctionCall { name, args } => {
+                match name.as_str() {
+                    "integral" => {
+                    },
+                    _ => unimplemented!(),
+                }
+            }
+            _ => unimplemented!(),
+        }
+        unimplemented!();
 
         String::new()
     }
 }
-
