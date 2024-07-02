@@ -176,9 +176,17 @@ impl PartialEq for ASTNode {
     }
 }
 
+pub enum ParserMode {
+    // for fmt(expr) and eval(expr)
+    Expression,
+    // for let x = expr;
+    Statement,
+}
+
 pub struct Parser {
     tokens: VecDeque<MToken>,
     current: Option<MToken>,
+    mode: ParserMode,
 }
 
 impl Parser {
@@ -186,6 +194,7 @@ impl Parser {
         let mut p = Parser {
             tokens: Parser::tokenize(stream),
             current: None,
+            mode: ParserMode::Statement,
         };
         p.advance();
 
@@ -218,6 +227,7 @@ impl Parser {
         stream
     }
 
+    #[inline]
     fn advance(&mut self) {
         self.current = self.tokens.pop_front();
     }
@@ -231,10 +241,19 @@ impl Parser {
         }
     }
 
+    pub fn set_mode(&mut self, mode: ParserMode) -> &mut Self {
+        self.mode = mode;
+        self
+    }
+
     pub fn parse(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let mut ast = Vec::new();
         while self.current.is_some() {
-            ast.push(self.parse_statement()?);
+            // ast.push(self.parse_statement()?);
+            match self.mode {
+                ParserMode::Statement => ast.push(self.parse_statement()?),
+                ParserMode::Expression => ast.push(self.parse_expression()?),
+            }
         }
         assert_eq!(ast.len(), 1);
         Ok(ast)

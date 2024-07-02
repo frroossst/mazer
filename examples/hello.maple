@@ -30,9 +30,9 @@ y = 123
 
 > Let there be hypotenuse
 
-// let decimal = 69.420;
-// let neg = -456.873;
-// let x = 123;
+let decimal = 69.420;
+let neg = -456.873;
+let x = 123;
 
 let y = integral(
     0, ten,
@@ -65,11 +65,9 @@ fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
 
 # This is where the maple 🍁 magic ✨ begins! 
 
-fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
+// fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
 
-fmt(icap())     // prints the math
-fmt(icap)       // prints the defined value of icap
-fmt("icap")     // prints the string "icap"
-"fmt("noshow")" // does nothing
-
-fmt(integral(0, 10,"x^2" , "dx"))
+// fmt(icap())     // prints the math
+// fmt(icap)       // prints the defined value of icap
+// fmt("icap")     // prints the string "icap"
+// "fmt("noshow")" // does nothing

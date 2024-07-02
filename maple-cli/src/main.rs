@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use maple_core::{document::Document, pretty_err::DebugContext, tokenizer::{Token, Lexer}};
+use maple_core::{document::Document, interpreter::Interpreter, parser::{Parser, ParserMode}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
 use maple_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
@@ -154,15 +154,36 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
     // handle for the document that outputs HTML
     let mut document: Document = Document::new(file_title);
 
+    // handle for the interpreter that emits MathML or values
+    let mut interp: Interpreter = Interpreter::new();
+
     for t in tokens { 
         match t {
             Token::LetExpr(var, val) => {
-                document.append_code(&format!("{} = {}", &var, &val));
+                let stmt = format!("let {} = {}", &var, &val);
+                document.append_code(&stmt);
+
+                let node = Parser::new(stmt).parse().unwrap().get(0).unwrap().clone();
+                interp.add_stmt(var, node);
+
                 document.append_newline();
             },
             Token::Fn(kind, expr) => {
                 // TODO: replace fmt calls with MathML
                 // TODO: replace eval calls with value
+                match kind {
+                    FnKind::Eval => {
+                    },
+                    FnKind::Fmt => {
+                        dbg!(expr.clone());
+
+                        let p_out = Parser::new(expr.clone()).set_mode(ParserMode::Expression).parse().unwrap();
+                        let node = p_out.get(0).unwrap().clone();
+                        let markup = interp.fmt(node);
+                        dbg!(&markup);
+                        document.append_math_ml(&markup);
+                    },
+                }
                 let kind_str: String = kind.clone().into();
                 document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
             },

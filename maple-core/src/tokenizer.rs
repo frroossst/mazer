@@ -321,9 +321,10 @@ impl Lexer {
 
             self.must_consume(";")?;
 
-            dbg!(&var);
-            let mut p = Parser::new(format!("let {} = {};", var, val));
-            self.byc.push(p.parse()?.get(0).unwrap().clone());
+            // ! maybe change later
+            // dbg!(&var);
+            // let mut p = Parser::new(format!("let {} = {};", var, val));
+            // self.byc.push(p.parse()?.get(0).unwrap().clone());
 
             val.push_str(";");
 

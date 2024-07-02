@@ -52,6 +52,10 @@ impl Document {
         self.body.push(String::from("<br>\n"));
     }
 
+    pub fn append_math_ml(&mut self, content: &str) {
+        self.append_wrapped("math", content);
+    }
+
     pub fn append_code(&mut self, content: &str) {
         self.append_wrapped("code", &content);
     }

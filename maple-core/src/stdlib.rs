@@ -2,41 +2,24 @@ use maple_macros::{defintegral, integral};
 
 use crate::parser::ASTNode;
 
-pub struct InBuiltFunctionRegistry {
-    registry: Vec<String>,
-    infix: Vec<String>,
-}
 
-impl InBuiltFunctionRegistry {
 
+pub struct StdLib;
+
+impl StdLib {
     pub fn new() -> Self {
-        InBuiltFunctionRegistry {
-            registry: vec![
-                String::from("integral"),
-                String::from("dot"),
-                String::from("vec"),
-                String::from("matrix"),
-                "foo".to_string(),
-                "bar".to_string(),
-                "qux".to_string(),
-            ],
-            infix: vec![
-                String::from("dot"),
-            ]
+        StdLib
+    }
+
+    pub fn get_function(&self, name: &str, args: Vec<ASTNode>) -> Box<dyn Maple> {
+        match name {
+            "integral" => Box::new(Integral::new(args)),
+            _ => panic!("Function not found in standard library")
         }
     }
-
-    pub fn is_infix_fn(&self, func: &str) -> bool {
-        self.infix.contains(&func.to_string())
-    }
-
-    pub fn is_function(&self, func: &str) -> bool {
-        self.registry.contains(&func.to_string())
-    }
-
 }
 
-/// stdlib trai
+/// stdlib traits
 pub trait Maple {
     fn fmt(&self) -> String;
     fn eval(&self) -> f64;
@@ -72,6 +55,26 @@ impl Maple for Integral {
         } else {
             panic!("Invalid number of arguments for integral function")
         }
+    }
+
+    fn eval(&self) -> f64 {
+        unimplemented!()
+    }
+}
+
+pub struct Vector {
+    args: Vec<ASTNode>,
+}
+
+impl Vector {
+    pub fn new(args: Vec<ASTNode>) -> Self {
+        Vector { args }
+    }
+}
+
+impl Maple for Vector {
+    fn fmt(&self) -> String {
+        unimplemented!()
     }
 
     fn eval(&self) -> f64 {
