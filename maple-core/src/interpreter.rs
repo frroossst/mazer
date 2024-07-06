@@ -1,7 +1,8 @@
-use core::panic;
 use std::collections::HashMap;
 
-use crate::{parser::ASTNode, stdlib::StdLib};
+use maple_macros::exponent;
+
+use crate::{parser::{ASTNode, Operators}, stdlib::StdLib, tokenizer::Lexer};
 
 pub struct Interpreter {
     stmts: HashMap<String, ASTNode>,
@@ -31,23 +32,46 @@ impl Interpreter {
     pub fn fmt(&self, expr: ASTNode) -> String {
         match expr {
             ASTNode::FunctionCall { name, args } => {
-                self.stdlib.get_function(&name, args).fmt()
+                match self.stdlib.get_function(&name, args.clone()) {
+                    Some(val) => val.fmt(),
+                    None => {
+                        format!("{}({})", name, args.iter().map(|x| self.fmt(x.clone())).collect::<Vec<String>>().join(", "))
+                    }
+                }
             },
             ASTNode::Variable(name) => {
-                println!("Variable: {}", name);
                 if self.is_variable(&name) {
                     self.fmt(self.get_stmt(&name).unwrap())
+                } else if let Some(var) =  self.stdlib.get_variable(&name) {
+                    var.fmt()
                 } else {
                     name
                 }
             },
+            ASTNode::Array(arr) => {
+                // TODO:
+                unimplemented!()
+            }
             ASTNode::Assignment { name: _, value } => {
                 let val = *value;
                 self.fmt(val)
             },
+            ASTNode::BinaryOp { op, left, right } => {
+                match op.as_str() {
+                    "^" => {
+                        let lhs = self.fmt(*left);
+                        let rhs = self.fmt(*right);
+
+                        exponent!(lhs, rhs)
+                    }
+                    _ => { 
+                        String::from("ERROR")
+                    },
+                }
+            }
             _ => {
-                dbg!(expr.clone());
-                panic!("Unknown expression type")
+                // dbg!(expr.clone());
+                return format!("{:?}", expr);
             },
         }
     }

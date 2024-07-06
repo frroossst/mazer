@@ -10,3 +10,5 @@
 - [ ] After fmt and eval are replaced, user can hover to view original text
 - [ ] Better errors for the parsing of let statements
 - [ ] More ergonomic fmt() and eval() APIs
+- [ ] Table of contents collapsible that maps to headers
+

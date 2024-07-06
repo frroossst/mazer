@@ -88,8 +88,8 @@ pub struct Lexer {
     pos: usize,
     line: usize,
     max: usize,
+    prv: Option<String>,
     ctx: DebugContext,
-    byc: Vec<ASTNode>,
 }
 
 impl Lexer {
@@ -108,8 +108,8 @@ impl Lexer {
             pos: 0,
             line: 0,
             max,
+            prv: None,
             ctx,
-            byc: Vec::new(),
         }
     }
 
@@ -274,10 +274,14 @@ impl Lexer {
 
     fn next_token(&mut self) -> Result<Option<Token>, DebugContext> {
         if self.pos >= self.max || self.char()? == "\n" {
+            if self.char()? == "\n" {
+                self.prv = Some("\n".to_string());
+            }
             return Ok(None);
         }
 
         let curr_tok = self.char()?;
+        self.prv = None;
 
         // consume comments
         if curr_tok == "/" && self.peek()? == "/" {
@@ -316,19 +320,20 @@ impl Lexer {
             }
 
             self.must_consume("=")?;
-
             let mut val = self.consume_till(";")?.trim().to_string();
-
             self.must_consume(";")?;
-
-            // ! maybe change later
-            // dbg!(&var);
-            // let mut p = Parser::new(format!("let {} = {};", var, val));
-            // self.byc.push(p.parse()?.get(0).unwrap().clone());
 
             val.push_str(";");
 
             return Ok(Some(Token::LetExpr(var, val)));
+        // inline fmt calls
+        } else if curr_tok == "$" && self.peek()? == "{" {
+            self.advance_char()?;
+            self.advance_char()?;
+            let fmt = self.consume_till("}")?.to_string();
+            self.must_consume("}")?;
+
+            return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // fmt calls
         } else if curr_tok == "f" && self.peek()? == "m" && self.peek_n(2)? == "t" {
             self.advance_char()?;
@@ -345,6 +350,8 @@ impl Lexer {
                 fmt.pop();
             }
 
+            self.must_consume(")")?;
+
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // eval calls
         } else if curr_tok == "e" && self.peek()? == "v" && self.peek_n(2)? == "a" && self.peek_n(3)? == "l" {
@@ -360,6 +367,8 @@ impl Lexer {
                 // remove the last character
                 eval.pop();
             }
+
+            self.must_consume(")")?;
 
             return Ok(Some(Token::Fn(FnKind::Eval, eval)));
         // headers
@@ -379,19 +388,31 @@ impl Lexer {
         // blockquote
         } else if curr_tok == ">" {
             self.advance_char()?;
-            let blockquote = self.consume_line()?;
-            let blockquote= blockquote.trim();
-            return Ok(Some(
-                Token::Markdown(
-                    MarkdownTag::Blockquote(blockquote.to_string())
-                )
-            ));
+            // only a blockquote if previously it was a newline
+            if self.prv.is_some() && self.prv.clone().unwrap() == "\n" {
+                let blockquote = self.consume_line()?;
+                let blockquote= blockquote.trim();
+                return Ok(Some(
+                    Token::Markdown(
+                        MarkdownTag::Blockquote(blockquote.to_string())
+                    )
+                ));
+            // this is to ensure an arrow like this, "->" can be made in text
+            } else {
+                return Ok(Some(Token::Text(None, String::from(">"))));
+            }
+
         // bullets or checkboxes 
         } else if curr_tok == "-" {
             self.advance_char()?;
             self.consume_whitespace()?;
 
-            let is_bullet = self.char()? != "[";
+            let mut is_bullet = self.char()? != "[";
+
+            // only a bullet if the next character is an ascii alphabet number
+            let is_next_alnum = self.peek()?.chars().next().unwrap().is_ascii_alphanumeric();
+            is_bullet = is_bullet && is_next_alnum;
+
             if is_bullet {
                 let bullet = self.consume_line()?;
                 let bullet = bullet.trim();
@@ -402,25 +423,32 @@ impl Lexer {
                 ));
             }
 
-            self.advance_char()?;
-            let is_checked = self.char()? == "x";
+            let is_checkbox = self.char()? == "[";
+            if is_checkbox {
+                self.advance_char()?;
+                let is_checked = self.char()? == "x";
 
-            self.advance_char()?;
-            self.must_consume("]")?;
-            self.consume_whitespace()?;
+                self.advance_char()?;
+                self.must_consume("]")?;
+                self.consume_whitespace()?;
 
-            let checkbox = self.consume_line()?;
-            let checkbox = checkbox.trim();
-            return Ok(Some(
-                Token::Markdown(
-                    MarkdownTag::Checkbox(is_checked, checkbox.to_string())
-                )
-            ));
+                let checkbox = self.consume_line()?;
+                let checkbox = checkbox.trim();
+                return Ok(Some(
+                    Token::Markdown(
+                        MarkdownTag::Checkbox(is_checked, checkbox.to_string())
+                    )
+                ));
+            } 
+
+            return Ok(Some(Token::Text(None, curr_tok.to_string())));
+
         // line separator
-        } else if curr_tok == "=" {
-
+        } else if curr_tok == "=" && self.peek()? == "=" && self.peek_n(2)? == "=" {
+            let prev = self.pos;
             self.consume_until_not("=")?;
-            if !self.consume_line()?.trim().is_empty() {
+            let now = self.pos;
+            if (now - prev == 3) && !self.consume_line()?.trim().is_empty() {
                 let e = ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string());
                 self.create_error(e);
                 return Err(self.ctx.clone());

@@ -59,6 +59,7 @@ pub enum MToken {
     Number(f64),
     Identifier(String),
     Operator(String),
+    Exclamation,
     LeftParen,
     RightParen,
     Comma,
@@ -177,7 +178,7 @@ impl PartialEq for ASTNode {
 }
 
 pub enum ParserMode {
-    // for fmt(expr) and eval(expr)
+    // for fmt(expr)/ ${expr} and eval(expr) 
     Expression,
     // for let x = expr;
     Statement,
@@ -208,6 +209,7 @@ impl Parser {
             .replace("(", " ( ")
             .replace(")", " ) ")
             .replace(",", " , ")
+            .replace("^", " ^ ")
             .split_whitespace()
             .map(|s| match s {
                 "let" => MToken::Identifier("let".to_string()),

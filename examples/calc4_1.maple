@@ -1,0 +1,13 @@
+# 15.1
+
+## Scalar Fields
+f(x) = f(x, y, z) defines a region in fmt(realNum), fmt(realNum^2), fmt(realNum^3), fmt(realNum^n)
+
+===
+
+f(x) = f(x, y, z) defines a region in ${realNum}, ${realNum^2}, ${realNum^3}, ${realNum^n}
+
+f: fmt(realNum^N) -> fmt(realNum)
+
+${ forAll } natural numbers ${ thereExists } there exists another number! yay!
+

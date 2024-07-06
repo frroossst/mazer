@@ -1,4 +1,5 @@
-use maple_macros::{defintegral, integral};
+use maple_macros::{defintegral, forAll, integral, realNum, thereExists};
+use rayon::{iter::Map, BroadcastContext};
 
 use crate::parser::ASTNode;
 
@@ -11,12 +12,27 @@ impl StdLib {
         StdLib
     }
 
-    pub fn get_function(&self, name: &str, args: Vec<ASTNode>) -> Box<dyn Maple> {
+    pub fn get_function(&self, name: &str, args: Vec<ASTNode>) -> Option<Box<dyn Maple>> {
         match name {
-            "integral" => Box::new(Integral::new(args)),
-            _ => panic!("Function not found in standard library")
+            "integral" => Some(Box::new(Integral::new(args))),
+            _ => None,
         }
     }
+
+    pub fn get_variable(&self, name: &str) -> Option<Box<dyn Maple>> {
+        let stdlib_vars = vec![
+            "realNum",
+            "forAll",
+            "thereExists"
+        ];
+
+        if stdlib_vars.contains(&name) {
+            Some(Box::new(VarConst::new(name)))
+        } else {
+            None
+        }
+    }
+
 }
 
 /// stdlib traits
@@ -25,8 +41,35 @@ pub trait Maple {
     fn eval(&self) -> f64;
 }
 
-/// Standard Library Structures
+/// Standard Library Variable/Constants
+pub struct VarConst {
+    var: String,
+}
 
+impl VarConst {
+    pub fn new(var: &str) -> Self {
+        VarConst {
+            var: var.to_string(),
+        }
+    }
+}
+
+impl Maple for VarConst {
+    fn fmt(&self) -> String {
+        match self.var.as_str() {
+            "realNum" => realNum!().to_string(),
+            "forAll" => forAll!().to_string(),
+            "thereExists" => thereExists!().to_string(),
+            _ => self.var.clone(),
+        }
+    }
+
+    fn eval(&self) -> f64 {
+        unimplemented!()
+    }
+}
+
+/// Standard Library Structures
 pub struct Integral {
     args: Vec<ASTNode>,
 }

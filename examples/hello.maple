@@ -34,28 +34,29 @@ let decimal = 69.420;
 let neg = -456.873;
 let x = 123;
 
-let y = integral(
+let y = integral!(
     0, ten,
     "x^2", 
     "dx"
 );
-let z = dot(
-        vec([1, 2, 3]), 
-        vec([4, 5, 6])
+let z = dot!(
+        vec!([1, 2, 3]), 
+        vec!([4, 5, 6])
     ) * 10;
 
 // this is the same as above except the new syntax
 // allows binary functions to capture arguments
 // from lhs and rhs scope, making some syntax 
 // more ergonomic
-let new_syntax0 = vec(1, 2, 3) dot vec(4, 5, 6);
+// let new_syntax0 = vec!(1, 2, 3) dot vec!(4, 5, 6);
+
+This is how inline stuff ${y} would work
 
 let a = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
 let b = (a * 10) * 10;
 
-let nest = foo(bar(qux(0), 1), 2);
-let dvec = vec(1, 2, 3) dot vec(4, 5, 6);
-let sino = 2 * (sin(3 / 4));
+let dvec = vec!(1, 2, 3) dot vec!(4, 5, 6);
+let sino = 2 * (sin!(3 / 4));
 
 The answer of b is eval(b).
 
@@ -64,6 +65,8 @@ integral of x^2 from 0 to 10 w.r.t x can be written as
 fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
 
 # This is where the maple 🍁 magic ✨ begins! 
+
+fmt([[1, 2, 3], [4, 5, 6]]);
 
 // fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
 

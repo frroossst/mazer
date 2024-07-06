@@ -83,6 +83,7 @@ macro_rules! cap {
 }
 
 /// MATRIX
+/*
 #[macro_export]
 macro_rules! matrix {
     ( $( [ $( $x:expr ),* ] ),* ) => {{
@@ -96,7 +97,7 @@ macro_rules! matrix {
         )*
         format!("<mfenced open='[' close=']'><mo>[</mo><mtable>{}</mtable><mo>]</mo>", rows)
     }};
-}
+} */
 
 
 /// INTEGRALS
@@ -111,5 +112,79 @@ macro_rules! defintegral {
 macro_rules! integral {
     ($f:expr, $dx:expr) => {
         format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mo></mo><mo></mo></msubsup><mrow><mi>{}</mi><mo>&#x2062;</mo><mi>{}</mi></mrow>", $f, $dx)
+    };
+}
+
+
+/// OPERATORS
+#[macro_export]
+macro_rules! exponent {
+    ($base:expr, $expo:expr) => {
+        // check if base is already tagged with <mi> if it is then don't tag it again
+        // check if it starts with mi and ends with mi
+        if $base.starts_with("<mi") && $base.ends_with("</mi>") {
+            format!("<msup>{}<mn>{}</mn></msup>", $base, $expo)
+        } else {
+            format!("<msup><mi>{}</mi><mn>{}</mn></msup>", $base, $expo)
+        }
+    };
+}
+
+
+
+/// SYMBOLS
+#[macro_export]
+macro_rules! realNum {
+    () => {
+        "<mi mathvariant=\"double-struck\">R</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! thereExists {
+    () => {
+        "<mo>&#x2203;</mo>"
+    };
+}
+
+#[macro_export]
+macro_rules! forAll {
+    () => {
+        "<mo>&#x2200;</mo>"
+    };
+}
+
+#[macro_export]
+macro_rules! pi {
+    () => {
+        "<mi>&#x03C0;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! theta {
+    () => {
+        "<mi>&#x03B8;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! phi {
+    () => {
+        "<mi>&#x03C6;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! lambda {
+    () => {
+        "<mi>&#x03BB;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! alpha {
+    () => {
+        "<mi>&#x03B1;</mi>"
     };
 }

@@ -171,21 +171,22 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
             Token::Fn(kind, expr) => {
                 // TODO: replace fmt calls with MathML
                 // TODO: replace eval calls with value
+                // dbg!(&expr);
                 match kind {
                     FnKind::Eval => {
                     },
                     FnKind::Fmt => {
-                        dbg!(expr.clone());
-
                         let p_out = Parser::new(expr.clone()).set_mode(ParserMode::Expression).parse().unwrap();
+                        // dbg!(&p_out);
+
                         let node = p_out.get(0).unwrap().clone();
                         let markup = interp.fmt(node);
-                        dbg!(&markup);
+                        // dbg!(&markup);
                         document.append_math_ml(&markup);
                     },
                 }
-                let kind_str: String = kind.clone().into();
-                document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
+                // let kind_str: String = kind.clone().into();
+                // document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
             },
             Token::Literal(lit) => {
                 document.append_text( None, &lit);
