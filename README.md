@@ -1,8 +1,9 @@
-# Project Maple 🍁
-
-## Syrup Script
+# MAPLE 🍁
+## Maple is Another Pesky LaTeX Emulator
 
 A minimal, simple math markup language that compiles to HTML, written in Rust.  
+
+It's like LaTeX, but with a very stripped down feature set, mainly intended for note taking and simple math expressions.
 
 
 # Motivations

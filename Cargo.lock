@@ -687,7 +687,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "maple-cli"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "bincode",
  "clap",
@@ -702,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "maple-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bigdecimal",
