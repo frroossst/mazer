@@ -31,6 +31,12 @@ impl Interpreter {
 
     pub fn fmt(&self, expr: ASTNode) -> String {
         match expr {
+            ASTNode::Literal(lit) => {
+                lit.trim_end_matches("\"").to_string()
+            },
+            ASTNode::Number(num) => {
+                num.to_string()
+            },
             ASTNode::FunctionCall { name, args } => {
                 match self.stdlib.get_function(&name, args.clone()) {
                     Some(val) => val.fmt(),
@@ -49,6 +55,7 @@ impl Interpreter {
                 }
             },
             ASTNode::Array(arr) => {
+                dbg!(arr);
                 // TODO:
                 unimplemented!()
             }
@@ -65,15 +72,14 @@ impl Interpreter {
                         exponent!(lhs, rhs)
                     }
                     _ => { 
-                        String::from("ERROR")
+                        unimplemented!("[ERROR] BinaryOp: {:?}", op);
                     },
                 }
-            }
+            },
             _ => {
                 // dbg!(expr.clone());
                 return format!("{:?}", expr);
             },
         }
     }
-
 }

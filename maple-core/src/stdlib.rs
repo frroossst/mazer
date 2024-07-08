@@ -1,7 +1,6 @@
-use maple_macros::{defintegral, forAll, integral, realNum, thereExists};
-use rayon::{iter::Map, BroadcastContext};
+use maple_macros::*;
 
-use crate::parser::ASTNode;
+use crate::{interpreter::Interpreter, parser::{ASTNode, Parser, ParserMode}};
 
 
 
@@ -20,10 +19,15 @@ impl StdLib {
     }
 
     pub fn get_variable(&self, name: &str) -> Option<Box<dyn Maple>> {
-        let stdlib_vars = vec![
+        let stdlib_vars = std::vec![ // to avoid ambiguity with maple macros
             "realNum",
+            "thereExists",
             "forAll",
-            "thereExists"
+            "pi",
+            "theta",
+            "phi",
+            "lambda",
+            "alpha",
         ];
 
         if stdlib_vars.contains(&name) {
@@ -58,8 +62,13 @@ impl Maple for VarConst {
     fn fmt(&self) -> String {
         match self.var.as_str() {
             "realNum" => realNum!().to_string(),
-            "forAll" => forAll!().to_string(),
             "thereExists" => thereExists!().to_string(),
+            "forAll" => forAll!().to_string(),
+            "pi" => pi!().to_string(),
+            "theta" => theta!().to_string(),
+            "phi" => phi!().to_string(),
+            "lambda" => lambda!().to_string(),
+            "alpha" => alpha!().to_string(),
             _ => self.var.clone(),
         }
     }
@@ -70,6 +79,7 @@ impl Maple for VarConst {
 }
 
 /// Standard Library Structures
+#[derive(Debug)]
 pub struct Integral {
     args: Vec<ASTNode>,
 }
@@ -83,41 +93,24 @@ impl Integral {
 impl Maple for Integral {
 
     fn fmt(&self) -> String {
+        let i = Interpreter::new();
         if self.args.len() == 2 {
-            let expr: String = self.args.get(0).unwrap().clone().into();
+            let expr: String = i.fmt(self.args.get(0).unwrap().clone());
             let wrt: String = self.args.get(1).unwrap().clone().into();
 
             integral!(expr, wrt)
         } else if self.args.len() == 4 {
             let lower: String = self.args.get(0).unwrap().clone().into();
             let upper: String = self.args.get(1).unwrap().clone().into();
-            let expr: String = self.args.get(2).unwrap().clone().into();
+            let expr: String = i.fmt(self.args.get(2).unwrap().clone());
             let wrt: String = self.args.get(3).unwrap().clone().into();
+
+            dbg!(&expr);
 
             defintegral!(lower, upper, expr, wrt)
         } else {
             panic!("Invalid number of arguments for integral function")
         }
-    }
-
-    fn eval(&self) -> f64 {
-        unimplemented!()
-    }
-}
-
-pub struct Vector {
-    args: Vec<ASTNode>,
-}
-
-impl Vector {
-    pub fn new(args: Vec<ASTNode>) -> Self {
-        Vector { args }
-    }
-}
-
-impl Maple for Vector {
-    fn fmt(&self) -> String {
-        unimplemented!()
     }
 
     fn eval(&self) -> f64 {

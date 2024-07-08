@@ -104,14 +104,14 @@ macro_rules! matrix {
 #[macro_export]
 macro_rules! defintegral {
     ($a:expr, $b:expr, $f:expr, $dx:expr) => {
-        format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mn>{}</mn><mn>{}</mn></msubsup><mrow><mi>{}</mi><mo>&#x2062;</mo><mi>{}</mi></mrow>", $a, $b, $f, $dx)
+        format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mn>{}</mn><mn>{}</mn></msubsup><mrow>{}<mo>&#x2062;</mo><mi>{}</mi></mrow>", $a, $b, $f, $dx)
     };
 }
 
 #[macro_export]
 macro_rules! integral {
     ($f:expr, $dx:expr) => {
-        format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mo></mo><mo></mo></msubsup><mrow><mi>{}</mi><mo>&#x2062;</mo><mi>{}</mi></mrow>", $f, $dx)
+        format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mo></mo><mo></mo></msubsup><mrow>{}<mo>&#x2062;</mo><mi>{}</mi></mrow>", $f, $dx)
     };
 }
 

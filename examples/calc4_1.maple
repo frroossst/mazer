@@ -11,3 +11,5 @@ f: fmt(realNum^N) -> fmt(realNum)
 
 ${ forAll } natural numbers ${ thereExists } there exists another number! yay!
 
+fmt(integral(0, 10, x^2, dx))
+

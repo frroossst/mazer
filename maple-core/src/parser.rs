@@ -101,7 +101,16 @@ impl Into<String> for ASTNode {
             ASTNode::Number(n) => n.to_string(),
             ASTNode::Variable(name) => name,
             ASTNode::Literal(lit) => lit,
-            _ => unimplemented!(),
+            ASTNode::BinaryOp { op, left, right } => {
+                let lhs: String = (*left).into();
+                let rhs: String = (*right).into();
+                dbg!(&rhs);
+                format!("{} {} {}", lhs, op, rhs)
+            }
+            _ => {
+                dbg!(self.clone());
+                unimplemented!()
+            }
         }
     }
 }
@@ -257,7 +266,7 @@ impl Parser {
                 ParserMode::Expression => ast.push(self.parse_expression()?),
             }
         }
-        assert_eq!(ast.len(), 1);
+        assert_eq!(ast.len(), 1); // only for debugging 
         Ok(ast)
     }
 
