@@ -155,9 +155,128 @@ macro_rules! forAll {
 }
 
 #[macro_export]
-macro_rules! pi {
+macro_rules! infinity {
     () => {
-        "<mi>&#x03C0;</mi>"
+        "<mo>&#x221E;</mo>"
+    };
+}
+
+#[macro_export]
+macro_rules! angle {
+    () => {
+        "<mo>&#x2220;</mo>"
+    };
+}
+
+#[macro_export]
+macro_rules! degrees {
+    () => {
+        "<mo>&#x00B0;</mo>"
+    };
+}
+
+#[macro_export]
+macro_rules! Alpha {
+    () => {
+        "<mi>&#x0391;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! alpha {
+    () => {
+        "<mi>&#x03B1;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Beta {
+    () => {
+        "<mi>&#x0392;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! beta {
+    () => {
+        "<mi>&#x03B2;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Gamma {
+    () => {
+        "<mi>&#x0393;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! gamma {
+    () => {
+        "<mi>&#x03B3;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Delta {
+    () => {
+        "<mi>&#x0394;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! delta {
+    () => {
+        "<mi>&#x03B4;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Epsilon {
+    () => {
+        "<mi>&#x0395;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! epsilon {
+    () => {
+        "<mi>&#x03B5;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Zeta {
+    () => {
+        "<mi>&#x0396;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! zeta {
+    () => {
+        "<mi>&#x03B6;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Eta {
+    () => {
+        "<mi>&#x0397;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! eta {
+    () => {
+        "<mi>&#x03B7;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Theta {
+    () => {
+        "<mi>&#x0398;</mi>"
     };
 }
 
@@ -169,9 +288,37 @@ macro_rules! theta {
 }
 
 #[macro_export]
-macro_rules! phi {
+macro_rules! Iota {
     () => {
-        "<mi>&#x03C6;</mi>"
+        "<mi>&#x0399;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! iota {
+    () => {
+        "<mi>&#x03B9;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Kappa {
+    () => {
+        "<mi>&#x039A;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! kappa {
+    () => {
+        "<mi>&#x03BA;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Lambda {
+    () => {
+        "<mi>&#x039B;</mi>"
     };
 }
 
@@ -183,8 +330,183 @@ macro_rules! lambda {
 }
 
 #[macro_export]
-macro_rules! alpha {
+macro_rules! Mu {
     () => {
-        "<mi>&#x03B1;</mi>"
+        "<mi>&#x039C;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! mu {
+    () => {
+        "<mi>&#x03BC;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Nu {
+    () => {
+        "<mi>&#x039D;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! nu {
+    () => {
+        "<mi>&#x03BD;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Xi {
+    () => {
+        "<mi>&#x039E;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! xi {
+    () => {
+        "<mi>&#x03BE;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Omicron {
+    () => {
+        "<mi>&#x039F;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! omicron {
+    () => {
+        "<mi>&#x03BF;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Pi {
+    () => {
+        "<mi>&#x03A0;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! pi {
+    () => {
+        "<mi>&#x03C0;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Rho {
+    () => {
+        "<mi>&#x03A1;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! rho {
+    () => {
+        "<mi>&#x03C1;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Sigma {
+    () => {
+        "<mi>&#x03A3;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! sigma {
+    () => {
+        "<mi>&#x03C3;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Tau {
+    () => {
+        "<mi>&#x03A4;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! tau {
+    () => {
+        "<mi>&#x03C4;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Upsilon {
+    () => {
+        "<mi>&#x03A5;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! upsilon {
+    () => {
+        "<mi>&#x03C5;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Phi {
+    () => {
+        "<mi>&#x03A6;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! phi {
+    () => {
+        "<mi>&#x03C6;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Chi {
+    () => {
+        "<mi>&#x03A7;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! chi {
+    () => {
+        "<mi>&#x03C7;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Psi {
+    () => {
+        "<mi>&#x03A8;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! psi {
+    () => {
+        "<mi>&#x03C8;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! Omega {
+    () => {
+        "<mi>&#x03A9;</mi>"
+    };
+}
+
+#[macro_export]
+macro_rules! omega {
+    () => {
+        "<mi>&#x03C9;</mi>"
     };
 }

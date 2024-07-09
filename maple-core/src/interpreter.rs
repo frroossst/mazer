@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use maple_macros::exponent;
 
-use crate::{parser::{ASTNode, Operators}, stdlib::StdLib, tokenizer::Lexer};
+use crate::{parser::ASTNode, stdlib::StdLib};
 
 pub struct Interpreter {
     stmts: HashMap<String, ASTNode>,
