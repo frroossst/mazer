@@ -7,9 +7,11 @@ f(x) = f(x, y, z) defines a region in fmt(realNum), fmt(realNum^2), fmt(realNum^
 
 f(x) = f(x, y, z) defines a region in ${realNum}, ${realNum^2}, ${realNum^3}, ${realNum^n}
 
+${ x^1 } is a point in the region of f(x)
+
 f: fmt(realNum^N) -> fmt(realNum)
 
-${ forAll } natural numbers ${ thereExists } there exists another number! yay!
+${ forAll } natural numbers ${ thereExists } another number! yay!
 
 fmt(integral(0, 10, x^2, dx))
 

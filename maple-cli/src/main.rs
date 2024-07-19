@@ -30,6 +30,10 @@ async fn main() {
 
     let args = <Args as clap::Parser>::parse();
 
+    // print current directory
+    let current_dir = std::env::current_dir().expect("Failed to get current directory");
+    println!("Current directory: {}", current_dir.display());
+
     // get name of the file from the path to act as the title of HTML page
     let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
 
