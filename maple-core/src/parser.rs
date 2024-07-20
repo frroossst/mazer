@@ -104,11 +104,14 @@ impl Into<String> for ASTNode {
             ASTNode::BinaryOp { op, left, right } => {
                 let lhs: String = (*left).into();
                 let rhs: String = (*right).into();
-                dbg!(&rhs);
                 format!("{} {} {}", lhs, op, rhs)
-            }
+            },
+            // recursively convert array of arrays to string
+            ASTNode::Array(arr) => {
+                let elements: Vec<String> = arr.into_iter().map(Into::into).collect();
+                format!("[{}]", elements.join(", "))
+            },
             _ => {
-                dbg!(self.clone());
                 unimplemented!()
             }
         }

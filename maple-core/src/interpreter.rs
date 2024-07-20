@@ -55,9 +55,20 @@ impl Interpreter {
                 }
             },
             ASTNode::Array(arr) => {
-                dbg!(arr);
-                // TODO:
-                unimplemented!()
+                let mut arr_str: String = String::from("[");
+               
+                for elem in arr {
+                    let elem_str: String = elem.into();
+                    arr_str.push_str(&elem_str);
+                    arr_str.push_str(", ");
+                }
+                arr_str.pop();
+                arr_str.pop();
+                arr_str.push(']');
+
+                dbg!(&arr_str);
+                
+                arr_str
             }
             ASTNode::Assignment { name: _, value } => {
                 let val = *value;
@@ -77,7 +88,6 @@ impl Interpreter {
                 }
             },
             _ => {
-                // dbg!(expr.clone());
                 return format!("{:?}", expr);
             },
         }

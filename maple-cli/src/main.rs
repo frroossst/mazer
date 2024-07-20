@@ -30,10 +30,6 @@ async fn main() {
 
     let args = <Args as clap::Parser>::parse();
 
-    // print current directory
-    let current_dir = std::env::current_dir().expect("Failed to get current directory");
-    println!("Current directory: {}", current_dir.display());
-
     // get name of the file from the path to act as the title of HTML page
     let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
 
@@ -175,17 +171,15 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
             Token::Fn(kind, expr) => {
                 // TODO: replace fmt calls with MathML
                 // TODO: replace eval calls with value
-                // dbg!(&expr);
                 match kind {
                     FnKind::Eval => {
                     },
                     FnKind::Fmt => {
                         let p_out = Parser::new(expr.clone()).set_mode(ParserMode::Expression).parse().unwrap();
-                        // dbg!(&p_out);
 
                         let node = p_out.get(0).unwrap().clone();
                         let markup = interp.fmt(node);
-                        // dbg!(&markup);
+
                         document.append_math_ml(&markup);
                     },
                 }

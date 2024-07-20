@@ -197,8 +197,6 @@ impl Maple for Integral {
             let expr: String = i.fmt(self.args.get(2).unwrap().clone());
             let wrt: String = self.args.get(3).unwrap().clone().into();
 
-            dbg!(&expr);
-
             defintegral!(lower, upper, expr, wrt)
         } else {
             panic!("Invalid number of arguments for integral function")
