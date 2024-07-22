@@ -34,7 +34,7 @@ let decimal = 69.420;
 let neg = -456.873;
 let x = 123;
 
-let y = integral!(
+let y = integral(
     0, ten,
     "x^2", 
     "dx"
@@ -71,9 +71,9 @@ fmt(integral(0, 10, "x^2", "dx")) or fmt(y)
 
 fmt([[1, 2, 3], [4, 5, 6]]);
 
-// fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
+fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
 
-// fmt(icap())     // prints the math
-// fmt(icap)       // prints the defined value of icap
-// fmt("icap")     // prints the string "icap"
-// "fmt("noshow")" // does nothing
+fmt(icap())     // prints the math
+fmt(icap)       // prints the defined value of icap
+fmt("icap")     // prints the string "icap"
+"fmt("noshow")" // does nothing

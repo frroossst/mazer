@@ -1,7 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
 
-use crate::{parser::{ASTNode, Parser}, pretty_err::{DebugContext, ErrorKind}};
+use crate::pretty_err::{DebugContext, ErrorKind};
 
 
 #[derive(Debug, Clone)]
