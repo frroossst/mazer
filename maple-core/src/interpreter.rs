@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use maple_macros::exponent;
+use maple_macros::{divide, exponent};
 
 use crate::{parser::ASTNode, stdlib::StdLib};
 
@@ -81,6 +81,30 @@ impl Interpreter {
                         let rhs = self.fmt(*right);
 
                         exponent!(lhs, rhs)
+                    },
+                    "+" => {
+                        let lhs  = self.fmt(*left);
+                        let rhs = self.fmt(*right);
+
+                        format!("{} + {}", lhs, rhs)
+                    },
+                    "-" => {
+                        let lhs  = self.fmt(*left);
+                        let rhs = self.fmt(*right);
+
+                        format!("{} - {}", lhs, rhs)
+                    },
+                    "*" => {
+                        let lhs  = self.fmt(*left);
+                        let rhs = self.fmt(*right);
+
+                        format!("{} * {}", lhs, rhs)
+                    },
+                    "/" => {
+                        let lhs  = self.fmt(*left);
+                        let rhs = self.fmt(*right);
+
+                        divide!(lhs, rhs)
                     }
                     _ => { 
                         unimplemented!("[ERROR] BinaryOp: {:?}", op);

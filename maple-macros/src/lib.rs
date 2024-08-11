@@ -130,6 +130,18 @@ macro_rules! exponent {
     };
 }
 
+#[macro_export]
+macro_rules! divide {
+    ($base:expr, $expo:expr) => {
+        // check if base is already tagged with <mi> if it is then don't tag it again
+        // check if it starts with mi and ends with mi
+        if $base.starts_with("<mi") && $base.ends_with("</mi>") {
+            format!("<mfrac>{}<mn>{}</mn></mfrac>", $base, $expo)
+        } else {
+            format!("<mfrac><mi>{}</mi><mn>{}</mn></mfrac>", $base, $expo)
+        }
+    };
+}
 
 
 /// SYMBOLS

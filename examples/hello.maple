@@ -58,6 +58,8 @@ This is how inline stuff ${y} would work
 let a = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9;
 let b = (a * 10) * 10;
 
+fmt(1 / 2)
+
 let dvec = vec!(1, 2, 3) dot vec!(4, 5, 6);
 let sino = 2 * (sin!(3 / 4));
 
