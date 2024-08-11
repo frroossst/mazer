@@ -13,8 +13,8 @@ resolver = "2"
 
 [profile.dev]
 debug = "full"
-codegen-backend = "cranelift"
 opt-level = 0
+codegen-backend = "cranelift"
 
 [profile.release]
 codegen-units = 1
@@ -22,4 +22,3 @@ opt-level = "z"
 panic = "abort"
 strip = "symbols"
 codegen-backend = "cranelift"
-
