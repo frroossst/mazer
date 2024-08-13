@@ -112,7 +112,7 @@ impl Into<String> for ASTNode {
                 format!("[{}]", elements.join(", "))
             },
             _ => {
-                unimplemented!()
+                unimplemented!("Into<String> for ASTNode not implemented for {:?}", self);
             }
         }
     }

@@ -166,7 +166,7 @@ impl Maple for VarConst {
     }
 
     fn eval(&self) -> f64 {
-        unimplemented!()
+        unimplemented!("eval is not implemented")
     }
 }
 
@@ -204,6 +204,6 @@ impl Maple for Integral {
     }
 
     fn eval(&self) -> f64 {
-        unimplemented!()
+        unimplemented!("eval is not implemented")
     }
 }

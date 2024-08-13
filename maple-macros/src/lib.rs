@@ -131,7 +131,7 @@ macro_rules! exponent {
 }
 
 #[macro_export]
-macro_rules! divide {
+macro_rules! fraction {
     ($base:expr, $expo:expr) => {
         // check if base is already tagged with <mi> if it is then don't tag it again
         // check if it starts with mi and ends with mi

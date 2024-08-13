@@ -220,9 +220,7 @@ impl Lexer {
         self.consume_till("\n")
     }
 
-    // helper for consuming nested parenthesis
     fn consume_nested_parenthesis(&mut self) -> Result<String, DebugContext> {
-
         // iterate over source from current position
         // keep adding when ( is encountered
         // and decreasing when ) is encountered
@@ -248,6 +246,14 @@ impl Lexer {
             } else if curr == ")" {
                 count -= 1;
             }
+        }
+
+        // check if balanced
+        if count != 0 {
+            // [ERROR]
+            let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
+            self.create_error(e);
+            return Err(self.ctx.clone());
         }
 
         Ok(store)

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use maple_macros::{divide, exponent};
+use maple_macros::{fraction, exponent};
 
 use crate::{parser::ASTNode, stdlib::StdLib};
 
@@ -66,8 +66,6 @@ impl Interpreter {
                 arr_str.pop();
                 arr_str.push(']');
 
-                dbg!(&arr_str);
-                
                 arr_str
             }
             ASTNode::Assignment { name: _, value } => {
@@ -104,7 +102,7 @@ impl Interpreter {
                         let lhs  = self.fmt(*left);
                         let rhs = self.fmt(*right);
 
-                        divide!(lhs, rhs)
+                        fraction!(lhs, rhs)
                     }
                     _ => { 
                         unimplemented!("[ERROR] BinaryOp: {:?}", op);
