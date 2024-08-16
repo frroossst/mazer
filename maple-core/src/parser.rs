@@ -238,6 +238,9 @@ impl Parser {
             })
             .collect();
 
+        // TODO: handle string literals
+        dbg!(stream.clone());
+
         stream
     }
 
@@ -269,7 +272,7 @@ impl Parser {
                 ParserMode::Expression => ast.push(self.parse_expression()?),
             }
         }
-        assert_eq!(ast.len(), 1); // only for debugging 
+        assert_eq!(ast.len(), 1); // ! only for debugging 
         Ok(ast)
     }
 
@@ -337,6 +340,7 @@ impl Parser {
                 ASTNode::Number(n)
             }
             Some(MToken::Identifier(name)) => {
+                // TODO: possible handle literals here
                 self.advance();
                 if self.current == Some(MToken::LeftParen) {
                     self.advance(); // Consume left paren

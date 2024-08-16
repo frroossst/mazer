@@ -175,6 +175,7 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
                     FnKind::Eval => {
                     },
                     FnKind::Fmt => {
+                        dbg!(expr.clone());
                         let p_out = Parser::new(expr.clone()).set_mode(ParserMode::Expression).parse().unwrap();
 
                         let node = p_out.get(0).unwrap().clone();
