@@ -1,5 +1,7 @@
 use std::collections::VecDeque;
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::pretty_err::DebugContext;
 
 #[derive(Debug, Clone)]
@@ -56,9 +58,11 @@ impl Operators {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MToken {
+    LetBind,
     Number(f64),
     Identifier(String),
     Operator(String),
+    Literal(String),
     Exclamation,
     LeftParen,
     RightParen,
@@ -215,6 +219,7 @@ impl Parser {
     }
 
     fn tokenize(stream: String) -> VecDeque<MToken> {
+        /*
         let stream: VecDeque<MToken> = stream.replace(";", " ; ")
             .replace("[", " [ ")
             .replace("]", " ] ")
@@ -222,6 +227,7 @@ impl Parser {
             .replace(")", " ) ")
             .replace(",", " , ")
             .replace("^", " ^ ")
+            .replace("\"", " \" ")
             .split_whitespace()
             .map(|s| match s {
                 "let" => MToken::Identifier("let".to_string()),
@@ -237,11 +243,70 @@ impl Parser {
                 _ => MToken::Identifier(s.to_string()),
             })
             .collect();
+        */
 
-        // TODO: handle string literals
-        dbg!(stream.clone());
+        let mut tokens = VecDeque::new();
+        let mut buffer = String::new();
+        let mut in_quotes = false;
 
-        stream
+        for c in UnicodeSegmentation::graphemes(stream.as_str(), true) {
+            if in_quotes && c != "\"" {
+                buffer.push_str(c);
+            } else if in_quotes && c == "\"" {
+                in_quotes = false;
+                let tok = MToken::Literal(buffer.clone());
+                tokens.push_back(tok);
+                buffer.clear();
+            }
+
+            match c {
+                "=" => {
+                    tokens.push_back(MToken::Equals);
+                },
+                ";" => {
+                    tokens.push_back(MToken::Semicolon);
+                },
+                "[" => {
+                    tokens.push_back(MToken::LeftSquareBracket);
+                },
+                "]" => {
+                    tokens.push_back(MToken::RightSquareBracket);
+                },
+                "(" => {
+                    tokens.push_back(MToken::LeftParen);
+                },
+                ")" => {
+                    tokens.push_back(MToken::RightParen);
+                },
+                "+" | "-" | "*" | "/" | "^" => {
+                    tokens.push_back(MToken::Operator(c.to_string()));
+                },
+                "," => {
+                    tokens.push_back(MToken::Comma);
+                },
+                _ => { buffer.push_str(c); },
+            }
+
+            if c == " " {
+                let b = buffer.trim();
+                let t = match b.parse::<f64>() {
+                    Ok(n) => MToken::Number(n),
+                    Err(_) => {
+                        if b == "let" {
+                            MToken::LetBind
+                        } else {
+                            MToken::Identifier(b.to_string())
+                        }
+                    }
+                };
+                tokens.push_back(t);
+                buffer.clear();
+            }
+        }
+
+        dbg!(tokens.clone());
+
+        tokens
     }
 
     #[inline]
@@ -265,8 +330,8 @@ impl Parser {
 
     pub fn parse(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let mut ast = Vec::new();
+        dbg!(self.current.clone());
         while self.current.is_some() {
-            // ast.push(self.parse_statement()?);
             match self.mode {
                 ParserMode::Statement => ast.push(self.parse_statement()?),
                 ParserMode::Expression => ast.push(self.parse_expression()?),
@@ -291,7 +356,7 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<ASTNode, DebugContext> {
-        self.expect(MToken::Identifier("let".to_string()))?;
+        self.expect(MToken::LetBind)?;
         if let Some(MToken::Identifier(name)) = self.current.clone() {
             self.advance();
             self.expect(MToken::Equals)?;
