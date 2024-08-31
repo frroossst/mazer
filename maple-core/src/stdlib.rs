@@ -4,14 +4,84 @@ use crate::{interpreter::Interpreter, parser::ASTNode};
 
 
 
-pub struct StdLib;
+pub struct StdLib<'a> {
+    funcs: Vec<&'a str>,
+    vars: Vec<&'a str>,
+}
 
-impl StdLib {
+impl<'a> StdLib<'a> {
     pub fn new() -> Self {
-        StdLib
+        StdLib {
+            funcs: std::vec![
+                "integral",
+            ],
+            vars: std::vec![
+                "realNum",
+                "thereExists",
+                "forAll",
+                "infinity",
+                "angle",
+                "degrees",
+                "Alpha",
+                "alpha",
+                "Beta",
+                "beta",
+                "Gamma",
+                "gamma",
+                "Delta",
+                "delta",
+                "Epsilon",
+                "epsilon",
+                "Zeta",
+                "zeta",
+                "Eta",
+                "eta",
+                "Theta",
+                "theta",
+                "Iota",
+                "iota",
+                "Kappa",
+                "kappa",
+                "Lambda",
+                "lambda",
+                "Mu",
+                "mu",
+                "Nu",
+                "nu",
+                "Xi",
+                "xi",
+                "Omicron",
+                "omicron",
+                "Pi",
+                "pi",
+                "Rho",
+                "rho",
+                "Sigma",
+                "sigma",
+                "Tau",
+                "tau",
+                "Upsilon",
+                "upsilon",
+                "Phi",
+                "phi",
+                "Chi",
+                "chi",
+                "Psi",
+                "psi",
+                "Omega",
+                "omega",
+            ],
+        }
+    }
+
+    pub fn stdlib(&self) -> (Vec<&'a str>, Vec<&'a str>) {
+        (self.funcs.clone(), self.vars.clone())
     }
 
     pub fn get_function(&self, name: &str, args: Vec<ASTNode>) -> Option<Box<dyn Maple>> {
+        if !self.funcs.contains(&name) {
+            return None;
+        }
         match name {
             "integral" => Some(Box::new(Integral::new(args))),
             _ => None,
@@ -19,64 +89,7 @@ impl StdLib {
     }
 
     pub fn get_variable(&self, name: &str) -> Option<Box<dyn Maple>> {
-        let stdlib_vars = std::vec![ // to avoid ambiguity with maple macros
-            "realNum",
-            "thereExists",
-            "forAll",
-            "infinity",
-            "angle",
-            "degrees",
-            "Alpha",
-            "alpha",
-            "Beta",
-            "beta",
-            "Gamma",
-            "gamma",
-            "Delta",
-            "delta",
-            "Epsilon",
-            "epsilon",
-            "Zeta",
-            "zeta",
-            "Eta",
-            "eta",
-            "Theta",
-            "theta",
-            "Iota",
-            "iota",
-            "Kappa",
-            "kappa",
-            "Lambda",
-            "lambda",
-            "Mu",
-            "mu",
-            "Nu",
-            "nu",
-            "Xi",
-            "xi",
-            "Omicron",
-            "omicron",
-            "Pi",
-            "pi",
-            "Rho",
-            "rho",
-            "Sigma",
-            "sigma",
-            "Tau",
-            "tau",
-            "Upsilon",
-            "upsilon",
-            "Phi",
-            "phi",
-            "Chi",
-            "chi",
-            "Psi",
-            "psi",
-            "Omega",
-            "omega",
-        ];
-
-        if stdlib_vars.contains(&name) {
+        if self.vars.contains(&name) {
             Some(Box::new(VarConst::new(name)))
         } else {
             None

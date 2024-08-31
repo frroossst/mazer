@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::pretty_err::DebugContext;
+use crate::stdlib::StdLib;
 
 #[derive(Debug, Clone)]
 pub enum Operators {
@@ -61,6 +62,7 @@ pub enum MToken {
     LetBind,
     Number(f64),
     Identifier(String),
+    InFixFn(String),
     Operator(String),
     Literal(String),
     Exclamation,
@@ -245,6 +247,8 @@ impl Parser {
             .collect();
         */
 
+        let (stdlib_funcs, _stdlib_vars) = StdLib::new().stdlib();
+
         let mut tokens = VecDeque::new();
         let mut buffer = String::new();
         let mut in_quotes = false;
@@ -295,7 +299,12 @@ impl Parser {
                         if b == "let" {
                             MToken::LetBind
                         } else {
-                            MToken::Identifier(b.to_string())
+                            let b = b.to_string();
+                            if stdlib_funcs.contains(&b.as_str()) {
+                                MToken::InFixFn(b)
+                            } else {
+                                MToken::Identifier(b.to_string())
+                            }
                         }
                     }
                 };

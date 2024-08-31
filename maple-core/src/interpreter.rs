@@ -6,7 +6,7 @@ use crate::{parser::ASTNode, stdlib::StdLib};
 
 pub struct Interpreter {
     stmts: HashMap<String, ASTNode>,
-    stdlib: StdLib,
+    stdlib: StdLib<'static>,
 }
 
 impl Interpreter {
