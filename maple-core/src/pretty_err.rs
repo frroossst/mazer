@@ -5,8 +5,7 @@ pub struct DebugContext {
     file_path: String,
     err_kind: Option<ErrorKind>,
     src: String,
-    line: usize,
-    column: usize,
+    err_pos: usize,
 }
 
 impl DebugContext {
@@ -16,8 +15,7 @@ impl DebugContext {
             file_path: file_path.to_string(),
             err_kind: None,
             src: String::new(),
-            line: 0,
-            column: 0,
+            err_pos: 0,
         }
     }
 
@@ -33,25 +31,19 @@ impl DebugContext {
         self.err_kind = Some(kind);
     }
 
-    pub fn get_position(&self) -> (usize, usize) {
-        (self.line, self.column)
+    pub fn get_position(&self) -> usize {
+        self.err_pos
     }
 
-    pub fn set_position(&mut self, line: usize, column: usize) {
-        self.line = line;
-        self.column = column;
-    }
-
-    pub fn position(&self) -> (usize, usize) {
-        (self.line, self.column)
+    pub fn set_position(&mut self, err_pos: usize) {
+        self.err_pos = err_pos;
     }
 
     pub fn display(&self) {
         if let Some(err_kind) = &self.err_kind {
             eprintln!("{} {}", "[ERROR]".red().bold(), err_kind.error().red());
-            eprintln!("{} {}:{}:{}", "  -->".blue().bold(), self.file_path, self.line, self.column);
+            eprintln!("{} At position = {} ", "  -->".blue().bold(), self.err_pos);
             eprintln!("{}", "  |".blue().bold());
-            eprint!("{} {} ", self.line.to_string().blue().bold(), "|".blue().bold());
             eprintln!("{}", self.src.trim().dimmed());
             eprintln!("{}", "  |".blue().bold());
             eprint!("{}", "  =".blue().bold());

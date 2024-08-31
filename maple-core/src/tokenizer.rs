@@ -130,7 +130,7 @@ impl Lexer {
 
         let err_line = src[self.line - 1].to_string();
         self.ctx.set_source_code(err_line);
-        self.ctx.set_position(self.line, err_pos);
+        self.ctx.set_position(self.pos);
         self.ctx.set_error(err);
     }
 

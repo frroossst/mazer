@@ -341,11 +341,28 @@ impl Parser {
         let mut ast = Vec::new();
         while self.current.is_some() {
             match self.mode {
-                ParserMode::Statement => ast.push(self.parse_statement()?),
+                ParserMode::Statement  => ast.push(self.parse_statement()?),
                 ParserMode::Expression => ast.push(self.parse_expression()?),
             }
         }
         assert_eq!(ast.len(), 1); // ! only for debugging 
         Ok(ast)
+    }
+    
+    fn parse_statement(&mut self) -> Result<ASTNode, DebugContext> {
+        self.expect(MToken::LetBind)?;
+        
+        let name = match self.current.clone() {
+            Some(MToken::Identifier(name)) => name,
+            _ => panic!("Expected identifier, found {:?}", self.current),
+        };
+        
+        self.expect(MToken::Equals)?;
+        
+        let expr = self.parse_expression()?;
+        
+        self.expect(MToken::Semicolon)?;
+
+        Ok(ASTNode::Assignment { name, value: Box::new(expr) })
     }
 }
