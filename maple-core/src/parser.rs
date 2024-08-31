@@ -247,7 +247,7 @@ impl Parser {
             .collect();
         */
 
-        let (stdlib_funcs, _stdlib_vars) = StdLib::new().stdlib();
+        let (stdlib_funcs, _) = StdLib::new().stdlib();
 
         let mut tokens = VecDeque::new();
         let mut buffer = String::new();
@@ -348,5 +348,4 @@ impl Parser {
         assert_eq!(ast.len(), 1); // ! only for debugging 
         Ok(ast)
     }
-
 }
