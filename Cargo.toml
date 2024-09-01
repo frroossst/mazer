@@ -2,12 +2,12 @@ cargo-features = ["codegen-backend"]
 
 [workspace]
 members = [
-    "maple-core",
-    "maple-cli",
-    "maple-macros",
-    "maple-data-structures", 
+    "mazer-core",
+    "mazer-cli",
+    "mazer-macros",
+    "mazer-data-structures", 
 ]
-default-members = ["maple-cli"]
+default-members = ["mazer-cli"]
 
 resolver = "2"
 

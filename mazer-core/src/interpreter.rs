@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use maple_macros::{fraction, exponent};
+use mazer_macros::{fraction, exponent};
 
 use crate::{parser::ASTNode, stdlib::StdLib};
 

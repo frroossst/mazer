@@ -1,7 +1,7 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use maple_core::{document::Document, interpreter::Interpreter, parser::{Parser, ParserMode}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
-use maple_cli::state::State;
+use mazer_core::{document::Document, interpreter::Interpreter, parser::{Parser, ParserMode}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
+use mazer_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
 use colored::*;

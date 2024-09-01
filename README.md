@@ -1,5 +1,5 @@
-# MAPLE 🍁
-## Maple is Another Pesky LaTeX Emulator
+# MAZER 🍁
+## Mazer's Accessible Zero-hassle Equations Rendering
 
 A minimal, simple math markup language that compiles to HTML, written in Rust.  
 
@@ -21,19 +21,19 @@ It's like LaTeX, but with a very stripped down feature set, mainly intended for 
 
 # Installation
 
-> cargo install maple
+> cargo install mazer
 
 
 # Usage
 
-> maple <path to file>
+> mazer <path to file>
 Outputs a HTML file of the same name
 
-> maple <path to file> --serve
+> mazer <path to file> --serve
 Starts a server to serve HTML file and watch for file changes
  
-> maple <path to file> --serve --open
+> mazer <path to file> --serve --open
 Starts a server and opens the page in the default web browser (open only works in conjunction with serve)
 
-> maple <path to file> --dry-run
-Runs the maple compiler without creating the HTML file, useful for debugging!
+> mazer <path to file> --dry-run
+Runs the mazer compiler without creating the HTML file, useful for debugging!

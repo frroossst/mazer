@@ -1,5 +1,5 @@
 [package]
-name = "maple-macros"
+name = "mazer-data-structures"
 version = "0.1.0"
 edition = "2021"
 

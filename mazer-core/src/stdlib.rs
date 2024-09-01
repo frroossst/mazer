@@ -1,4 +1,4 @@
-use maple_macros::*;
+use mazer_macros::*;
 
 use crate::{interpreter::Interpreter, parser::ASTNode};
 

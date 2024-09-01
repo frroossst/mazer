@@ -673,13 +673,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
-name = "maple-cli"
+name = "mazer-cli"
 version = "0.8.0"
 dependencies = [
  "bincode",
  "clap",
  "colored",
- "maple-core",
+ "mazer-core",
  "notify",
  "opener",
  "tokio",
@@ -687,24 +687,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "maple-core"
+name = "mazer-core"
 version = "0.7.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "bumpalo",
  "colored",
- "maple-data-structures",
- "maple-macros",
+ "mazer-data-structures",
+ "mazer-macros",
  "rayon",
  "unicode-segmentation",
 ]
 
 [[package]]
-name = "maple-data-structures"
+name = "mazer-data-structures"
 version = "0.1.0"
 
 [[package]]
-name = "maple-macros"
+name = "mazer-macros"
 version = "0.1.0"
 
 [[package]]
