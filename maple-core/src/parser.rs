@@ -65,7 +65,6 @@ pub enum MToken {
     InFixFn(String),
     Operator(String),
     Literal(String),
-    Exclamation,
     LeftParen,
     RightParen,
     Comma,
@@ -342,13 +341,37 @@ impl Parser {
         while self.current.is_some() {
             match self.mode {
                 ParserMode::Statement  => ast.push(self.parse_statement()?),
-                ParserMode::Expression => ast.push(self.parse_expression()?),
+                ParserMode::Expression => ast.push(self.parse_expression(0)?),
             }
         }
         assert_eq!(ast.len(), 1); // ! only for debugging 
         Ok(ast)
     }
     
+    fn prefix(&mut self) -> Result<ASTNode, DebugContext> {
+        let curr = self.current.clone();
+        let v = match curr {
+            Some(v) => { v },
+            None => { 
+                panic!("prefix ran out of tokens")
+            }
+        };
+
+        match v {
+            MToken::Number(n) => { Ok(ASTNode::Number(n)) }
+            MToken::Identifier(i) => { Ok(ASTNode::Variable(i)) }
+            MToken::LeftParen => self.parse_grouped_expr(),
+            MToken::LeftSquareBracket => self.parse_array_expr(),
+            MToken::LetBind => self.parse_statement(),
+            _ => { Ok(ASTNode::Number(-69.420)) }
+        }
+    }
+
+    fn parse_expression(&mut self, precedence: u8) -> Result<ASTNode, DebugContext> {
+        let mut left = self.prefix()?;
+        Ok(ASTNode::Number(-69.420))
+    }
+
     fn parse_statement(&mut self) -> Result<ASTNode, DebugContext> {
         self.expect(MToken::LetBind)?;
         
@@ -359,10 +382,18 @@ impl Parser {
         
         self.expect(MToken::Equals)?;
         
-        let expr = self.parse_expression()?;
+        let expr = self.parse_expression(0)?;
         
         self.expect(MToken::Semicolon)?;
 
         Ok(ASTNode::Assignment { name, value: Box::new(expr) })
+    }
+
+    fn parse_grouped_expr(&mut self) -> Result<ASTNode, DebugContext> {
+        Ok(ASTNode::Number(-69.420))
+    }
+
+    fn parse_array_expr(&mut self) -> Result<ASTNode, DebugContext> {
+        Ok(ASTNode::Number(-69.420))
     }
 }

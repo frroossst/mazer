@@ -114,17 +114,6 @@ impl Lexer {
     }
 
     fn create_error(&mut self, err: ErrorKind) {
-        // need to calculate what character the error is at
-        // go through all the tokens, count \n and then calculate
-        // the position of the error
-        let err_pos = self.src.par_iter().take(self.pos).fold(|| 0, |acc, x| {
-            if x == "\n" {
-                acc + 1
-            } else {
-                acc
-            }
-        }).sum::<usize>();
-
         let src = self.src.join("");
         let src = src.split("\n").collect::<Vec<&str>>();
 
@@ -147,7 +136,7 @@ impl Lexer {
     fn peek(&mut self) -> Result<String, DebugContext> {
         if self.pos >= self.max {
             // [ERROR]
-            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            let e = ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
             self.create_error(e);
             Err(self.ctx.clone())
         } else {

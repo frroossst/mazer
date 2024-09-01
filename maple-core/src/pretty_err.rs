@@ -41,6 +41,7 @@ impl DebugContext {
 
     pub fn display(&self) {
         if let Some(err_kind) = &self.err_kind {
+            eprintln!("src: {}", self.file_path);
             eprintln!("{} {}", "[ERROR]".red().bold(), err_kind.error().red());
             eprintln!("{} At position = {} ", "  -->".blue().bold(), self.err_pos);
             eprintln!("{}", "  |".blue().bold());
