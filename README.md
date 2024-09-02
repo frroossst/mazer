@@ -26,14 +26,18 @@ It's like LaTeX, but with a very stripped down feature set, mainly intended for 
 
 # Usage
 
-> mazer <path to file>
-Outputs a HTML file of the same name
+> mazer \<path to file>  
 
-> mazer <path to file> --serve
-Starts a server to serve HTML file and watch for file changes
+Outputs a HTML file of the same name  
+
+> mazer \<path to file> --serve  
+
+Starts a server to serve HTML file and watch for file changes  
  
-> mazer <path to file> --serve --open
-Starts a server and opens the page in the default web browser (open only works in conjunction with serve)
+> mazer \<path to file> --serve --open  
 
-> mazer <path to file> --dry-run
+Starts a server and opens the page in the default web browser (open only works in conjunction with serve)  
+
+> mazer \<path to file> --dry-run  
+
 Runs the mazer compiler without creating the HTML file, useful for debugging!
