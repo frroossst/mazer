@@ -9,7 +9,7 @@ description = "A minimal, simple math markup language that compiles to HTML, wri
 bincode = "1.3.3"
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
-mazer-core = { path = "../mazer-core" }
+mazer-core = { path = "../mazer-core", version="^0.*" }
 notify = "6.1.1"
 opener = "0.7.1"
 tokio = { version = "1.38.0", features = ["full"] }
