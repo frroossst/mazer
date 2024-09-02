@@ -347,6 +347,22 @@ impl Parser {
         assert_eq!(ast.len(), 1); // ! only for debugging 
         Ok(ast)
     }
+
+    fn infix_precedence(&self, tok: MToken) -> u8 {
+        match tok {
+            MToken::Operator(op) => {
+                let op = op.as_str();
+                match op {
+                    "+" | "-" => 1,
+                    "*" | "/" => 2,
+                    "^" => 3,
+                    _ => 0,
+                }
+            },
+            MToken::LeftParen => 8,
+            _ => 9,
+        }
+    }
     
     fn prefix(&mut self) -> Result<ASTNode, DebugContext> {
         let curr = self.current.clone();
