@@ -1,5 +1,7 @@
-# MAZER 🍁
+# MAZER 🍁🌰
 ## Mazer's Accessible Zero-hassle Equations Rendering
+
+<img alt="mazer-logo" src="https://raw.githubusercontent.com/frroossst/mazer/master/mazer-logo.png" width=25% height=25%>
 
 A minimal, simple, and opinionated math markup language that emits HTML, written in Rust.  
 
@@ -42,3 +44,10 @@ Starts a server and opens the page in the default web browser (open only works i
 > mazer \<path to file> --dry-run  
 
 Runs the mazer compiler without creating the HTML file, useful for debugging!
+
+# Mazel 
+
+Meet out mascot, they are called Mazel! (Maple + Hazel)
+They are very excited to meet you!
+
+![mazel-mascot](https://raw.githubusercontent.com/frroossst/mazer/master/mazer-mascot.png)
