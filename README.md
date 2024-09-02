@@ -1,10 +1,11 @@
 # MAZER 🍁
 ## Mazer's Accessible Zero-hassle Equations Rendering
 
-A minimal, simple math markup language that compiles to HTML, written in Rust.  
+A minimal, simple, and opinionated math markup language that emits HTML, written in Rust.  
 
 It's like LaTeX, but with a very stripped down feature set, mainly intended for note taking and simple math expressions.
 
+Mainly, intended for quick and dirty math notes, and evaluating simple expressions.
 
 # Motivations
 
