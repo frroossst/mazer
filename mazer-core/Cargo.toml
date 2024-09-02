@@ -6,8 +6,8 @@ license = "MIT"
 description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
 
 [dependencies]
-mazer-macros = { path = "../mazer-macros" }
-mazer-data-structures = { path = "../mazer-data-structures" }
+mazer-macros = { path = "../mazer-macros", version = "*" }
+mazer-data-structures = { path = "../mazer-data-structures", version = "*" }
 anyhow = "1.0.86"
 bincode = "1.3.3"
 unicode-segmentation = "1.11.0"
