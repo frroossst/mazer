@@ -4,6 +4,5 @@ pub mod pretty_err;
 pub mod document;
 pub mod inbuilt;
 pub mod solveable;
-pub mod stdlib;
 pub mod interpreter;
 pub mod tests;

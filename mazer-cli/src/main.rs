@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use mazer_core::{document::Document, interpreter::Interpreter, parser::{Parser, ParserMode}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
+use mazer_core::{document::Document, parser::Parser , pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
 use mazer_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
@@ -176,7 +176,7 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
                     },
                     FnKind::Fmt => {
                         dbg!(expr.clone());
-                        let p_out = Parser::new(expr.clone()).set_mode(ParserMode::Expression).parse().unwrap();
+                        let p_out = Parser::new(expr.clone()).parse().unwrap();
 
                         let node = p_out.get(0).unwrap().clone();
                         let markup = interp.fmt(node);
