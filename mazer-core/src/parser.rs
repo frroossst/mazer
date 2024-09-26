@@ -1,3 +1,7 @@
+use std::fmt::Debug;
+
+use crate::pretty_err::DebugContext;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LispFragments {
     OpenParen,
@@ -7,7 +11,6 @@ pub enum LispFragments {
 }
 
 pub enum ASTNode {
-    
 }
 
 pub struct Parser {
@@ -16,7 +19,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(src: String) -> Self {
+    pub fn new(src: String, ctx: DebugContext) -> Self {
         let tokens: Vec<LispFragments> = src
             .replace("(", " ( ")
             .replace(")", " ) ")
@@ -41,21 +44,20 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Vec<ASTNode> {
+    pub fn parse(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
         let ast: Vec<ASTNode> = Vec::new();
 
         // check balanced parenthesis
         let mut count = 0;
-        let _ = self.tokens.clone().into_iter().map(|item| {
-            match item {
-                LispFragments::ClosedParen => count -= 1,
+        let _ = self.tokens.iter().map(|tok| {
+            match tok {
                 LispFragments::OpenParen => count += 1,
-                _ => {},
+                LispFragments::ClosedParen => count -= 1,
+                _ => (),
             }
         });
 
 
-        ast
+        Ok(ast)
     }
 }
-

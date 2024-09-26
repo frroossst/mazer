@@ -674,7 +674,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "mazer-cli"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "bincode",
  "clap",
@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "mazer-core"
-version = "0.7.0"
+version = "0.10.0"
 dependencies = [
  "anyhow",
  "bincode",

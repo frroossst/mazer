@@ -1,6 +1,6 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
 
-use mazer_core::{document::Document, parser::Parser , pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
+use mazer_core::{document::Document, interpreter::Interpreter, parser::{ASTNode, Parser}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
 use mazer_cli::state::State;
 
 use warp::{reject::Rejection, reply::Reply, Filter};
@@ -61,8 +61,7 @@ async fn main() {
     }
 
     let content = read_file(&args.file);
-    let debug_info = DebugContext::new(&args.file);
-    let (doc, ctx)= to_document(file_name_title, content, debug_info);
+    let (doc, ctx)= to_document(file_name_title, content, &args.file.as_str());
     if ctx.is_some() {
         ctx.unwrap().display();
     } else {
@@ -100,8 +99,7 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
     } else {
 
         let content = read_file(&path);
-        let debug_info = DebugContext::new(&path);
-        let (document, context) = to_document(&title, content, debug_info);
+        let (document, context) = to_document(&title, content, &path);
         if context.is_some() {
             context.unwrap().display();
         } else {
@@ -130,8 +128,8 @@ fn read_file(file_path: &str) -> String {
 }
 
 
-fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (Document, Option<DebugContext>) {
-    let mut t: Lexer = Lexer::new(content, debug_info);
+fn to_document(file_title: &str, content: String, file_path: &str) -> (Document, Option<DebugContext>) {
+    let mut t: Lexer = Lexer::new(content, DebugContext::new(file_path));
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
 
@@ -155,7 +153,9 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
     let mut document: Document = Document::new(file_title);
 
     // handle for the interpreter that emits MathML or values
-    let mut interp: Interpreter = Interpreter::new();
+    // we reset the debug context as we need the file_path but do not need other debug info, as 
+    // we will be setting new interpreter specific and later parser specific debug info
+    let mut interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
 
     for t in tokens { 
         match t {
@@ -163,29 +163,45 @@ fn to_document(file_title: &str, content: String, debug_info: DebugContext) -> (
                 let stmt = format!("let {} = {}", &var, &val);
                 document.append_code(&stmt);
 
-                let node = Parser::new(stmt).parse().unwrap().get(0).unwrap().clone();
-                interp.add_stmt(var, node);
-
+                let node: Result<Vec<ASTNode>, DebugContext> = Parser::new(stmt, DebugContext::new(file_path)).parse();
+                match node {
+                    Ok(n) => {
+                        interp.add_chunk(var, n);
+                    },
+                    // this path means there is a syntax error
+                    Err(e) => {
+                        ctx = Some(e);
+                        break;
+                    }
+                }
                 document.append_newline();
             },
             Token::Fn(kind, expr) => {
-                // TODO: replace fmt calls with MathML
-                // TODO: replace eval calls with value
+                let p_out = Parser::new(expr.clone(), DebugContext::new(file_path)).parse();
+                let node = match p_out {
+                    Ok(n) => { n },
+                    // this path means there is a syntax error
+                    Err(e) => {
+                        ctx = Some(e);
+                        break;
+                    }
+                };
+
+                let symbol = "c7eb03ac0c02f209437c28381c4d656dca8b98fbf73a062c77cbdc7bb7de93";
+                let symbol = symbol.to_string();
+
+                interp.add_chunk(symbol.clone(), node);
+
                 match kind {
                     FnKind::Eval => {
+                        let eval = interp.eval(symbol);
+                        document.append_text(None, &eval.to_string());
                     },
                     FnKind::Fmt => {
-                        dbg!(expr.clone());
-                        let p_out = Parser::new(expr.clone()).parse().unwrap();
-
-                        let node = p_out.get(0).unwrap().clone();
-                        let markup = interp.fmt(node);
-
+                        let markup = interp.fmt(symbol);
                         document.append_math_ml(&markup);
                     },
                 }
-                // let kind_str: String = kind.clone().into();
-                // document.append_wrapped_with_attr("span", "class=inline-code", &format!("{}({})", kind_str, &expr));
             },
             Token::Literal(lit) => {
                 document.append_text( None, &lit);

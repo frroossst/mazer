@@ -19,6 +19,14 @@ impl DebugContext {
         }
     }
 
+    pub fn reset(&mut self) -> Self {
+        self.err_kind = None;
+        self.src = String::new();
+        self.err_pos = 0;
+
+        self.clone()
+    }
+
     pub fn is_err(&self) -> bool {
         self.err_kind.is_some()
     }
