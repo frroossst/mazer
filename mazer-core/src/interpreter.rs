@@ -49,7 +49,7 @@ impl Interpreter {
     }
 
     pub fn add_chunk(&mut self, symbol: String, definition: Vec<ASTNode>) {
-
+        self.chunks.insert(symbol, definition);
     }
 
     pub fn eval(&self, symbol: String) -> Evaluation {

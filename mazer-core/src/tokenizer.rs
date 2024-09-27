@@ -322,11 +322,11 @@ impl Lexer {
 
             return Ok(Some(Token::LetExpr(var, val)));
         // inline fmt calls
-        } else if curr_tok == "$" && self.peek()? == "{" {
+        } else if curr_tok == "$" && self.peek()? == "(" {
             self.advance_char()?;
             self.advance_char()?;
-            let fmt = self.consume_till("}")?.to_string();
-            self.must_consume("}")?;
+            let fmt = self.consume_till(")")?.to_string();
+            self.must_consume(")")?;
 
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // fmt calls
