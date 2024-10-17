@@ -1,4 +1,5 @@
 use std::{convert::Infallible, sync::{Arc, Mutex}};
+use std::io::{self, Write};
 
 use mazer_core::{document::Document, interpreter::Interpreter, parser::{ASTNode, Parser}, pretty_err::DebugContext, tokenizer::{FnKind, Lexer, Token}};
 use mazer_cli::state::State;
@@ -11,18 +12,41 @@ use colored::*;
 #[derive(Debug, Clone)]
 struct Args {
     /// Maple file to run
-    file: String,
+    file: Option<String>,
     /// Serve the file on a local server
     #[clap(short, long)]
     serve: bool,
     /// Open the file in the default browser
     #[clap(short, long)]
     open: bool,
+    #[clap(short, long)]
+    repl: bool,
     /// Dry-run, does not create html file as output
     #[clap(short, long)]
     dry_run: bool,
 }
 
+fn prompt() -> String {
+    print!(">>> ");
+    let mut out = io::stdout().lock();
+    out.flush().expect("unable to flush");
+
+    let mut buffer = String::new();
+    loop {
+        let num_bytes = std::io::stdin().read_line(&mut buffer).expect("unable to read line!");
+        if num_bytes == 0 {
+            std::process::exit(0);
+        }
+            
+        let prev_len = buffer.len();
+        if (prev_len - buffer.trim_end_matches('\n').len()) >= 2 {
+            break;
+        } else if "q" == buffer.as_str().trim() {
+            std::process::exit(0);
+        }
+    }
+    buffer.trim().to_string()
+}
 
 
 #[tokio::main]
@@ -30,10 +54,36 @@ async fn main() {
 
     let args = <Args as clap::Parser>::parse();
 
-    // get name of the file from the path to act as the title of HTML page
-    let file_name_title = args.file.split("/").last().unwrap().split(".").next().unwrap();
+    if args.repl {
+        println!("welcome to the mazer REPL");
+        println!("press Enter twice (i.e. blank line) to execute");
+        println!("q to quit");
+        println!();
+        println!("wrap code in fmt() to output equivalent MathML");
+        println!("wrap code in eval() to evaluate the expression");
+        println!();
+        loop {
+            let src = prompt();
+            eprintln!("evaluating....");
+            dbg!(src);
+        }
+    }
 
-    let state = State::new(args.file.clone(), file_name_title.to_string());
+    let file;
+    match args.file {
+        Some(f) => {
+            file = f;
+        },
+        None => {
+            eprintln!("no file name given");
+            std::process::exit(1);
+        }
+    }
+
+    // get name of the file from the path to act as the title of HTML page
+    let file_name_title = file.split("/").last().unwrap().split(".").next().unwrap();
+
+    let state = State::new(file.clone(), file_name_title.to_string());
     let state = Arc::new(Mutex::new(state));
 
     if args.serve {
@@ -60,8 +110,8 @@ async fn main() {
         warp::serve(routes).run(([127, 0, 0, 1], port)).await;
     }
 
-    let content = read_file(&args.file);
-    let (doc, ctx)= to_document(file_name_title, content, &args.file.as_str());
+    let content = read_file(&file);
+    let (doc, ctx)= to_document(file_name_title, content, &file.as_str());
     if ctx.is_some() {
         ctx.unwrap().display();
     } else {
