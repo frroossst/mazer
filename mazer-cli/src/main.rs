@@ -62,10 +62,45 @@ async fn main() {
         println!("wrap code in fmt() to output equivalent MathML");
         println!("wrap code in eval() to evaluate the expression");
         println!();
+
+        let env_path =  std::env::current_dir()
+            .expect("cannot get current working directory")
+            .to_str().unwrap().to_owned() + "<REPL>";
+
+        let mut interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
+
         loop {
             let src = prompt();
+
+            let mut tokens: Vec<Token> = Vec::new();
+            let mut t: Lexer = Lexer::new(src, DebugContext::new(&env_path));
+            loop {
+                match t.next_line() {
+                    Ok(Some(l)) => {
+                        tokens.extend(l);
+                    },
+                    Ok(None) => break,
+                    Err(e) => {
+                        eprintln!("{:?}", e);
+                        break;
+                    }
+                }
+            }
+            let tokens = Lexer::compact(tokens).into_iter().filter(|t|{
+                match *t {
+                    Token::LetExpr(var, val) => {
+                        true
+                    },
+                    _ => {
+                        eprintln!("[ERROR] repl can only process maple tokens");
+                        false
+                    }
+                }
+            });
+
+
+
             eprintln!("evaluating....");
-            dbg!(src);
         }
     }
 
