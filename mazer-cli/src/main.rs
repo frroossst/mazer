@@ -86,16 +86,17 @@ async fn main() {
                     }
                 }
             }
-            let tokens = Lexer::compact(tokens).into_iter().filter(|t|{
-                match *t {
-                    Token::LetExpr(var, val) => {
-                        true
-                    },
-                    _ => {
-                        eprintln!("[ERROR] repl can only process maple tokens");
-                        false
+            let tokens = Lexer::compact(tokens).into_iter().filter(
+                |t|{
+                    match t.clone() {
+                        Token::LetExpr(var, val) => {
+                            true
+                        },
+                        _ => {
+                            eprintln!("[ERROR] repl can only process maple tokens");
+                            false
+                        }
                     }
-                }
             });
 
 
