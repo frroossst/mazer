@@ -90,22 +90,66 @@ async fn main() {
             let tokens = tokens.into_iter().filter(
                 |t|{
                     match t.clone() {
-                        Token::LetExpr(var, val) => {
-                            dbg!(var, val);
+                        Token::LetExpr(_var, _val) => {
                             true
                         },
-                        Token::Fn(kind, body) => {
-                            dbg!(kind, body);
+                        Token::Fn(_kind, _body) => {
                             true
-                        }
+                        },
                         _ => {
-                            eprintln!("[ERROR] repl can only process maple tokens");
+                            eprintln!("[ERROR] repl can only process mazer tokens");
                             false
                         }
                     }
-            });
+            }).collect::<Vec<Token>>();
+
+            for t in tokens.iter() {
+                match t {
+                    Token::LetExpr(var, val) => {
+                        let stmt = format!("let {} = {}", &var, &val);
+                        let node: Result<Vec<ASTNode>, DebugContext> = Parser::new(stmt, DebugContext::new(&env_path)).parse();
+                        match node {
+                            Ok(n) => {
+                                interp.add_chunk(var.clone(), n);
+                            },
+                            // this path means there is a syntax error
+                            Err(e) => {
+                                eprintln!("{:?}", e);
+                                break;
+                            }
+                        }
+                    },
+                    Token::Fn(kind, expr) => {
+                        let p_out = Parser::new(expr.clone(), DebugContext::new(&env_path)).parse();
+                        let node = match p_out {
+                            Ok(n) => { n },
+                            // this path means there is a syntax error
+                            Err(e) => {
+                                eprintln!("{:?}", e);
+                                break;
+                            }
+                        };
+
+                        let symbol = "c7eb03ac0c02f209437c28381c4d656dca8b98fbf73a062c77cbdc7bb7de93";
+                        let symbol = symbol.to_string();
+
+                        interp.add_chunk(symbol.clone(), node);
+
+                        match kind {
+                            FnKind::Eval => {
+                                let eval = interp.eval(symbol);
+                                eprintln!("{}", eval.to_string());
+                            },
+                            FnKind::Fmt => {
+                                let markup = interp.fmt(symbol);
+                                eprintln!("{}", markup);
+                            },
+                        }
+                    },
+                    _ => {}
+                }
+            }
             eprintln!("evaluating....");
-            dbg!(&tokens);
         }
     }
 
