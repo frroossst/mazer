@@ -102,6 +102,14 @@ impl Lexer {
                                     .map(|&x| x.to_string())
                                     .collect::<Vec<String>>();
 
+        // push 5 newlines to the end of the source code to ensure
+        // that the last line is parsed and it does not run out of 
+        // bounds
+        let mut uni_vec = uni_vec;
+        for _ in 0..5 {
+            uni_vec.push("\n".to_string());
+        }
+
         let max = uni_vec.len();
         Lexer {
             src: uni_vec,
@@ -325,8 +333,8 @@ impl Lexer {
         } else if curr_tok == "$" && self.peek()? == "(" {
             self.advance_char()?;
             self.advance_char()?;
-            let fmt = self.consume_till(")")?.to_string();
             self.must_consume(")")?;
+            let fmt = self.consume_till(")")?.to_string();
 
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // fmt calls
