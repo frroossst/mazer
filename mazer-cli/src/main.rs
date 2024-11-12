@@ -86,20 +86,26 @@ async fn main() {
                     }
                 }
             }
-            let tokens = Lexer::compact(tokens).into_iter().filter(
+            let tokens = Lexer::compact(tokens);
+            let tokens = tokens.into_iter().filter(
                 |t|{
                     match t.clone() {
                         Token::LetExpr(var, val) => {
+                            dbg!(var, val);
                             true
                         },
+                        Token::Fn(kind, body) => {
+                            dbg!(kind, body);
+                            true
+                        }
                         _ => {
                             eprintln!("[ERROR] repl can only process maple tokens");
                             false
                         }
                     }
             });
-
             eprintln!("evaluating....");
+            dbg!(&tokens);
         }
     }
 
