@@ -130,19 +130,18 @@ async fn main() {
                             }
                         };
 
-                        let symbol = "c7eb03ac0c02f209437c28381c4d656dca8b98fbf73a062c77cbdc7bb7de93";
-                        let symbol = symbol.to_string();
+                        let symbol = interp.get_temporary_variable();
 
                         interp.add_chunk(symbol.clone(), node);
 
                         match kind {
                             FnKind::Eval => {
                                 let eval = interp.eval(symbol);
-                                eprintln!("{}", eval.to_string());
+                                eprintln!("EVAL! {}", eval.to_string());
                             },
                             FnKind::Fmt => {
                                 let markup = interp.fmt(symbol);
-                                eprintln!("{}", markup);
+                                eprintln!("FMT! {}", markup);
                             },
                         }
                     },

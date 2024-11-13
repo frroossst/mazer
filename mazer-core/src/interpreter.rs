@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use rand::{thread_rng, Rng, distributions::Alphanumeric};
+
 use crate::{parser::ASTNode, pretty_err::DebugContext};
 
 
@@ -46,6 +48,17 @@ impl Interpreter {
             chunks: HashMap::new(),
             ctx,
         }
+    }
+
+    pub fn get_temporary_variable(&self) -> String {
+        let length = 8;
+        let suffix: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(length)
+        .map(char::from)
+        .collect();
+
+        format!("__temp__{}", suffix)
     }
 
     pub fn add_chunk(&mut self, symbol: String, definition: Vec<ASTNode>) {
