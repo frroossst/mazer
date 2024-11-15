@@ -1,3 +1,4 @@
+use core::panic;
 use std::fmt::Debug;
 
 use crate::pretty_err::DebugContext;
@@ -57,6 +58,26 @@ impl Parser {
             }
         });
 
+        if count != 0 {
+            panic!("Unbalanced parenthesis");
+        }
+
+        for token in self.tokens.iter() {
+            match token {
+                LispFragments::OpenParen => {
+                    // create a new list
+                },
+                LispFragments::ClosedParen => {
+                    // close the current list
+                },
+                LispFragments::Symbol(s) => {
+                    // add symbol to the current list
+                },
+                LispFragments::Number(n) => {
+                    // add number to the current list
+                },
+            }
+        }
 
         Ok(ast)
     }
