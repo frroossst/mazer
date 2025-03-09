@@ -64,10 +64,10 @@ impl Interpreter {
     }
 
     pub fn eval(&self, symbol: String) -> Evaluation {
-        Evaluation::Error("Not implemented".to_string())
+        Evaluation::Error("EVAL Not implemented".to_string())
     }
 
     pub fn fmt(&self, symbol: String) -> String {
-        "Not implemented".to_string()
+        "FMT Not implemented".to_string()
     }
 }
