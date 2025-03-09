@@ -198,7 +198,7 @@ async fn main() {
     if ctx.is_some() {
         ctx.unwrap().display();
     } else {
-        println!("{}", format!("[INFO] No errors, {} ", "OK".green().bold()));
+        println!("{}", format!("{} No errors, {} ", "[INFO]".yellow(), "OK".green().bold()));
     }
     let out = doc.output();
     
