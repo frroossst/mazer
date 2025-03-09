@@ -216,7 +216,8 @@ async fn main() {
 
     if !args.dry_run {
         // create and write to file
-        let mut file = std::fs::File::create(format!("{}.html", file_name_title))
+        std::fs::create_dir_all("out").expect("Failed to create directory");
+        let mut file = std::fs::File::create(format!("out/{}.html", file_name_title))
             .expect("Failed to create file");
         std::io::Write::write_all(&mut file, out.as_bytes()).expect("Failed to write to file");
     }
