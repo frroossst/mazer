@@ -1,8 +1,7 @@
-use unicode_segmentation::UnicodeSegmentation;
 use rayon::prelude::*;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::pretty_err::{DebugContext, ErrorKind};
-
 
 #[derive(Debug, Clone)]
 pub enum MarkdownTag {
@@ -25,7 +24,7 @@ pub enum LinkKind {
 pub enum HeaderKind {
     H1,
     H2,
-    H3
+    H3,
 }
 
 impl From<HeaderKind> for usize {
@@ -41,10 +40,10 @@ impl From<HeaderKind> for usize {
 impl From<usize> for HeaderKind {
     fn from(val: usize) -> Self {
         match val {
-            1 => { HeaderKind::H1 },
-            2 => { HeaderKind::H2 },
-            3 => { HeaderKind::H3 },
-            _ => { HeaderKind::H1 },
+            1 => HeaderKind::H1,
+            2 => HeaderKind::H2,
+            3 => HeaderKind::H3,
+            _ => HeaderKind::H1,
         }
     }
 }
@@ -93,17 +92,15 @@ pub struct Lexer {
 }
 
 impl Lexer {
-
     pub fn new(src: String, ctx: DebugContext) -> Self {
-
         let uni_vec = UnicodeSegmentation::graphemes(src.as_str(), true)
-                                    .collect::<Vec<&str>>()
-                                    .par_iter()
-                                    .map(|&x| x.to_string())
-                                    .collect::<Vec<String>>();
+            .collect::<Vec<&str>>()
+            .par_iter()
+            .map(|&x| x.to_string())
+            .collect::<Vec<String>>();
 
         // push 5 newlines to the end of the source code to ensure
-        // that the last line is parsed and it does not run out of 
+        // that the last line is parsed and it does not run out of
         // bounds
         let mut uni_vec = uni_vec;
         for _ in 0..5 {
@@ -134,7 +131,10 @@ impl Lexer {
     fn char(&mut self) -> Result<String, DebugContext> {
         if self.pos >= self.max {
             // [ERROR]
-            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            let e = ErrorKind::AbruptAdieu(format!(
+                "Reached the end of file looking for position {}",
+                self.pos
+            ));
             self.create_error(e);
             return Err(self.ctx.clone());
         }
@@ -144,7 +144,10 @@ impl Lexer {
     fn peek(&mut self) -> Result<String, DebugContext> {
         if self.pos >= self.max {
             // [ERROR]
-            let e = ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            let e = ErrorKind::AbruptAdieu(format!(
+                "Reached the end of file looking for position {}",
+                self.pos
+            ));
             self.create_error(e);
             Err(self.ctx.clone())
         } else {
@@ -156,7 +159,10 @@ impl Lexer {
     fn peek_n(&mut self, n: usize) -> Result<String, DebugContext> {
         if self.pos >= self.max {
             // [ERROR]
-            let e= ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            let e = ErrorKind::AbruptAdieu(format!(
+                "Reached the end of file looking for position {}",
+                self.pos
+            ));
             self.create_error(e);
             Err(self.ctx.clone())
         } else {
@@ -164,9 +170,12 @@ impl Lexer {
         }
     }
 
-    fn advance_char(&mut self)-> Result<(), DebugContext> {
+    fn advance_char(&mut self) -> Result<(), DebugContext> {
         if self.pos >= self.max {
-            let e = ErrorKind::AbruptAdieu(format!("Reached the end of file looking for position {}", self.pos));
+            let e = ErrorKind::AbruptAdieu(format!(
+                "Reached the end of file looking for position {}",
+                self.pos
+            ));
             self.create_error(e);
             return Err(self.ctx.clone());
         }
@@ -197,7 +206,7 @@ impl Lexer {
     }
 
     fn consume_until_not(&mut self, c: &str) -> Result<String, DebugContext> {
-        let start= self.pos;
+        let start = self.pos;
         while self.char()? == c {
             self.pos += 1;
         }
@@ -222,7 +231,7 @@ impl Lexer {
         // keep adding when ( is encountered
         // and decreasing when ) is encountered
         // if underflow then less opening
-        // if overflow or reaches end of file then 
+        // if overflow or reaches end of file then
         let mut store = String::from(self.char()?);
         let mut count = 1;
 
@@ -302,20 +311,21 @@ impl Lexer {
             return Ok(Some(Token::Literal(literal)));
         // let statements
         } else if curr_tok == "l" && self.peek()? == "e" && self.peek_n(2)? == "t" {
-
             self.advance_char()?;
             self.advance_char()?;
             self.advance_char()?;
 
             if self.char()? != " " {
                 // [ERROR]
-                let e = ErrorKind::GrammarGoblin("Let statement should be followed by a space".to_string());
+                let e = ErrorKind::GrammarGoblin(
+                    "Let statement should be followed by a space".to_string(),
+                );
                 self.create_error(e);
                 return Err(self.ctx.clone());
             }
 
             let var = self.consume_till("=")?.trim().to_string();
-            // [ERROR] 
+            // [ERROR]
             if var.is_empty() {
                 let e = ErrorKind::NamelessNomad("Variable name cannot be empty".to_string());
                 self.create_error(e);
@@ -346,7 +356,7 @@ impl Lexer {
 
             let mut fmt = String::new();
             if self.char()? != ")" {
-                // the body expression may have parenthesis in it, so need to maintain a stack and 
+                // the body expression may have parenthesis in it, so need to maintain a stack and
                 // consume until the stack is empty
                 fmt = self.consume_nested_parenthesis()?.trim().to_string();
                 // remove the last character
@@ -357,7 +367,11 @@ impl Lexer {
 
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
         // eval calls
-        } else if curr_tok == "e" && self.peek()? == "v" && self.peek_n(2)? == "a" && self.peek_n(3)? == "l" {
+        } else if curr_tok == "e"
+            && self.peek()? == "v"
+            && self.peek_n(2)? == "a"
+            && self.peek_n(3)? == "l"
+        {
             self.advance_char()?;
             self.advance_char()?;
             self.advance_char()?;
@@ -383,29 +397,26 @@ impl Lexer {
 
             let header_kind: HeaderKind = hash_count.into();
 
-            return Ok(Some(
-                Token::Markdown(
-                    MarkdownTag::Header(header_kind, heading.to_string())
-                )
-            ));
+            return Ok(Some(Token::Markdown(MarkdownTag::Header(
+                header_kind,
+                heading.to_string(),
+            ))));
         // blockquote
         } else if curr_tok == ">" {
             self.advance_char()?;
             // only a blockquote if previously it was a newline
             if self.prv.is_some() && self.prv.clone().unwrap() == "\n" {
                 let blockquote = self.consume_line()?;
-                let blockquote= blockquote.trim();
-                return Ok(Some(
-                    Token::Markdown(
-                        MarkdownTag::Blockquote(blockquote.to_string())
-                    )
-                ));
+                let blockquote = blockquote.trim();
+                return Ok(Some(Token::Markdown(MarkdownTag::Blockquote(
+                    blockquote.to_string(),
+                ))));
             // this is to ensure an arrow like this, "->" can be made in text
             } else {
                 return Ok(Some(Token::Text(None, String::from(">"))));
             }
 
-        // bullets or checkboxes 
+        // bullets or checkboxes
         } else if curr_tok == "-" {
             self.advance_char()?;
             self.consume_whitespace()?;
@@ -419,11 +430,9 @@ impl Lexer {
             if is_bullet {
                 let bullet = self.consume_line()?;
                 let bullet = bullet.trim();
-                return Ok(Some(
-                    Token::Markdown(
-                        MarkdownTag::BulletPoint(bullet.to_string())
-                    )
-                ));
+                return Ok(Some(Token::Markdown(MarkdownTag::BulletPoint(
+                    bullet.to_string(),
+                ))));
             }
 
             let is_checkbox = self.char()? == "[";
@@ -437,12 +446,11 @@ impl Lexer {
 
                 let checkbox = self.consume_line()?;
                 let checkbox = checkbox.trim();
-                return Ok(Some(
-                    Token::Markdown(
-                        MarkdownTag::Checkbox(is_checked, checkbox.to_string())
-                    )
-                ));
-            } 
+                return Ok(Some(Token::Markdown(MarkdownTag::Checkbox(
+                    is_checked,
+                    checkbox.to_string(),
+                ))));
+            }
 
             return Ok(Some(Token::Text(None, curr_tok.to_string())));
 
@@ -452,16 +460,14 @@ impl Lexer {
             self.consume_until_not("=")?;
             let now = self.pos;
             if (now - prev == 3) && !self.consume_line()?.trim().is_empty() {
-                let e = ErrorKind::GrammarGoblin("Line separator should contain only '=' characters".to_string());
+                let e = ErrorKind::GrammarGoblin(
+                    "Line separator should contain only '=' characters".to_string(),
+                );
                 self.create_error(e);
                 return Err(self.ctx.clone());
             }
 
-            return Ok(Some(
-                Token::Markdown(
-                    MarkdownTag::LineSeparator
-                )
-            ));
+            return Ok(Some(Token::Markdown(MarkdownTag::LineSeparator)));
         // consume links
         } else if (curr_tok == "!" && self.peek()? == "[") || curr_tok == "[" {
             let is_image = curr_tok == "!";
@@ -475,13 +481,15 @@ impl Lexer {
             let link = self.consume_till(")")?.to_string();
             self.must_consume(")")?;
 
-            return Ok(Some(Token::Markdown(
-                MarkdownTag::Link(
-                    if is_image { LinkKind::Image } else { LinkKind::Hyperlink },
-                    text,
-                    link,
-                )
-            )));
+            return Ok(Some(Token::Markdown(MarkdownTag::Link(
+                if is_image {
+                    LinkKind::Image
+                } else {
+                    LinkKind::Hyperlink
+                },
+                text,
+                link,
+            ))));
         // code blocks
         } else if curr_tok == "`" {
             // check if inline code block or code block
@@ -503,9 +511,7 @@ impl Lexer {
                 self.must_consume("`")?;
             }
 
-            return Ok(Some(Token::Markdown(
-                MarkdownTag::CodeBlock(code)
-            )));
+            return Ok(Some(Token::Markdown(MarkdownTag::CodeBlock(code))));
         // bold
         } else if curr_tok == "*" {
             if self.peek()? == "*" {
@@ -564,4 +570,4 @@ impl Lexer {
         }
         compacted
     }
-} 
+}

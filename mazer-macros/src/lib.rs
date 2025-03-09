@@ -38,8 +38,7 @@ macro_rules! icap {
             <mi>i</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
 #[macro_export]
@@ -50,8 +49,7 @@ macro_rules! jcap {
             <mi>j</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
 #[macro_export]
@@ -62,11 +60,10 @@ macro_rules! kcap {
             <mi>k</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
-/// vec!(x) takes in a string and 
+/// vec!(x) takes in a string and
 /// returns a vector representation of the string
 #[macro_export]
 macro_rules! vec {
@@ -99,7 +96,6 @@ macro_rules! matrix {
     }};
 } */
 
-
 /// INTEGRALS
 #[macro_export]
 macro_rules! defintegral {
@@ -114,7 +110,6 @@ macro_rules! integral {
         format!("<msubsup><mo stretchy=\"true\" largeop=\"true\">&#x222B;</mo><mo></mo><mo></mo></msubsup><mrow>{}<mo>&#x2062;</mo><mi>{}</mi></mrow>", $f, $dx)
     };
 }
-
 
 /// OPERATORS
 #[macro_export]
@@ -142,7 +137,6 @@ macro_rules! fraction {
         }
     };
 }
-
 
 /// SYMBOLS
 #[macro_export]

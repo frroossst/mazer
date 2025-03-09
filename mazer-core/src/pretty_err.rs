@@ -9,7 +9,6 @@ pub struct DebugContext {
 }
 
 impl DebugContext {
-
     pub fn new(file_path: &str) -> Self {
         DebugContext {
             file_path: file_path.to_string(),
@@ -30,7 +29,7 @@ impl DebugContext {
     pub fn is_err(&self) -> bool {
         self.err_kind.is_some()
     }
-    
+
     pub fn set_source_code(&mut self, src: String) {
         self.src = src;
     }
@@ -57,11 +56,29 @@ impl DebugContext {
             eprintln!("{}", "  |".blue().bold());
             eprint!("{}", "  =".blue().bold());
             eprintln!(" {}: {:?}", "help".bold(), err_kind.message());
-            let maple_colour = Color::TrueColor { r: 236, g: 166, b: 124 };
-            eprintln!("\n{} {}", "  Maple says".color(maple_colour), err_kind.name().bold().white());
+            let maple_colour = Color::TrueColor {
+                r: 236,
+                g: 166,
+                b: 124,
+            };
+            eprintln!(
+                "\n{} {}",
+                "  Maple says".color(maple_colour),
+                err_kind.name().bold().white()
+            );
         } else {
-            eprintln!("{}", "Oh no! something went terribly wrong, but we don't know what!".red().italic());
-            eprintln!("{}", "Please report this issue to the Maple project on GitHub.".red().italic());
+            eprintln!(
+                "{}",
+                "Oh no! something went terribly wrong, but we don't know what!"
+                    .red()
+                    .italic()
+            );
+            eprintln!(
+                "{}",
+                "Please report this issue to the Maple project on GitHub."
+                    .red()
+                    .italic()
+            );
         }
     }
 }
@@ -77,7 +94,6 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
-
     pub fn name(&self) -> String {
         match self {
             ErrorKind::BrokenExpectations(_) => "BrokenExpectations".to_string(),

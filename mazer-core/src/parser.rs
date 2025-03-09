@@ -11,8 +11,7 @@ pub enum LispFragments {
     Number(f64),
 }
 
-pub enum ASTNode {
-}
+pub enum ASTNode {}
 
 pub struct Parser {
     tokens: Vec<LispFragments>,
@@ -25,24 +24,20 @@ impl Parser {
             .replace("(", " ( ")
             .replace(")", " ) ")
             .split_whitespace()
-            .map(|t| {
-                match t {
-                    "(" => LispFragments::OpenParen,
-                    ")" => LispFragments::ClosedParen,
-                    _ => {
-                        if let Ok(num) = t.parse::<f64>() {
-                            return LispFragments::Number(num);
-                        } else {
-                            return LispFragments::Symbol(t.to_string());
-                        }
+            .map(|t| match t {
+                "(" => LispFragments::OpenParen,
+                ")" => LispFragments::ClosedParen,
+                _ => {
+                    if let Ok(num) = t.parse::<f64>() {
+                        return LispFragments::Number(num);
+                    } else {
+                        return LispFragments::Symbol(t.to_string());
                     }
                 }
-            }).collect::<Vec<LispFragments>>();
+            })
+            .collect::<Vec<LispFragments>>();
 
-        Parser {
-            tokens,
-            cursor: 0,
-        }
+        Parser { tokens, cursor: 0 }
     }
 
     pub fn parse(&mut self) -> Result<Vec<ASTNode>, DebugContext> {
@@ -50,12 +45,10 @@ impl Parser {
 
         // check balanced parenthesis
         let mut count = 0;
-        let _ = self.tokens.iter().map(|tok| {
-            match tok {
-                LispFragments::OpenParen => count += 1,
-                LispFragments::ClosedParen => count -= 1,
-                _ => (),
-            }
+        let _ = self.tokens.iter().map(|tok| match tok {
+            LispFragments::OpenParen => count += 1,
+            LispFragments::ClosedParen => count -= 1,
+            _ => (),
         });
 
         if count != 0 {
@@ -66,16 +59,16 @@ impl Parser {
             match token {
                 LispFragments::OpenParen => {
                     // create a new list
-                },
+                }
                 LispFragments::ClosedParen => {
                     // close the current list
-                },
+                }
                 LispFragments::Symbol(s) => {
                     // add symbol to the current list
-                },
+                }
                 LispFragments::Number(n) => {
                     // add number to the current list
-                },
+                }
             }
         }
 

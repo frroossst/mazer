@@ -21,5 +21,5 @@ pub trait SolveableT {
     fn solve(&self) -> Result<f64, anyhow::Error>;
 }
 
-// each 
+// each
 pub trait DebugT: std::fmt::Debug {}

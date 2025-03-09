@@ -36,8 +36,7 @@ macro_rules! icap {
             <mi>i</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
 #[macro_export]
@@ -48,8 +47,7 @@ macro_rules! jcap {
             <mi>j</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
 #[macro_export]
@@ -60,11 +58,10 @@ macro_rules! kcap {
             <mi>k</mi>
             <mo>&#x0302;</mo>
         </mover>"
-    }
-
+    };
 }
 
-/// vec!(x) takes in a string and 
+/// vec!(x) takes in a string and
 /// returns a vector representation of the string
 #[macro_export]
 macro_rules! vec {
@@ -94,7 +91,6 @@ macro_rules! matrix {
         format!("<mfenced open='[' close=']'><mo>[</mo><mtable>{}</mtable><mo>]</mo>", rows)
     }};
 }
-
 
 /// definite integral
 #[macro_export]

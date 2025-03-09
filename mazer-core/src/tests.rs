@@ -3,7 +3,7 @@ mod tests {
 
     use core::panic;
 
-    use crate::tokenizer::{Emphasis, Token, Lexer};
+    use crate::tokenizer::{Emphasis, Lexer, Token};
 
     #[test]
     fn test_compact() {
@@ -24,10 +24,9 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, None);
                 assert_eq!(t, "abcd".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
-
 
         let tokens: Vec<Token> = vec![
             Token::Text(Some(Emphasis::Bold), "a".to_string()),
@@ -46,10 +45,9 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Bold));
                 assert_eq!(t, "abcd".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
-
 
         let tokens: Vec<Token> = vec![
             Token::Text(Some(Emphasis::Bold), "a".to_string()),
@@ -58,8 +56,8 @@ mod tests {
             Token::Text(Some(Emphasis::Italic), "d".to_string()),
             Token::Text(None, "e".to_string()),
             Token::Text(None, "f".to_string()),
-            Token::Text(Some(Emphasis::Strikethrough),"g".to_string()),
-            Token::Text(Some(Emphasis::Strikethrough),"h".to_string()),
+            Token::Text(Some(Emphasis::Strikethrough), "g".to_string()),
+            Token::Text(Some(Emphasis::Strikethrough), "h".to_string()),
         ];
 
         let compacted = Lexer::compact(tokens.clone());
@@ -72,7 +70,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Bold));
                 assert_eq!(t, "ab".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -81,7 +79,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Italic));
                 assert_eq!(t, "cd".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -90,7 +88,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, None);
                 assert_eq!(t, "ef".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -99,20 +97,19 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Strikethrough));
                 assert_eq!(t, "gh".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
-
 
         let tokens: Vec<Token> = vec![
             Token::Text(Some(Emphasis::Bold), "a".to_string()),
             Token::Text(Some(Emphasis::Italic), "b".to_string()),
-            Token::Text(Some(Emphasis::Strikethrough),"c".to_string()),
+            Token::Text(Some(Emphasis::Strikethrough), "c".to_string()),
             Token::Text(None, "d".to_string()),
             Token::Text(Some(Emphasis::Bold), "e".to_string()),
             Token::Text(Some(Emphasis::Italic), "f".to_string()),
             Token::Text(None, "g".to_string()),
-            Token::Text(Some(Emphasis::Strikethrough),"h".to_string()),
+            Token::Text(Some(Emphasis::Strikethrough), "h".to_string()),
         ];
 
         let compacted = Lexer::compact(tokens.clone());
@@ -125,7 +122,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Bold));
                 assert_eq!(t, "a".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -134,7 +131,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Italic));
                 assert_eq!(t, "b".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -143,7 +140,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Strikethrough));
                 assert_eq!(t, "c".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -152,7 +149,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, None);
                 assert_eq!(t, "d".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -161,7 +158,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Bold));
                 assert_eq!(t, "e".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -170,7 +167,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Italic));
                 assert_eq!(t, "f".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -179,7 +176,7 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, None);
                 assert_eq!(t, "g".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
 
@@ -188,9 +185,8 @@ mod tests {
             Token::Text(e, t) => {
                 assert_eq!(e, Some(Emphasis::Strikethrough));
                 assert_eq!(t, "h".to_string());
-            },
+            }
             _ => panic!("Token is not Text, expected Text"),
         };
     }
-
 }

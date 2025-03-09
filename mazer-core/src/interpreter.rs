@@ -1,10 +1,8 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use rand::{thread_rng, Rng, distributions::Alphanumeric};
+use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use crate::{parser::ASTNode, pretty_err::DebugContext};
-
-
 
 pub enum Evaluation {
     Number(f64),
@@ -30,7 +28,7 @@ impl ToString for Evaluation {
                 }
                 res.push_str(")");
                 res
-            },
+            }
             Evaluation::Nil => "nil".to_string(),
             Evaluation::Error(e) => e.to_string(),
         }
@@ -53,10 +51,10 @@ impl Interpreter {
     pub fn get_temporary_variable(&self) -> String {
         let length = 8;
         let suffix: String = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(length)
-        .map(char::from)
-        .collect();
+            .sample_iter(&Alphanumeric)
+            .take(length)
+            .map(char::from)
+            .collect();
 
         format!("__temp__{}", suffix)
     }
@@ -72,5 +70,4 @@ impl Interpreter {
     pub fn fmt(&self, symbol: String) -> String {
         "Not implemented".to_string()
     }
-
 }
