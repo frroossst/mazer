@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use crate::{parser::ASTNode, pretty_err::DebugContext};
+use crate::{parser::LispExpr, pretty_err::DebugContext};
 
 pub enum Evaluation {
     Number(f64),
@@ -36,7 +36,7 @@ impl ToString for Evaluation {
 }
 
 pub struct Interpreter {
-    chunks: HashMap<String, Vec<ASTNode>>,
+    chunks: HashMap<String, Vec<LispExpr>>,
     ctx: DebugContext,
 }
 
@@ -59,7 +59,7 @@ impl Interpreter {
         format!("__temp__{}", suffix)
     }
 
-    pub fn add_chunk(&mut self, symbol: String, definition: Vec<ASTNode>) {
+    pub fn add_chunk(&mut self, symbol: String, definition: Vec<LispExpr>) {
         self.chunks.insert(symbol, definition);
     }
 

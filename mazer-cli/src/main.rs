@@ -8,7 +8,7 @@ use mazer_cli::state::State;
 use mazer_core::{
     document::Document,
     interpreter::Interpreter,
-    parser::{ASTNode, Parser},
+    parser::{LispExpr, Parser},
     pretty_err::DebugContext,
     tokenizer::{FnKind, Lexer, Token},
 };
@@ -114,45 +114,10 @@ async fn main() {
             for t in tokens.iter() {
                 match t {
                     Token::LetExpr(var, val) => {
-                        let stmt = format!("let {} = {}", &var, &val);
-                        let node: Result<Vec<ASTNode>, DebugContext> =
-                            Parser::new(stmt, DebugContext::new(&env_path)).parse();
-                        match node {
-                            Ok(n) => {
-                                interp.add_chunk(var.clone(), n);
-                            }
-                            // this path means there is a syntax error
-                            Err(e) => {
-                                eprintln!("{:?}", e);
-                                break;
-                            }
-                        }
+                        unimplemented!("let expr");
                     }
                     Token::Fn(kind, expr) => {
-                        let p_out = Parser::new(expr.clone(), DebugContext::new(&env_path)).parse();
-                        let node = match p_out {
-                            Ok(n) => n,
-                            // this path means there is a syntax error
-                            Err(e) => {
-                                eprintln!("{:?}", e);
-                                break;
-                            }
-                        };
-
-                        let symbol = interp.get_temporary_variable();
-
-                        interp.add_chunk(symbol.clone(), node);
-
-                        match kind {
-                            FnKind::Eval => {
-                                let eval = interp.eval(symbol);
-                                eprintln!("EVAL! {}", eval.to_string());
-                            }
-                            FnKind::Fmt => {
-                                let markup = interp.fmt(symbol);
-                                eprintln!("FMT! {}", markup);
-                            }
-                        }
+                        unimplemented!("fn kind");
                     }
                     _ => {}
                 }
@@ -304,49 +269,10 @@ fn to_document(
     for t in tokens {
         match t {
             Token::LetExpr(var, val) => {
-                let stmt = format!("let {} = {}", &var, &val);
-                document.append_code(&stmt);
-
-                let node: Result<Vec<ASTNode>, DebugContext> =
-                    Parser::new(stmt, DebugContext::new(file_path)).parse();
-                match node {
-                    Ok(n) => {
-                        interp.add_chunk(var, n);
-                    }
-                    // this path means there is a syntax error
-                    Err(e) => {
-                        ctx = Some(e);
-                        break;
-                    }
-                }
-                document.append_newline();
+                unimplemented!("let expr");
             }
             Token::Fn(kind, expr) => {
-                let p_out = Parser::new(expr.clone(), DebugContext::new(file_path)).parse();
-                let node = match p_out {
-                    Ok(n) => n,
-                    // this path means there is a syntax error
-                    Err(e) => {
-                        ctx = Some(e);
-                        break;
-                    }
-                };
-
-                let symbol = "c7eb03ac0c02f209437c28381c4d656dca8b98fbf73a062c77cbdc7bb7de93";
-                let symbol = symbol.to_string();
-
-                interp.add_chunk(symbol.clone(), node);
-
-                match kind {
-                    FnKind::Eval => {
-                        let eval = interp.eval(symbol);
-                        document.append_text(None, &eval.to_string());
-                    }
-                    FnKind::Fmt => {
-                        let markup = interp.fmt(symbol);
-                        document.append_math_ml(&markup);
-                    }
-                }
+                unimplemented!("fn kind");
             }
             Token::Literal(lit) => {
                 document.append_text(None, &lit);
