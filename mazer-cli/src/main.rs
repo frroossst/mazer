@@ -266,15 +266,29 @@ fn to_document(
     // handle for the interpreter that emits MathML or values
     // we reset the debug context as we need the file_path but do not need other debug info, as
     // we will be setting new interpreter specific and later parser specific debug info
-    let interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
+    let mut interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
 
     for t in tokens {
         match t {
             Token::LetExpr(var, val) => {
-                unimplemented!("let expr");
+                document.append_code(&format!("let {} = {}", &var, &val));
+
+                let mut p = Parser::new(val);
+                let expr = p.parse();
+                interp.set_chunk(var, expr);
             }
             Token::Fn(kind, expr) => {
-                unimplemented!("fn kind");
+                match kind {
+                    FnKind::Eval => {
+                        dbg!(interp);
+
+
+                        unimplemented!("fn kind eval");
+                    }
+                    FnKind::Fmt => {
+                        unimplemented!("fn kind fmt");
+                    }
+                }
             }
             Token::Literal(lit) => {
                 document.append_text(None, &lit);

@@ -31,7 +31,7 @@ y = 123
 
 > Let there be hypotenuse
 
-let decimal = 69.420;
+let decimal = (69.420);
 let neg = -456.873;
 let x = 123;
 

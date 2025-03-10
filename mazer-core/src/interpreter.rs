@@ -35,7 +35,11 @@ impl ToString for Evaluation {
     }
 }
 
+type Environment = HashMap<String, LispExpr>;
+
+#[derive(Debug)]
 pub struct Interpreter {
+    env: Environment,
     chunks: HashMap<String, Vec<LispExpr>>,
     ctx: DebugContext,
 }
@@ -43,11 +47,21 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new(ctx: DebugContext) -> Self {
         Interpreter {
+            env: Interpreter::stdenv(),
             chunks: HashMap::new(),
             ctx,
         }
     }
 
+    fn stdenv() -> Environment {
+        let mut env = HashMap::new();
+        
+        env.insert("pi".to_string(), LispExpr::Number(std::f64::consts::PI));
+        env.insert("e".to_string(), LispExpr::Number(std::f64::consts::E));
+        
+        env
+    }
+    
     pub fn get_temporary_variable(&self) -> String {
         let length = 8;
         let suffix: String = thread_rng()
@@ -59,8 +73,12 @@ impl Interpreter {
         format!("__temp__{}", suffix)
     }
 
-    pub fn add_chunk(&mut self, symbol: String, definition: Vec<LispExpr>) {
+    pub fn set_chunk(&mut self, symbol: String, definition: Vec<LispExpr>) {
         self.chunks.insert(symbol, definition);
+    }
+
+    pub fn get_chunk(&self, symbol: String) -> Option<Vec<LispExpr>> {
+        self.chunks.get(&symbol).cloned()
     }
 
     pub fn eval(&self, symbol: String) -> Evaluation {
