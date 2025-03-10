@@ -79,7 +79,7 @@ async fn main() {
             .to_owned()
             + "<REPL>";
 
-        let mut interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
+        let interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
 
         loop {
             let src = prompt();
@@ -204,7 +204,6 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
         )
     };
     if !has_changed {
-
         Ok(Box::new(warp::reply::with_status(
             "",
             warp::http::StatusCode::NOT_MODIFIED,
@@ -215,7 +214,10 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
         if context.is_some() {
             context.unwrap().display();
         } else {
-            println!("{}", format!("{} No errors, {} ", "[INFO]".yellow(), "OK".green().bold()));
+            println!(
+                "{}",
+                format!("{} No errors, {} ", "[INFO]".yellow(), "OK".green().bold())
+            );
         }
         let out = document.output();
 
@@ -264,7 +266,7 @@ fn to_document(
     // handle for the interpreter that emits MathML or values
     // we reset the debug context as we need the file_path but do not need other debug info, as
     // we will be setting new interpreter specific and later parser specific debug info
-    let mut interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
+    let interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
 
     for t in tokens {
         match t {

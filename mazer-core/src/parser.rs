@@ -1,9 +1,7 @@
-use std::fmt;
 use regex::Regex;
+use std::fmt;
 
 use crate::pretty_err::DebugContext;
-
-
 
 #[derive(Debug, Clone)]
 pub enum LispExpr {
@@ -37,7 +35,6 @@ impl fmt::Display for LispExpr {
     }
 }
 
-
 pub struct Parser {
     tokens: Vec<String>,
     ast: Vec<LispExpr>,
@@ -53,7 +50,9 @@ impl Parser {
     }
 
     pub fn tokenize(src: &str) -> Vec<String> {
-        let regex = Regex::new(r#"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)"#).expect("regex should always compile");
+        let regex =
+            Regex::new(r#"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)"#)
+                .expect("regex should always compile");
         let mut results = Vec::with_capacity(1024);
 
         for capture in regex.captures_iter(src) {
@@ -63,7 +62,7 @@ impl Parser {
             }
             results.push(token.to_string());
         }
-        
+
         results
     }
 
@@ -81,22 +80,22 @@ impl Parser {
         if start_index >= tokens.len() {
             return (LispExpr::Nil, start_index);
         }
-        
+
         let token = &tokens[start_index];
-        
+
         if token == "(" {
             let mut list = Vec::new();
             let mut idx = start_index + 1;
-            
+
             while idx < tokens.len() && tokens[idx] != ")" {
                 let (expr, next_idx) = Parser::parse_tokens(tokens, idx);
                 list.push(expr);
                 idx = next_idx;
             }
-            
+
             // Skip the closing parenthesis
             idx = if idx < tokens.len() { idx + 1 } else { idx };
-            
+
             return (LispExpr::List(list), idx);
         } else {
             (Parser::parse_atom(token), start_index + 1)
@@ -107,18 +106,18 @@ impl Parser {
         // Handle strings
         if token.starts_with('"') {
             let content = if token.ends_with('"') && token.len() > 1 {
-                &token[1..token.len()-1]
+                &token[1..token.len() - 1]
             } else {
                 &token[1..]
             };
             return LispExpr::String(content.to_string());
         }
-        
+
         // Handle numbers
         if let Ok(num) = token.parse::<f64>() {
             return LispExpr::Number(num);
         }
-        
+
         // Handle booleans and nil
         match token {
             "true" => return LispExpr::Boolean(true),
@@ -126,11 +125,10 @@ impl Parser {
             "nil" => return LispExpr::Nil,
             _ => {}
         }
-        
+
         // Otherwise it's a symbol
         LispExpr::Symbol(token.to_string())
     }
-
 }
 
 #[cfg(test)]
@@ -144,6 +142,5 @@ mod tests {
         let ast = parser.parse().unwrap();
 
         dbg!(ast);
-
     }
 }
