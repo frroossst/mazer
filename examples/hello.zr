@@ -78,7 +78,7 @@ fmt("Hello World!")
 
 fmt("123") // should not parse as a number
 
-# This is where the maple 🍁 magic ✨ begins! 
+# This is where the mazer 🍁 magic ✨ begins! 
 
 fmt([[1, 2, 3], [4, 5, 6]]);
 

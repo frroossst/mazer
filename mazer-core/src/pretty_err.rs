@@ -56,14 +56,14 @@ impl DebugContext {
             eprintln!("{}", "  |".blue().bold());
             eprint!("{}", "  =".blue().bold());
             eprintln!(" {}: {:?}", "help".bold(), err_kind.message());
-            let maple_colour = Color::TrueColor {
+            let mazer_colour = Color::TrueColor {
                 r: 236,
                 g: 166,
                 b: 124,
             };
             eprintln!(
                 "\n{} {}",
-                "  Maple says".color(maple_colour),
+                "  Maple says".color(mazer_colour),
                 err_kind.name().bold().white()
             );
         } else {
@@ -75,7 +75,7 @@ impl DebugContext {
             );
             eprintln!(
                 "{}",
-                "Please report this issue to the Maple project on GitHub."
+                "Please report this issue to the Mazer project on GitHub."
                     .red()
                     .italic()
             );

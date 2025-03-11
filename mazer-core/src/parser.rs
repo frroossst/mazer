@@ -1,8 +1,6 @@
 use regex::Regex;
 use std::fmt;
 
-use crate::pretty_err::DebugContext;
-
 #[derive(Debug, Clone)]
 pub enum LispExpr {
     Number(f64),
@@ -39,12 +37,16 @@ pub struct MathML(String);
 
 macro_rules! wrap_mathml {
     ($content:expr) => {
-        format!("<math xmlns=\"http://www.w3.org/1998/Math/MathML\">{}</math>", $content)
+        format!(
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">{}</math>",
+            $content
+        )
     };
 }
 
 impl Into<MathML> for Vec<LispExpr> {
     fn into(self) -> MathML {
+        let _ = wrap_mathml!("");
         unimplemented!("Into<MathML> for String")
     }
 }
@@ -179,6 +181,9 @@ mod tests {
     #[test]
     fn test_wrapmathml() {
         let wrapped = wrap_mathml!("hello");
-        assert_eq!(wrapped, "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">hello</math>");
+        assert_eq!(
+            wrapped,
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">hello</math>"
+        );
     }
 }

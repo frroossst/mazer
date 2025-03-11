@@ -55,13 +55,13 @@ impl Interpreter {
 
     fn stdenv() -> Environment {
         let mut env = HashMap::new();
-        
+
         env.insert("pi".to_string(), LispExpr::Number(std::f64::consts::PI));
         env.insert("e".to_string(), LispExpr::Number(std::f64::consts::E));
-        
+
         env
     }
-    
+
     pub fn get_temporary_variable(&self) -> String {
         let length = 8;
         let suffix: String = thread_rng()
@@ -73,6 +73,10 @@ impl Interpreter {
         format!("__temp__{}", suffix)
     }
 
+    pub fn get_symbol(&self, symbol: String) -> Option<LispExpr> {
+        self.env.get(&symbol).cloned()
+    }
+
     pub fn set_chunk(&mut self, symbol: String, definition: Vec<LispExpr>) {
         self.chunks.insert(symbol, definition);
     }
@@ -81,11 +85,11 @@ impl Interpreter {
         self.chunks.get(&symbol).cloned()
     }
 
-    pub fn eval(&self, symbol: String) -> Evaluation {
+    pub fn eval(&self, _symbol: String) -> Evaluation {
         Evaluation::Error("EVAL Not implemented".to_string())
     }
 
-    pub fn fmt(&self, symbol: String) -> String {
+    pub fn fmt(&self, _symbol: String) -> String {
         "FMT Not implemented".to_string()
     }
 }

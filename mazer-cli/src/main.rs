@@ -9,7 +9,7 @@ use mazer_core::parser::MathML;
 use mazer_core::{
     document::Document,
     interpreter::Interpreter,
-    parser::{LispExpr, Parser},
+    parser::Parser,
     pretty_err::DebugContext,
     tokenizer::{FnKind, Lexer, Token},
 };
@@ -34,6 +34,16 @@ struct Args {
     /// Dry-run, does not create html file as output
     #[clap(short, long)]
     dry_run: bool,
+}
+
+fn print_help_message() {
+    eprintln!("Usage: mazer [OPTIONS] <file>");
+    eprintln!();
+    eprintln!("--serve      Serve the file on a local server");
+    eprintln!("--open       Open the file in the default browser");
+    eprintln!("--repl       Start the REPL");
+    eprintln!("--dry-run    Dry-run, does not create html file as output");
+    eprintln!();
 }
 
 fn prompt() -> String {
@@ -80,7 +90,7 @@ async fn main() {
             .to_owned()
             + "<REPL>";
 
-        let interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
+        let _interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
 
         loop {
             let src = prompt();
@@ -114,10 +124,10 @@ async fn main() {
 
             for t in tokens.iter() {
                 match t {
-                    Token::LetExpr(var, val) => {
+                    Token::LetExpr(_var, _val) => {
                         unimplemented!("let expr");
                     }
-                    Token::Fn(kind, expr) => {
+                    Token::Fn(_kind, _expr) => {
                         unimplemented!("fn kind");
                     }
                     _ => {}
@@ -133,7 +143,8 @@ async fn main() {
             file = f;
         }
         None => {
-            eprintln!("no file name given");
+            eprintln!("{}", "no file name given".bright_red().bold());
+            print_help_message();
             std::process::exit(1);
         }
     }
@@ -278,23 +289,21 @@ fn to_document(
                 let expr = p.parse();
                 interp.set_chunk(var, expr);
             }
-            Token::Fn(kind, expr) => {
-                match kind {
-                    FnKind::Eval => {
-                        document.append_code(&format!("unable to evaluate = eval({})", &expr));
-                    }
-                    FnKind::Fmt => {
-                        let mut p = Parser::new(expr);
-                        let exprs = p.parse();
-
-                        dbg!(&exprs);
-
-                        let mathml: MathML = exprs.into();
-
-                        unimplemented!("fn kind fmt");
-                    }
+            Token::Fn(kind, expr) => match kind {
+                FnKind::Eval => {
+                    document.append_code(&format!("unable to evaluate = eval({})", &expr));
                 }
-            }
+                FnKind::Fmt => {
+                    let mut p = Parser::new(expr);
+                    let exprs = p.parse();
+
+                    dbg!(&exprs);
+
+                    let _mathml: MathML = exprs.into();
+
+                    unimplemented!("fn kind fmt");
+                }
+            },
             Token::Literal(lit) => {
                 document.append_text(None, &lit);
             }
