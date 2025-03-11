@@ -9,6 +9,18 @@ impl MathML {
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>+</mo>")).into()
     }
 
+    pub fn subtraction(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn multiplication(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn division(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
     pub fn matrix(args: &[LispExpr]) -> Self {
         let rows_mathml = args.iter().map(|row| {
             if let LispExpr::List(cells) = row {
@@ -24,4 +36,49 @@ impl MathML {
         
         format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", rows_mathml).into()
     }
+
+    pub fn fraction(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn subscript(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn superscript(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn vector(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn derivative(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn integral(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn limit(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn sum(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn abs(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn sqrt(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn nth_root(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
 }

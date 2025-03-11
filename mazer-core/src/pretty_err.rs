@@ -63,7 +63,7 @@ impl DebugContext {
             };
             eprintln!(
                 "\n{} {}",
-                "  Maple says".color(mazer_colour),
+                "  Mazer says".color(mazer_colour),
                 err_kind.name().bold().white()
             );
         } else {

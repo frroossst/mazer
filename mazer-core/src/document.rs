@@ -9,7 +9,7 @@ pub struct Document {
 impl Document {
     pub fn new(title: &str) -> Self {
         Document {
-            title: format!("<title> Maple - {} </title>", title),
+            title: format!("<title> Mazer - {} </title>", title),
             body: Vec::new(),
         }
     }
