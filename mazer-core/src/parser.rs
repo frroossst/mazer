@@ -35,6 +35,21 @@ impl fmt::Display for LispExpr {
     }
 }
 
+pub struct MathML(String);
+
+macro_rules! wrap_mathml {
+    ($content:expr) => {
+        format!("<math xmlns=\"http://www.w3.org/1998/Math/MathML\">{}</math>", $content)
+    };
+}
+
+impl Into<MathML> for String {
+    fn into(self) -> MathML {
+        wrap_mathml!(self).into()
+    }
+
+}
+
 pub struct Parser {
     tokens: Vec<String>,
     ast: Vec<LispExpr>,
@@ -136,11 +151,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parser() {
+    fn test_simple() {
         let src = "(+ 1 2)".to_string();
         let mut parser = Parser::new(src);
-        let ast = parser.parse().unwrap();
+        let ast = parser.parse();
 
-        dbg!(ast);
+        assert_eq!(ast.len(), 5);
+    }
+
+    #[test]
+    fn test_nary() {
+        let src = "(* 1 2 3 4 5)".to_string();
+        let mut parser = Parser::new(src);
+        let ast = parser.parse();
+
+        assert_eq!(ast.len(), 8);
+    }
+
+    #[test]
+    fn test_nested() {
+        let src = "(+ 1 (* 2 3))".to_string();
+        let mut parser = Parser::new(src);
+        let ast = parser.parse();
+
+        assert_eq!(ast.len(), 9);
+    }
+
+    #[test]
+    fn test_wrapmathml() {
+        let wrapped = wrap_mathml!("hello");
+        assert_eq!(wrapped, "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">hello</math>");
     }
 }
