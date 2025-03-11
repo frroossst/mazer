@@ -180,7 +180,7 @@ async fn main() {
     }
 
     let content = read_file(&file);
-    let (doc, ctx) = to_document(file_name_title, content, &file.as_str());
+    let (doc, ctx) = to_document(file_name_title, content, file.as_str());
     if ctx.is_some() {
         ctx.unwrap().display();
     } else {
