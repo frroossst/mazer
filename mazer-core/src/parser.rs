@@ -84,6 +84,7 @@ impl From<&LispExpr> for MathML {
                     let args = &list[1..];
                     match operator.as_str() {
                         "+" => MathML::addition(args),
+                        "matrix"=> MathML::matrix(args),
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }
                 } else {
@@ -103,6 +104,22 @@ impl MathML {
             .collect();
         
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>+</mo>")).into()
+    }
+
+    fn matrix(args: &[LispExpr]) -> Self {
+        let rows_mathml = args.iter().map(|row| {
+            if let LispExpr::List(cells) = row {
+                let cells_mathml = cells.iter()
+                    .map(|cell| format!("<mtd>{}</mtd>", MathML::from(cell).to_string()))
+                    .collect::<Vec<String>>()
+                    .join("");
+                format!("<mtr>{}</mtr>", cells_mathml)
+            } else {
+                "<mtr><mtd>Error: matrix row must be a list</mtd></mtr>".to_string()
+            }
+        }).collect::<Vec<String>>().join("");
+        
+        format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", rows_mathml).into()
     }
 }
 
@@ -338,5 +355,23 @@ mod tests {
         let mathml: MathML = (&ast).into();
 
         assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn><mo>+</mo><mn>3</mn><mo>+</mo><mn>4</mn><mo>+</mo><mn>5</mn></mrow></math>");;
+    }
+
+    #[test]
+    fn test_matrix_codegen() {
+        let mut p = Parser::new("(matrix (1 2 3) (4 5 6) (7 8 9))".into());
+        let ast = p.parse();
+
+        let list_len = if let LispExpr::List(list) = ast.clone() {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 4);
+
+        let mathml: MathML = (&ast).into();
+
+        dbg!(mathml.to_string());
+
     }
 }

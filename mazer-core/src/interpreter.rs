@@ -41,6 +41,7 @@ pub type Environment = HashMap<String, LispExpr>;
 pub struct Interpreter {
     env: Environment,
     chunks: HashMap<String, LispExpr>,
+    #[allow(dead_code)]
     ctx: DebugContext,
 }
 
