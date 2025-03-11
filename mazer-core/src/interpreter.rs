@@ -35,12 +35,12 @@ impl ToString for Evaluation {
     }
 }
 
-type Environment = HashMap<String, LispExpr>;
+pub type Environment = HashMap<String, LispExpr>;
 
 #[derive(Debug)]
 pub struct Interpreter {
     env: Environment,
-    chunks: HashMap<String, Vec<LispExpr>>,
+    chunks: HashMap<String, LispExpr>,
     ctx: DebugContext,
 }
 
@@ -77,11 +77,11 @@ impl Interpreter {
         self.env.get(&symbol).cloned()
     }
 
-    pub fn set_chunk(&mut self, symbol: String, definition: Vec<LispExpr>) {
+    pub fn set_chunk(&mut self, symbol: String, definition: LispExpr) {
         self.chunks.insert(symbol, definition);
     }
 
-    pub fn get_chunk(&self, symbol: String) -> Option<Vec<LispExpr>> {
+    pub fn get_chunk(&self, symbol: String) -> Option<LispExpr> {
         self.chunks.get(&symbol).cloned()
     }
 

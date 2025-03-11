@@ -297,9 +297,7 @@ fn to_document(
                     let mut p = Parser::new(expr);
                     let exprs = p.parse();
 
-                    dbg!(&exprs);
-
-                    let _mathml: MathML = exprs.into();
+                    let _mathml: MathML = MathML::from(&exprs);
 
                     unimplemented!("fn kind fmt");
                 }

@@ -1,7 +1,9 @@
 use regex::Regex;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+use crate::interpreter::Environment;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum LispExpr {
     Number(f64),
     String(String),
@@ -9,6 +11,7 @@ pub enum LispExpr {
     Boolean(bool),
     List(Vec<LispExpr>),
     Nil,
+    Function(fn(Vec<LispExpr>, &mut Environment) -> Result<LispExpr, String>),
 }
 
 impl fmt::Display for LispExpr {
@@ -29,11 +32,10 @@ impl fmt::Display for LispExpr {
                 }
                 write!(f, ")")
             }
+            LispExpr::Function(_) => write!(f, "<function>"),
         }
     }
 }
-
-pub struct MathML(String);
 
 macro_rules! wrap_mathml {
     ($content:expr) => {
@@ -44,10 +46,63 @@ macro_rules! wrap_mathml {
     };
 }
 
-impl Into<MathML> for Vec<LispExpr> {
-    fn into(self) -> MathML {
-        let _ = wrap_mathml!("");
-        unimplemented!("Into<MathML> for String")
+#[derive(Debug)]
+pub struct MathML(String);
+
+impl MathML {
+    pub fn new(src: String) -> Self {
+        MathML(src)
+    }
+
+    pub fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
+impl From<String> for MathML {
+    fn from(content: String) -> Self {
+        MathML(wrap_mathml!(content))
+    }
+}
+
+impl From<&LispExpr> for MathML {
+    fn from(expr: &LispExpr) -> Self {
+        let expr = expr.clone();
+        match expr {
+            LispExpr::Function(_) => MathML::new("<mrow>Error: function in expression</mrow>".to_string()),
+            LispExpr::Number(n) => MathML::new(format!("<mn>{}</mn>", n)),
+            LispExpr::Symbol(s) => MathML::new(format!("<mi>{}</mi>", s)),
+            LispExpr::String(s) => MathML::new(format!("<mtext>{}</mtext>", s)),
+            LispExpr::Boolean(b) => MathML::new(format!("<mn>{}</mn>", b)),
+            LispExpr::Nil => MathML::new("<mi>nil</mi>".to_string()),
+            LispExpr::List(list) => {
+                if list.is_empty() {
+                    return MathML::new(String::new());
+                }
+
+                if let LispExpr::Symbol(operator) = &list[0] {
+                    let args = &list[1..];
+                    match operator.as_str() {
+                        "+" => MathML::addition(args),
+                        _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
+                    }
+                } else {
+                    return MathML::new("<mrow>Error: first element of a list must be a symbol</mrwo>".to_string());
+                }
+
+            }
+        }
+
+    }
+}
+
+impl MathML {
+    fn addition(args: &[LispExpr]) -> Self {
+        let args_mathml: Vec<String> = args.iter()
+            .map(|arg| MathML::from(arg).to_string())
+            .collect();
+        
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>+</mo>")).into()
     }
 }
 
@@ -65,6 +120,30 @@ impl Parser {
         }
     }
 
+    pub fn append_tokens(&mut self, src: String) {
+        let token = Parser::tokenize(&src);
+        self.tokens.extend(token);
+    }
+
+    /// This regular expression is used for tokenizing a Lisp-like language.
+    /// 
+    /// It matches and captures different types of tokens, including:
+    /// 
+    /// - **Whitespace and commas** (`[\s,]*`)  
+    ///   - These are ignored as separators.
+    /// 
+    /// - **Special symbols** (`~@|[\[\]{}()'`~^@]`)  
+    ///   - Matches Lisp syntax elements like `(`, `)`, `[`, `]`, `{`, `}`, `'`, `` ` ``, `~`, `@`, `^`, and `~@`.
+    /// 
+    /// - **String literals** (`"(?:\\.|[^\\"])*"?`)  
+    ///   - Matches double-quoted strings, allowing for escaped characters (e.g., `"hello"`, `"escaped \" quote"`).
+    ///   - The trailing `"?` allows capturing an incomplete string (e.g., `"unterminated`).
+    /// 
+    /// - **Comments** (`;.*`)  
+    ///   - Matches Lisp-style comments starting with `;` and continuing to the end of the line.
+    /// 
+    /// - **Identifiers and other tokens** (`[^\s\[\]{}('"`,;)]*`)  
+    ///   - Matches symbols, numbers, and variable names, ensuring they don't include special characters.
     pub fn tokenize(src: &str) -> Vec<String> {
         let regex =
             Regex::new(r#"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)"#)
@@ -82,13 +161,14 @@ impl Parser {
         results
     }
 
-    pub fn parse(&mut self) -> Vec<LispExpr> {
-        for token in &self.tokens {
-            let token = Parser::tokenize(token);
-            let (ast, _) = Parser::parse_tokens(&token, 0);
-            self.ast.push(ast);
-        }
+    pub fn parse(&mut self) -> LispExpr {
+        let tokens = Parser::tokenize(&self.tokens.join(" "));
+        let (expr, _) = Parser::parse_tokens(&tokens, 0);
+        self.ast.push(expr.clone());
+        expr
+    }
 
+    pub fn ast(&self) -> Vec<LispExpr> {
         self.ast.clone()
     }
 
@@ -157,7 +237,13 @@ mod tests {
         let mut parser = Parser::new(src);
         let ast = parser.parse();
 
-        assert_eq!(ast.len(), 5);
+        let list_len = if let LispExpr::List(list) = ast {
+            list.len()
+        } else {
+            0
+        };
+
+        assert_eq!(list_len, 3);
     }
 
     #[test]
@@ -166,7 +252,13 @@ mod tests {
         let mut parser = Parser::new(src);
         let ast = parser.parse();
 
-        assert_eq!(ast.len(), 8);
+        let list_len = if let LispExpr::List(list) = ast {
+            list.len()
+        } else {
+            0
+        };
+
+        assert_eq!(list_len, 6);
     }
 
     #[test]
@@ -175,7 +267,21 @@ mod tests {
         let mut parser = Parser::new(src);
         let ast = parser.parse();
 
-        assert_eq!(ast.len(), 9);
+        let list_len = if let LispExpr::List(ref list) = ast {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 3);
+
+        // get the first memeber from within list
+        let first = if let LispExpr::List(ref list) = ast {
+            list[0].clone()
+        } else {
+            LispExpr::Nil
+        };
+        assert_eq!(first, LispExpr::Symbol("+".to_string()));
+
     }
 
     #[test]
@@ -215,5 +321,22 @@ mod tests {
         assert_eq!(p[9], ")");
         assert_eq!(p[10], ")");
         assert_eq!(p[11], ")");
+    }
+
+    #[test]
+    fn test_addition_codegen() {
+        let mut p = Parser::new("(+ 1 2 3 4 5)".into());
+        let ast = p.parse();
+
+        let list_len = if let LispExpr::List(list) = ast.clone() {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 6);
+
+        let mathml: MathML = (&ast).into();
+
+        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn><mo>+</mo><mn>3</mn><mo>+</mo><mn>4</mn><mo>+</mo><mn>5</mn></mrow></math>");;
     }
 }
