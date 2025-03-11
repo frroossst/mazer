@@ -43,11 +43,10 @@ macro_rules! wrap_mathml {
     };
 }
 
-impl Into<MathML> for String {
+impl Into<MathML> for Vec<LispExpr> {
     fn into(self) -> MathML {
-        wrap_mathml!(self).into()
+        unimplemented!("Into<MathML> for String")
     }
-
 }
 
 pub struct Parser {

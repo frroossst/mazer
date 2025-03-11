@@ -5,6 +5,7 @@ use std::{
 };
 
 use mazer_cli::state::State;
+use mazer_core::parser::MathML;
 use mazer_core::{
     document::Document,
     interpreter::Interpreter,
@@ -280,12 +281,16 @@ fn to_document(
             Token::Fn(kind, expr) => {
                 match kind {
                     FnKind::Eval => {
-                        dbg!(interp);
-
-
-                        unimplemented!("fn kind eval");
+                        document.append_code(&format!("unable to evaluate = eval({})", &expr));
                     }
                     FnKind::Fmt => {
+                        let mut p = Parser::new(expr);
+                        let exprs = p.parse();
+
+                        dbg!(&exprs);
+
+                        let mathml: MathML = exprs.into();
+
                         unimplemented!("fn kind fmt");
                     }
                 }
