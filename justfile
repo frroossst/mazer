@@ -1,4 +1,14 @@
 
+# run all tests
+tests: core-tests
+
+# run mazer-core tests
+core-tests:
+    cd mazer-core && cargo exam
+
+# build for release
+release:
+    cargo build --release
 
 # run cargo fmt
 format:
@@ -7,11 +17,3 @@ format:
 # run cargo clippy
 clippy:
     cargo clippy
-
-# run all tests
-tests: core-tests
-
-# run mazer-core tests
-core-tests:
-    cd mazer-core && cargo exam
-

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod markdown_tests {
 
     use core::panic;
 
@@ -188,5 +188,136 @@ mod tests {
             }
             _ => panic!("Token is not Text, expected Text"),
         };
+    }
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use crate::{parser::{LispExpr, MathML, Parser}, wrap_mathml};
+
+    #[test]
+    fn test_simple() {
+        let src = "(+ 1 2)".to_string();
+        let mut parser = Parser::new(src);
+        let ast = parser.parse();
+
+        let list_len = if let LispExpr::List(list) = ast {
+            list.len()
+        } else {
+            0
+        };
+
+        assert_eq!(list_len, 3);
+    }
+
+    #[test]
+    fn test_nary() {
+        let src = "(* 1 2 3 4 5)".to_string();
+        let mut parser = Parser::new(src);
+        let ast = parser.parse();
+
+        let list_len = if let LispExpr::List(list) = ast {
+            list.len()
+        } else {
+            0
+        };
+
+        assert_eq!(list_len, 6);
+    }
+
+    #[test]
+    fn test_nested() {
+        let src = "(+ 1 (* 2 3))".to_string();
+        let mut parser = Parser::new(src);
+        let ast = parser.parse();
+
+        let list_len = if let LispExpr::List(ref list) = ast {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 3);
+
+        // get the first memeber from within list
+        let first = if let LispExpr::List(ref list) = ast {
+            list[0].clone()
+        } else {
+            LispExpr::Nil
+        };
+        assert_eq!(first, LispExpr::Symbol("+".to_string()));
+
+    }
+
+    #[test]
+    fn test_wrap_mathml() {
+        let wrapped = wrap_mathml!("hello");
+        assert_eq!(
+            wrapped,
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">hello</math>"
+        );
+    }
+
+    #[test]
+    fn test_simple_tokenize() {
+
+        let p = Parser::tokenize("(+ 1 2)");
+        assert_eq!(p.len(), 5);
+        assert_eq!(p[0], "(");
+        assert_eq!(p[1], "+");
+        assert_eq!(p[2], "1");
+        assert_eq!(p[3], "2");
+        assert_eq!(p[4], ")");
+    }
+
+    #[test]
+    fn test_nested_tokenize() {
+        let p = Parser::tokenize("(+ 1 (sin (pow 2 3)))");
+        assert_eq!(p.len(), 12);
+        assert_eq!(p[0], "(");
+        assert_eq!(p[1], "+");
+        assert_eq!(p[2], "1");
+        assert_eq!(p[3], "(");
+        assert_eq!(p[4], "sin");
+        assert_eq!(p[5], "(");
+        assert_eq!(p[6], "pow");
+        assert_eq!(p[7], "2");
+        assert_eq!(p[8], "3");
+        assert_eq!(p[9], ")");
+        assert_eq!(p[10], ")");
+        assert_eq!(p[11], ")");
+    }
+
+    #[test]
+    fn test_addition_codegen() {
+        let mut p = Parser::new("(+ 1 2 3 4 5)".into());
+        let ast = p.parse();
+
+        let list_len = if let LispExpr::List(list) = ast.clone() {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 6);
+
+        let mathml: MathML = (&ast).into();
+
+        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn><mo>+</mo><mn>3</mn><mo>+</mo><mn>4</mn><mo>+</mo><mn>5</mn></mrow></math>");
+    }
+
+    #[test]
+    fn test_matrix_codegen() {
+        let mut p = Parser::new("(matrix (1 2 3) (4 5 6) (7 8 9))".into());
+        let ast = p.parse();
+
+        let list_len = if let LispExpr::List(list) = ast.clone() {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 4);
+
+        let mathml: MathML = (&ast).into();
+
+        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr><mtr><mtd><mn>4</mn></mtd><mtd><mn>5</mn></mtd><mtd><mn>6</mn></mtd></mtr><mtr><mtd><mn>7</mn></mtd><mtd><mn>8</mn></mtd><mtd><mn>9</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
     }
 }
