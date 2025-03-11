@@ -179,11 +179,41 @@ mod tests {
     }
 
     #[test]
-    fn test_wrapmathml() {
+    fn test_wrap_mathml() {
         let wrapped = wrap_mathml!("hello");
         assert_eq!(
             wrapped,
             "<math xmlns=\"http://www.w3.org/1998/Math/MathML\">hello</math>"
         );
+    }
+
+    #[test]
+    fn test_simple_tokenize() {
+
+        let p = Parser::tokenize("(+ 1 2)");
+        assert_eq!(p.len(), 5);
+        assert_eq!(p[0], "(");
+        assert_eq!(p[1], "+");
+        assert_eq!(p[2], "1");
+        assert_eq!(p[3], "2");
+        assert_eq!(p[4], ")");
+    }
+
+    #[test]
+    fn test_nested_tokenize() {
+        let p = Parser::tokenize("(+ 1 (sin (pow 2 3)))");
+        assert_eq!(p.len(), 12);
+        assert_eq!(p[0], "(");
+        assert_eq!(p[1], "+");
+        assert_eq!(p[2], "1");
+        assert_eq!(p[3], "(");
+        assert_eq!(p[4], "sin");
+        assert_eq!(p[5], "(");
+        assert_eq!(p[6], "pow");
+        assert_eq!(p[7], "2");
+        assert_eq!(p[8], "3");
+        assert_eq!(p[9], ")");
+        assert_eq!(p[10], ")");
+        assert_eq!(p[11], ")");
     }
 }
