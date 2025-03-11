@@ -1,4 +1,5 @@
 # ToDo
 
-- add lisp parser for fmt and eval 
-- 
+- [ ] impl fmt
+- [ ] impl eval
+- [ ] remove unnecessary mazer macros and mazer data structures
