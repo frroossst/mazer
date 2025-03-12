@@ -1,6 +1,7 @@
 let x = 1;
 
 eval(+ x 2)  
+
 fmt(+ x 2)  
 
 let alpha = 5;  
@@ -14,11 +15,30 @@ let gamma = (
 );  
 
 eval(alpha)  
+
 eval(beta)  
+
 eval(gamma)  
+
 fmt(alpha)  
+
 fmt(beta)  
+
 fmt(gamma)  
 
 eval(+ alpha beta gamma)  
+
 fmt(+ alpha beta gamma)  
+
+let x = (
+    + 1 (
+        * 2 (
+            + 3 (
+                / 4 5
+            )
+        )
+    )
+);
+
+The answer of x is: eval(x).
+

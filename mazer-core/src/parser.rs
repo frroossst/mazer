@@ -123,7 +123,7 @@ impl From<&LispExpr> for MathML {
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }
                 } else {
-                    return MathML::new("<mrow>Error: first element of a list must be a symbol</mrwo>".to_string());
+                    return MathML::new("<mrow>Error: first element of a list must be a symbol</mrow>".to_string());
                 }
 
             }

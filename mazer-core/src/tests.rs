@@ -258,6 +258,23 @@ mod parser_tests {
     }
 
     #[test]
+    fn test_mathml_repr() {
+        let mut p = Parser::new("5".to_string());
+        let expr = p.parse();
+        let mathml = MathML::from(&expr);
+        let repr = MathML::from(mathml.to_string());
+
+        assert_eq!(repr.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>5</mn></math>");
+
+        let mut p = Parser::new("(+ 1 2)".to_string());
+        let expr = p.parse();
+        let mathml = MathML::from(&expr);
+        let repr = MathML::from(mathml.to_string());
+
+        assert_eq!(repr.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn></mrow></math></math>");
+    }
+
+    #[test]
     fn test_simple_tokenize() {
 
         let p = Parser::tokenize("(+ 1 2)");
