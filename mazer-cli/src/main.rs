@@ -190,8 +190,8 @@ async fn main() {
             format!("{} No errors, {} ", "[INFO]".yellow(), "OK".green().bold())
         );
     }
-    let out = doc.output();
 
+    let out = doc.stylistic_output();
     if !args.dry_run {
         // create and write to file
         std::fs::create_dir_all("out").expect("Failed to create directory");
