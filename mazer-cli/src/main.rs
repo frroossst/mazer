@@ -208,7 +208,7 @@ async fn version_route() -> Result<impl warp::Reply, Infallible> {
 }
 
 async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejection> {
-    let (path, title, has_changed) = {
+    let (path, title, _has_changed) = {
         let mut state = state.lock().expect("Failed to lock state");
         (
             state.path().clone(),
@@ -328,7 +328,7 @@ fn to_document(
                             Parser::new(expr.to_string())
                         },
                         None => {
-                            let expr = Parser::wrap_parens_safely(expr);
+                            let expr = Parser::wrap_parens_safely(expr.clone());
                             Parser::new(expr)
                         }
                     };

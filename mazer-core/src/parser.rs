@@ -102,11 +102,11 @@ impl From<&LispExpr> for MathML {
         let expr = expr.clone();
         match expr {
             LispExpr::Function(_) => MathML::new("<mrow>Error: function in expression</mrow>".to_string()),
-            LispExpr::Number(n) => MathML::new(format!("<mn>{}</mn>", n)),
-            LispExpr::Symbol(s) => MathML::new(format!("<mi>{}</mi>", s)),
-            LispExpr::String(s) => MathML::new(format!("<mtext>{}</mtext>", s)),
-            LispExpr::Boolean(b) => MathML::new(format!("<mn>{}</mn>", b)),
-            LispExpr::Nil => MathML::new("<mi>nil</mi>".to_string()),
+            LispExpr::Number(n) => format!("<mn>{}</mn>", n).into(),
+            LispExpr::Symbol(s) => format!("<mi>{}</mi>", s).into(),
+            LispExpr::String(s) => format!("<mtext>{}</mtext>", s).into(),
+            LispExpr::Boolean(b) => format!("<mn>{}</mn>", b).into(),
+            LispExpr::Nil => "<mi>nil</mi>".to_string().into(),
             LispExpr::List(list) => {
                 if list.is_empty() {
                     return MathML::new(String::new());
@@ -125,10 +125,8 @@ impl From<&LispExpr> for MathML {
                 } else {
                     return MathML::new("<mrow>Error: first element of a list must be a symbol</mrow>".to_string());
                 }
-
             }
         }
-
     }
 }
 
