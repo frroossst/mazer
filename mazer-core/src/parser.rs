@@ -14,17 +14,23 @@ impl fmt::Debug for LispErr {
     }
 }
 
+impl fmt::Display for LispErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", "[ERRPR]".red().bold(), self.message)
+    }
+}
+
+impl From<LispErr> for String {
+    fn from(err: LispErr) -> Self {
+        err.message
+    }
+}
+
 impl LispErr {
     pub fn new(message: &str) -> Self {
         LispErr {
             message: message.to_string(),
         }
-    }
-}
-
-impl fmt::Display for LispErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {}", "[ERRPR]".red().bold(), self.message)
     }
 }
 

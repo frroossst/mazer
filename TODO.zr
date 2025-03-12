@@ -1,5 +1,11 @@
 # ToDo
 
+## Bugs 
+- [ ] fix bug where eval isn't always correctly evaluated
+- [ ] fix bug with ending closing parens and brackets
+
+
+## Features
 - [ ] impl fmt
 - [ ] impl eval
 - [ ] remove unnecessary mazer macros and mazer data structures

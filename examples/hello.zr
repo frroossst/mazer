@@ -35,7 +35,7 @@ let decimal = 69.420;
 let neg = -456.873;
 let x = 123;
 
-eval((+ 1 2))
+eval(+ 1 2)
 
 let y = (integral
     0, ten,
@@ -63,6 +63,7 @@ fmt(
 fmt((/ 1 2))
 
 let a = (+ 1 2 3 4 5 6 7 8 9);
+let b = (* 10 (* a 10));
 let b = (* 10 (* a 10));
 
 The answer of b is eval(b).

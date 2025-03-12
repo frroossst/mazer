@@ -291,20 +291,22 @@ fn to_document(
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
-                    dbg!(&expr);
-
                     let mut p = Parser::new(expr);
                     let exprs = p.parse();
 
 
-                    let ans = Interpreter::eval_expr(&exprs, &mut interp.environment());
+                    let result = Interpreter::eval_expr(&exprs, &mut interp.environment());
+                    let result: String = match result {
+                        Ok(ans) => {
+                            ans.to_string()
+                        }
+                        Err(e) => {
+                            e.into()
+                        }
+                    };
 
-                    dbg!(&exprs);
-                    dbg!(&ans);
-
-                    unimplemented!("eval");
-
-                    document.append_code(&format!("unable to evaluate = eval({})", &expr));
+                    let eval = format!("eval({}) = {:?}", exprs, result);
+                    document.append_math_ml(&format!("<ms>{}</ms>", eval));
                 }
                 FnKind::Fmt => {
                     let mut p = Parser::new(expr);
