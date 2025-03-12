@@ -321,7 +321,15 @@ fn to_document(
                     document.append_evaluation(p.source(), &result);
                 }
                 FnKind::Fmt => {
-                    let mut p = Parser::new(expr);
+                    let mut p = match envmnt.get(&expr) {
+                        Some(expr) => {
+                            Parser::new(expr.to_string())
+                        },
+                        None => {
+                            let expr = Parser::wrap_parens_safely(expr);
+                            Parser::new(expr)
+                        }
+                    };
                     let exprs = p.parse();
 
                     let mathml: MathML = MathML::from(&exprs);

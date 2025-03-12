@@ -1,8 +1,9 @@
 # ToDo
 
 ## Bugs 
-- [ ] fix bug where eval isn't always correctly evaluated
-- [ ] fix bug with ending closing parens and brackets
+- [x] fix bug where eval isn't always correctly evaluated
+- [x] fix bug with ending closing parens and brackets
+- [ ] keep track of newlines and document linebreaks accordingly
 
 
 ## Features

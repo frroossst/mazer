@@ -1,19 +1,24 @@
 let x = 1;
 
-eval(+ x 2)
+eval(+ x 2)  
+fmt(+ x 2)  
 
-let alpha = 5;
+let alpha = 5;  
 
 let beta = (
     * alpha 2
-);
+);  
 
 let gamma = (
     + beta 3
-);
+);  
 
-eval(alpha)
-eval(beta)
-eval(gamma)
+eval(alpha)  
+eval(beta)  
+eval(gamma)  
+fmt(alpha)  
+fmt(beta)  
+fmt(gamma)  
 
-eval(+ alpha beta gamma)
+eval(+ alpha beta gamma)  
+fmt(+ alpha beta gamma)  
