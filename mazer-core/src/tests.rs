@@ -193,7 +193,7 @@ mod markdown_tests {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{interpreter::Interpreter, parser::{LispExpr, MathML, Parser}, pretty_err::DebugContext, wrap_mathml};
+    use crate::{interpreter::{Environment, Interpreter}, parser::{LispExpr, MathML, Parser}, pretty_err::DebugContext, wrap_mathml};
 
     #[test]
     fn test_simple() {
@@ -343,14 +343,25 @@ mod parser_tests {
         let ctx = DebugContext::new("test");
         let mut i = Interpreter::new(ctx);
 
+        let mut env: Environment = i.environment();
+
         let alpha = Parser::new("5".to_string()).parse();
+        env.insert("alpha".to_string(), alpha.clone());
         i.set_symbol("alpha".to_string(), alpha);
 
         let beta = Parser::new("(* alpha 2)".to_string()).parse();
+        env.insert("beta".to_string(), beta.clone());
         i.set_symbol("beta".to_string(), beta);
 
+
         let gamma = Parser::new("(* beta 3)".to_string()).parse();
+        env.insert("gamma".to_string(), gamma.clone());
         i.set_symbol("gamma".to_string(), gamma);
+
+        let expression = Parser::new("(+ alpha beta gamma)".to_string()).parse();
+
+        let ans = Interpreter::eval_expr(&expression, &mut env);
+        dbg!(ans);
 
     }
 }

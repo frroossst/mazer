@@ -295,12 +295,12 @@ fn to_document(
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
+
+                    let expr = Parser::wrap_parens_safely(expr);
                     let mut p = Parser::new(expr);
                     let exprs = p.parse();
 
-                    dbg!(&exprs);
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
-                    dbg!(&result);
                     let result: String = match result {
                         Ok(ans) => {
                             ans.to_string()
@@ -311,6 +311,10 @@ fn to_document(
                     };
 
                     let eval = format!("eval({}) = {:?}", exprs, result);
+                    // wrap in <code> tag
+                    // trim ( and ) from the eval
+                    let eval = eval.trim_start_matches("eval((").trim_end_matches(")");
+                    let eval = format!("<code>{}</code>", eval);
                     document.append_math_ml(&format!("<ms>{}</ms>", eval));
                 }
                 FnKind::Fmt => {

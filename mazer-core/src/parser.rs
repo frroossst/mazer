@@ -142,14 +142,27 @@ impl Parser {
     pub fn new(src: String) -> Self {
         let token = Parser::tokenize(&src);
 
-        // append ( and ) to the token
-        let mut token = token.clone();
-        token.insert(0, "(".to_string());
-        token.push(")".to_string());
-
         Parser {
             tokens: token,
             ast: Vec::new(),
+        }
+    }
+
+    /// This is used when a lisp expression is within a fmt or eval
+    /// call. We need to wrap it in parentheses to ensure it's
+    /// treated as a single expression. Else will simply get back
+    /// the first token or equivalent.
+    /// Caller's responsibility to ensure the string is a valid
+    /// Caller must call wrap_parens before the .parse() method.
+    /// This also prevents imho the rather ugly redundant and repeated
+    /// parens like so: fmt((expr)) when you can simply write fmt(expr)
+    /// NOTE: does not check for balances parenthesis
+    pub fn wrap_parens_safely(src: String) -> String {
+        let src = src.trim();
+        if src.starts_with('(') && src.ends_with(')') {
+            src.to_string()
+        } else {
+            format!("({})", src)
         }
     }
 

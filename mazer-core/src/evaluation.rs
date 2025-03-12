@@ -97,6 +97,8 @@ impl Interpreter {
                     }
                 } else {
                     // First element is not a symbol
+                    dbg!(&list[0]);
+                    dbg!(&env);
                     let evaluated_op = Interpreter::eval_expr(&list[0], env)?;
                     match evaluated_op {
                         LispExpr::Function(func) => {
