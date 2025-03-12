@@ -9,24 +9,24 @@ impl MathML {
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>+</mo>")).into()
     }
 
-    pub fn subtraction(_args: &[LispExpr]) -> Self {
-        let args_mathml: Vec<String> = _args.iter()
+    pub fn subtraction(args: &[LispExpr]) -> Self {
+        let args_mathml: Vec<String> = args.iter()
             .map(|arg| MathML::from(arg).to_string())
             .collect();
 
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>-</mo>")).into()
     }
 
-    pub fn multiplication(_args: &[LispExpr]) -> Self {
-        let args_mathml: Vec<String> = _args.iter()
+    pub fn multiplication(args: &[LispExpr]) -> Self {
+        let args_mathml: Vec<String> = args.iter()
             .map(|arg| MathML::from(arg).to_string())
             .collect();
 
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>*</mo>")).into()
     }
 
-    pub fn division(_args: &[LispExpr]) -> Self {
-        let args_mathml: Vec<String> = _args.iter()
+    pub fn division(args: &[LispExpr]) -> Self {
+        let args_mathml: Vec<String> = args.iter()
             .map(|arg| MathML::from(arg).to_string())
             .collect();
 
