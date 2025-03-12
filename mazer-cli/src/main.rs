@@ -216,6 +216,8 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
             state.has_file_changed(),
         )
     };
+    
+    let has_changed = true;
     if !has_changed {
         Ok(Box::new(warp::reply::with_status(
             "",
