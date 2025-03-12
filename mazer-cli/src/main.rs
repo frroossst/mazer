@@ -310,12 +310,7 @@ fn to_document(
                         }
                     };
 
-                    let eval = format!("eval({}) = {:?}", exprs, result);
-                    // wrap in <code> tag
-                    // trim ( and ) from the eval
-                    let eval = eval.trim_start_matches("eval((").trim_end_matches(")");
-                    let eval = format!("<code>{}</code>", eval);
-                    document.append_math_ml(&format!("<ms>{}</ms>", eval));
+                    document.append_evaluation(p.source(), &result);
                 }
                 FnKind::Fmt => {
                     let mut p = Parser::new(expr);

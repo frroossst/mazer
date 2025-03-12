@@ -63,6 +63,19 @@ impl Document {
         self.append_wrapped("code", &content);
     }
 
+    pub fn append_evaluation(&mut self, expression: &str, result: &str) {
+        // <div class="eval-container">
+        //      <span class="eval-result">result</span>
+        //      <span class="hover-hint">expression</span>
+        // </div>
+        let content = format!(
+            "<div class=\"eval-container\"><span class=\"eval-result\">{}</span><span class=\"hover-hint\">{}</span></div>",
+            result, expression
+        );
+
+        self.append(content);
+    }
+
     pub fn append_text(&mut self, emphasis: Option<Emphasis>, content: &str) {
         if emphasis.is_none() {
             self.append(content.to_string());

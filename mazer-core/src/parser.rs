@@ -134,6 +134,7 @@ impl From<&LispExpr> for MathML {
 
 
 pub struct Parser {
+    src: String,
     tokens: Vec<String>,
     ast: Vec<LispExpr>,
 }
@@ -143,6 +144,7 @@ impl Parser {
         let token = Parser::tokenize(&src);
 
         Parser {
+            src: src,
             tokens: token,
             ast: Vec::new(),
         }
@@ -216,6 +218,10 @@ impl Parser {
 
     pub fn ast(&self) -> Vec<LispExpr> {
         self.ast.clone()
+    }
+
+    pub fn source(&self) -> &str {
+        &self.src
     }
 
     fn parse_tokens(tokens: &[String], start_index: usize) -> (LispExpr, usize) {

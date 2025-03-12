@@ -339,13 +339,43 @@ mod parser_tests {
     }
 
     #[test]
+    fn test_simple_env_sub() {
+        let ctx = DebugContext::new("test");
+        let i = Interpreter::new(ctx);
+
+        let mut env: Environment = i.environment();
+
+        env.insert("x".to_string(), LispExpr::Number(1.0));
+
+        let expression = Parser::new("x".to_string()).parse();
+        let ans = Interpreter::eval_expr(&expression, &mut env);
+
+        assert_eq!(ans.unwrap(), LispExpr::Number(1.0));
+    }
+
+    #[test]
+    fn test_add_env_sub() {
+        let ctx = DebugContext::new("test");
+        let i = Interpreter::new(ctx);
+
+        let mut env: Environment = i.environment();
+
+        env.insert("x".to_string(), LispExpr::Number(1.0));
+        
+        let expression = Parser::new("(+ x 2)".to_string()).parse();
+        let ans = Interpreter::eval_expr(&expression, &mut env);
+
+        assert_eq!(ans.unwrap(), LispExpr::Number(3.0));
+    }
+
+    #[test]
     fn test_env_substitution() {
         let ctx = DebugContext::new("test");
         let mut i = Interpreter::new(ctx);
 
         let mut env: Environment = i.environment();
 
-        let alpha = Parser::new("5".to_string()).parse();
+        let alpha = Parser::new("(5)".to_string()).parse();
         env.insert("alpha".to_string(), alpha.clone());
         i.set_symbol("alpha".to_string(), alpha);
 
@@ -361,7 +391,7 @@ mod parser_tests {
         let expression = Parser::new("(+ alpha beta gamma)".to_string()).parse();
 
         let ans = Interpreter::eval_expr(&expression, &mut env);
-        dbg!(ans);
+        assert_eq!(ans.unwrap(), LispExpr::Number(35.0));
 
     }
 }
