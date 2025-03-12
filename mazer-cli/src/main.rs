@@ -291,14 +291,25 @@ fn to_document(
                 let expr = p.parse();
 
                 envmnt.insert(var.clone(), expr.clone());
+
                 interp.set_symbol(var, expr);
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
 
-                    let expr = Parser::wrap_parens_safely(expr);
-                    let mut p = Parser::new(expr);
+                    let mut p = match envmnt.get(&expr) {
+                        Some(expr) => {
+                            Parser::new(expr.to_string())
+                        },
+                        None => {
+                            let expr = Parser::wrap_parens_safely(expr);
+                            Parser::new(expr)
+                        }
+                    };
+                    
                     let exprs = p.parse();
+
+                    dbg!(&exprs);
 
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
                     let result: String = match result {

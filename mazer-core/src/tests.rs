@@ -368,7 +368,7 @@ mod parser_tests {
 
     #[test]
     fn test_env_substitution() {
-        let mut i = Interpreter::new();
+        let i = Interpreter::new();
 
         let mut env: Environment = i.environment();
 
