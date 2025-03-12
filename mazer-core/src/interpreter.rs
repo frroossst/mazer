@@ -1,21 +1,18 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use crate::{parser::{LispErr, LispExpr}, pretty_err::DebugContext};
+use crate::parser::{LispErr, LispExpr};
 
 pub type Environment = HashMap<String, LispExpr>;
 
 #[derive(Debug)]
 pub struct Interpreter {
     env: Environment,
-    #[allow(dead_code)]
-    ctx: DebugContext,
 }
 
 impl Interpreter {
-    pub fn new(ctx: DebugContext) -> Self {
+    pub fn new() -> Self {
         Interpreter {
             env: Interpreter::stdenv(),
-            ctx,
         }
     }
 
@@ -196,9 +193,7 @@ impl Interpreter {
     }
 
     pub fn eval(&self, symbol: String) -> Result<LispExpr, LispErr> {
-        let expr = self.get_symbol(symbol.clone()).ok_or(LispErr::new(&format!("Symbol {} not found", symbol)))?;
+        let _expr = self.get_symbol(symbol.clone()).ok_or(LispErr::new(&format!("Symbol {} not found", symbol)))?;
         unimplemented!("interpreter::eval")
     }
-
-
 }

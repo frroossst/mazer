@@ -193,7 +193,7 @@ mod markdown_tests {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{interpreter::{Environment, Interpreter}, parser::{LispExpr, MathML, Parser}, pretty_err::DebugContext, wrap_mathml};
+    use crate::{interpreter::{Environment, Interpreter}, parser::{LispExpr, MathML, Parser}, wrap_mathml};
 
     #[test]
     fn test_simple() {
@@ -340,8 +340,7 @@ mod parser_tests {
 
     #[test]
     fn test_simple_env_sub() {
-        let ctx = DebugContext::new("test");
-        let i = Interpreter::new(ctx);
+        let i = Interpreter::new();
 
         let mut env: Environment = i.environment();
 
@@ -355,8 +354,7 @@ mod parser_tests {
 
     #[test]
     fn test_add_env_sub() {
-        let ctx = DebugContext::new("test");
-        let i = Interpreter::new(ctx);
+        let i = Interpreter::new();
 
         let mut env: Environment = i.environment();
 
@@ -370,23 +368,32 @@ mod parser_tests {
 
     #[test]
     fn test_env_substitution() {
-        let ctx = DebugContext::new("test");
-        let mut i = Interpreter::new(ctx);
+        let mut i = Interpreter::new();
 
         let mut env: Environment = i.environment();
 
-        let alpha = Parser::new("(5)".to_string()).parse();
+        let alpha = Parser::new("5".to_string()).parse();
         env.insert("alpha".to_string(), alpha.clone());
-        i.set_symbol("alpha".to_string(), alpha);
+
+        let alpha_expr = Interpreter::eval_expr(&alpha, &mut env);
+        assert_eq!(alpha_expr.is_ok(), true);
+        assert_eq!(alpha_expr.unwrap(), LispExpr::Number(5.0));
 
         let beta = Parser::new("(* alpha 2)".to_string()).parse();
         env.insert("beta".to_string(), beta.clone());
-        i.set_symbol("beta".to_string(), beta);
 
+        let beta_expr = Interpreter::eval_expr(&beta, &mut env);
+        assert_eq!(beta_expr.is_ok(), true);
+        assert_eq!(beta_expr.unwrap(), LispExpr::Number(10.0));
 
-        let gamma = Parser::new("(* beta 3)".to_string()).parse();
-        env.insert("gamma".to_string(), gamma.clone());
-        i.set_symbol("gamma".to_string(), gamma);
+        // let gamma = Parser::new("(* beta 3)".to_string()).parse();
+        // env.insert("gamma".to_string(), gamma.clone());
+
+        // let gamma_expr = Interpreter::eval_expr(&gamma, &mut env);
+        // assert_eq!(gamma_expr.is_ok(), true);
+        // assert_eq!(gamma_expr.unwrap(), LispExpr::Number(30.0));
+
+        env.insert("gamma".to_string(), LispExpr::Number(20.0));
 
         let expression = Parser::new("(+ alpha beta gamma)".to_string()).parse();
 

@@ -91,7 +91,7 @@ async fn main() {
             .to_owned()
             + "<REPL>";
 
-        let _interp: Interpreter = Interpreter::new(DebugContext::new(&env_path));
+        let _interp: Interpreter = Interpreter::new();
 
         loop {
             let src = prompt();
@@ -279,7 +279,7 @@ fn to_document(
     // handle for the interpreter that emits MathML or values
     // we reset the debug context as we need the file_path but do not need other debug info, as
     // we will be setting new interpreter specific and later parser specific debug info
-    let mut interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
+    let mut interp: Interpreter = Interpreter::new();
     let mut envmnt: Environment = interp.environment();
 
     for t in tokens {
