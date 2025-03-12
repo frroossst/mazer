@@ -851,7 +851,6 @@ dependencies = [
  "colored",
  "mazer-data-structures",
  "mazer-macros",
- "rand",
  "rayon",
  "regex",
  "unicode-segmentation",
