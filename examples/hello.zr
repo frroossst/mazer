@@ -31,7 +31,7 @@ y = 123
 
 > Let there be hypotenuse
 
-let decimal = (69.420);
+let decimal = 69.420;
 let neg = -456.873;
 let x = 123;
 
@@ -43,7 +43,9 @@ let y = (integral
     "dx"
 );
 
-fmt([0, [1, [2], [3, 4], 5], 6]);
+fmt((matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6)))
+
+fmt((matrix ((matrix (0)) (matrix (1))) (2) ((matrix (3 4))) (5) (6)))
 
 let z = (* (dot (
     (vec 1 2 3)
@@ -52,21 +54,10 @@ let z = (* (dot (
 ) 10)
 
 
-// this is the same as above except the new syntax
-// allows binary functions to capture arguments
-// from lhs and rhs scope, making some syntax 
-// more ergonomic
-// let new_syntax0 = vec!(1, 2, 3) dot vec!(4, 5, 6);
-
-This is how inline stuff ${y} would work
+fmt((/ 1 2))
 
 let a = (+ 1 2 3 4 5 6 7 8 9);
 let b = (* 10 (* a 10));
-
-fmt((/ 1 2))
-
-let dvec = vec!(1, 2, 3) dot vec!(4, 5, 6);
-let sino = 2 * (sin!(3 / 4));
 
 The answer of b is eval(b).
 
@@ -80,11 +71,6 @@ fmt("123") // should not parse as a number
 
 # This is where the mazer 🍁 magic ✨ begins! 
 
-fmt([[1, 2, 3], [4, 5, 6]]);
+fmt(matrix( (1 2 3) (4 5 6)));
 
-fmt(icap() + jcap() + kcap()) is the same as fmt(icap()) + fmt(jcap()) + fmt(kcap()) 
-
-fmt(icap())     // prints the math
-fmt(icap)       // prints the defined value of icap
-fmt("icap")     // prints the string "icap"
-"fmt("noshow")" // does nothing
+fmt((+ icap jcap kcap))
