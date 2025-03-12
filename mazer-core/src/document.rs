@@ -2,6 +2,7 @@ use crate::{parser::MathML, tokenizer::{Emphasis, LinkKind, MarkdownTag}};
 
 #[derive(Debug)]
 pub struct Document {
+    head: String,
     title: String,
     body: Vec<String>,
 }
@@ -9,6 +10,7 @@ pub struct Document {
 impl Document {
     pub fn new(title: &str) -> Self {
         Document {
+            head: format!("<!DOCTYPE html lang=\"en\">\n<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n"),
             title: format!("<title> Mazer - {} </title>", title),
             body: Vec::new(),
         }
@@ -20,11 +22,17 @@ impl Document {
 
     pub fn output(&self) -> String {
         let mut body = String::new();
+
+        body.push_str(&self.head);
         body.push_str(&self.title);
+
+        body.push_str("<body>\n");
 
         for content in self.body.clone() {
             body.push_str(&content);
         }
+
+        body.push_str("</body>\n");
 
         body
     }
