@@ -296,7 +296,6 @@ fn to_document(
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
-
                     let mut p = match envmnt.get(&expr) {
                         Some(expr) => {
                             Parser::new(expr.to_string())
@@ -308,8 +307,6 @@ fn to_document(
                     };
                     
                     let exprs = p.parse();
-
-                    dbg!(&exprs);
 
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
                     let result: String = match result {
