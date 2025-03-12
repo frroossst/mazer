@@ -1,4 +1,4 @@
-use crate::tokenizer::{Emphasis, LinkKind, MarkdownTag};
+use crate::{parser::MathML, tokenizer::{Emphasis, LinkKind, MarkdownTag}};
 
 #[derive(Debug)]
 pub struct Document {
@@ -53,6 +53,10 @@ impl Document {
 
     pub fn append_math_ml(&mut self, content: &str) {
         self.append_wrapped("math", content);
+    }
+
+    pub fn append_raw_math_ml(&mut self, content: MathML) {
+        self.append(content.to_string());
     }
 
     pub fn append_code(&mut self, content: &str) {

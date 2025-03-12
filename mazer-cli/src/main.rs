@@ -287,19 +287,21 @@ fn to_document(
 
                 let mut p = Parser::new(val);
                 let expr = p.parse();
-                interp.set_chunk(var, expr);
+                interp.set_symbol(var, expr);
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
+                    unimplemented!("eval");
+
                     document.append_code(&format!("unable to evaluate = eval({})", &expr));
                 }
                 FnKind::Fmt => {
                     let mut p = Parser::new(expr);
                     let exprs = p.parse();
 
-                    let _mathml: MathML = MathML::from(&exprs);
+                    let mathml: MathML = MathML::from(&exprs);
 
-                    unimplemented!("fn kind fmt");
+                    document.append_raw_math_ml(mathml);
                 }
             },
             Token::Literal(lit) => {

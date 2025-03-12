@@ -193,7 +193,7 @@ mod markdown_tests {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{parser::{LispExpr, MathML, Parser}, wrap_mathml};
+    use crate::{interpreter::Interpreter, parser::{LispExpr, MathML, Parser}, pretty_err::DebugContext, wrap_mathml};
 
     #[test]
     fn test_simple() {
@@ -319,5 +319,38 @@ mod parser_tests {
         let mathml: MathML = (&ast).into();
 
         assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr><mtr><mtd><mn>4</mn></mtd><mtd><mn>5</mn></mtd><mtd><mn>6</mn></mtd></mtr><mtr><mtd><mn>7</mn></mtd><mtd><mn>8</mn></mtd><mtd><mn>9</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
+    }
+
+    #[test]
+    fn test_nested_matrix_codegen() {
+        let mut p = Parser::new(" (matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6)) ".into());
+        let ast = p.parse();
+
+        let list_len = if let LispExpr::List(list) = ast.clone() {
+            list.len()
+        } else {
+            0
+        };
+        assert_eq!(list_len, 6);
+
+        let mathml = MathML::from(&ast);
+
+        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></math></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr><mtr><mtd><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>]</mo></mrow></math></mtd></mtr><mtr><mtd><mn>5</mn></mtd></mtr><mtr><mtd><mn>6</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
+    }
+
+    #[test]
+    fn test_env_substitution() {
+        let ctx = DebugContext::new("test");
+        let mut i = Interpreter::new(ctx);
+
+        let alpha = Parser::new("5".to_string()).parse();
+        i.set_symbol("alpha".to_string(), alpha);
+
+        let beta = Parser::new("(* alpha 2)".to_string()).parse();
+        i.set_symbol("beta".to_string(), beta);
+
+        let gamma = Parser::new("(* beta 3)".to_string()).parse();
+        i.set_symbol("gamma".to_string(), gamma);
+
     }
 }

@@ -1,7 +1,26 @@
+use colored::Colorize;
 use regex::Regex;
 use std::fmt;
 
 use crate::interpreter::Environment;
+
+pub struct LispErr {
+    message: String,
+}
+
+impl LispErr {
+    pub fn new(message: &str) -> Self {
+        LispErr {
+            message: message.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for LispErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", "[ERRPR]".red().bold(), self.message)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LispExpr {
@@ -85,6 +104,9 @@ impl From<&LispExpr> for MathML {
                     let args = &list[1..];
                     match operator.as_str() {
                         "+" => MathML::addition(args),
+                        "-" => MathML::subtraction(args),
+                        "*" => MathML::multiplication(args),
+                        "/" => MathML::division(args),
                         "matrix"=> MathML::matrix(args),
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }

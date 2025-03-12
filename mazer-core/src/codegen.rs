@@ -10,15 +10,27 @@ impl MathML {
     }
 
     pub fn subtraction(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+        let args_mathml: Vec<String> = _args.iter()
+            .map(|arg| MathML::from(arg).to_string())
+            .collect();
+
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>-</mo>")).into()
     }
 
     pub fn multiplication(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+        let args_mathml: Vec<String> = _args.iter()
+            .map(|arg| MathML::from(arg).to_string())
+            .collect();
+
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>*</mo>")).into()
     }
 
     pub fn division(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+        let args_mathml: Vec<String> = _args.iter()
+            .map(|arg| MathML::from(arg).to_string())
+            .collect();
+
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>/</mo>")).into()
     }
 
     pub fn matrix(args: &[LispExpr]) -> Self {

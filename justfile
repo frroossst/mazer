@@ -1,4 +1,8 @@
 
+# run with hello.zr argument
+run:
+    cargo run examples/hello.zr
+
 # run all tests
 tests: core-tests
 
