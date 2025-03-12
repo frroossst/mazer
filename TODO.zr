@@ -5,6 +5,9 @@
 - [x] fix bug with ending closing parens and brackets
 - [ ] keep track of newlines and document linebreaks accordingly
 - [ ] fix bug where on reload the file is blank until changed
+- [x] fix bug where only number is not rendered as mathml
+- [ ] fix css colours for light and dark mode
+- [ ] make sure the tooltip for variable when env var might be used
 
 
 ## Features
