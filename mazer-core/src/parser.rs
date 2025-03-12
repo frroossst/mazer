@@ -8,6 +8,12 @@ pub struct LispErr {
     message: String,
 }
 
+impl fmt::Debug for LispErr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", "[ERROR]".red().bold(), self.message)
+    }
+}
+
 impl LispErr {
     pub fn new(message: &str) -> Self {
         LispErr {
@@ -30,7 +36,7 @@ pub enum LispExpr {
     Boolean(bool),
     List(Vec<LispExpr>),
     Nil,
-    Function(fn(Vec<LispExpr>, &mut Environment) -> Result<LispExpr, String>),
+    Function(fn(Vec<LispExpr>, &mut Environment) -> Result<LispExpr, LispErr>),
 }
 
 impl fmt::Display for LispExpr {

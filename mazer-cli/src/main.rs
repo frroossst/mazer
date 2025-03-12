@@ -291,6 +291,17 @@ fn to_document(
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
+                    dbg!(&expr);
+
+                    let mut p = Parser::new(expr);
+                    let exprs = p.parse();
+
+
+                    let ans = Interpreter::eval_expr(&exprs, &mut interp.environment());
+
+                    dbg!(&exprs);
+                    dbg!(&ans);
+
                     unimplemented!("eval");
 
                     document.append_code(&format!("unable to evaluate = eval({})", &expr));
