@@ -5,6 +5,7 @@ use std::{
 };
 
 use mazer_cli::state::State;
+use mazer_core::interpreter::Environment;
 use mazer_core::parser::MathML;
 use mazer_core::{
     document::Document,
@@ -279,6 +280,7 @@ fn to_document(
     // we reset the debug context as we need the file_path but do not need other debug info, as
     // we will be setting new interpreter specific and later parser specific debug info
     let mut interp: Interpreter = Interpreter::new(DebugContext::new(file_path));
+    let mut envmnt: Environment = interp.environment();
 
     for t in tokens {
         match t {
@@ -287,6 +289,8 @@ fn to_document(
 
                 let mut p = Parser::new(val);
                 let expr = p.parse();
+
+                envmnt.insert(var.clone(), expr.clone());
                 interp.set_symbol(var, expr);
             }
             Token::Fn(kind, expr) => match kind {
@@ -294,8 +298,9 @@ fn to_document(
                     let mut p = Parser::new(expr);
                     let exprs = p.parse();
 
-
-                    let result = Interpreter::eval_expr(&exprs, &mut interp.environment());
+                    dbg!(&exprs);
+                    let result = Interpreter::eval_expr(&exprs, &mut envmnt);
+                    dbg!(&result);
                     let result: String = match result {
                         Ok(ans) => {
                             ans.to_string()

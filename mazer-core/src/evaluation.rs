@@ -8,8 +8,11 @@ impl Interpreter {
             LispExpr::Number(_) | 
             LispExpr::String(_) | 
             LispExpr::Boolean(_) | 
-            LispExpr::Function(_) |
             LispExpr::Nil => Ok(expr.clone()),
+
+            LispExpr::Function(_) => {
+                Ok(expr.clone())
+            }
             
             // Symbol lookup
             LispExpr::Symbol(s) => {

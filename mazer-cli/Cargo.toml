@@ -6,7 +6,6 @@ license = "MIT"
 description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
 
 [dependencies]
-bincode = "1.3.3"
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
 mazer-core = { path = "../mazer-core", version="^0.*" }

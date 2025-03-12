@@ -141,6 +141,12 @@ pub struct Parser {
 impl Parser {
     pub fn new(src: String) -> Self {
         let token = Parser::tokenize(&src);
+
+        // append ( and ) to the token
+        let mut token = token.clone();
+        token.insert(0, "(".to_string());
+        token.push(")".to_string());
+
         Parser {
             tokens: token,
             ast: Vec::new(),
