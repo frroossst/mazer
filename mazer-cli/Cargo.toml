@@ -1,9 +1,11 @@
 [package]
 name = "mazer-cli"
-version = "0.12.3"
+version = "0.12.4"
 edition = "2021"
 license = "MIT"
 description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
+
+include = ["src/**/*", "templates/**/*"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }

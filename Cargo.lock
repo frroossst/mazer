@@ -850,7 +850,7 @@ checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
 name = "mazer-cli"
-version = "0.12.3"
+version = "0.12.4"
 dependencies = [
  "clap",
  "colored",
