@@ -3,6 +3,9 @@
 ## Unsure
 - [ ] test big markdown files and benchmark against linear allocator
 
+## Broken
+- [ ] need to figure broken cargo install
+
 ## Bugs 
 - [x] fix bug where eval isn't always correctly evaluated
 - [x] fix bug with ending closing parens and brackets

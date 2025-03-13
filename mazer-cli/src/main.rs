@@ -17,6 +17,11 @@ use mazer_core::{
 
 use colored::*;
 use warp::{reject::Rejection, reply::Reply, Filter};
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "templates/"]
+struct Templates;
 
 #[derive(clap::Parser)]
 #[command(version, about, long_about = None)]
@@ -157,10 +162,10 @@ async fn main() {
     let state = Arc::new(Mutex::new(state));
 
     if args.serve {
-        use include_absolute_path::include_absolute_path;
-        let env = include_absolute_path!("$MAZER_TEMPLATE_DIR/index.html");
-        let index_html = "";
-        let index_route = warp::path::end().map(move || warp::reply::html(index_html));
+        let index_temp = Templates::get("index.html").expect("unable to get index.html");
+        let index_html = std::str::from_utf8(index_temp.data.as_ref()).expect("unable to convert to utf8").to_string();
+
+        let index_route = warp::path::end().map(move || warp::reply::html(index_html.clone()));
         let serve_route = warp::path("serve")
             .and(warp::get())
             .and_then(move || serve_route(state.clone()));
