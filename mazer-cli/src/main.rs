@@ -157,7 +157,10 @@ async fn main() {
     let state = Arc::new(Mutex::new(state));
 
     if args.serve {
-        let index_route = warp::path::end().and(warp::fs::file("mazer-cli/index.html"));
+        let index_html = include_str!("../../templates/index.html");
+        // let index_route = warp::path::end().and(warp::fs::file("mazer-cli/index.html"));
+        // serve index_html on index_route
+        let index_route = warp::path::end().map(move || warp::reply::html(index_html));
         let serve_route = warp::path("serve")
             .and(warp::get())
             .and_then(move || serve_route(state.clone()));
