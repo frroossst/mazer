@@ -1,3 +1,4 @@
+export MAZER_TEMPLATE_DIR := "/home/home/Desktop/Projects/mazer/templates/"
 
 # run with hello.zr argument
 run:
@@ -17,6 +18,11 @@ build:
 # build for release
 release:
     cargo build --release
+
+# publish to crates.io
+publish:
+    cargo publish mazer-cli
+
 
 # run cargo fmt
 format:

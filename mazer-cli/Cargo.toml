@@ -1,6 +1,6 @@
 [package]
 name = "mazer-cli"
-version = "0.12.1"
+version = "0.12.2"
 edition = "2021"
 license = "MIT"
 description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
@@ -8,6 +8,7 @@ description = "A minimal, simple math markup language that compiles to HTML, wri
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 colored = "2.1.0"
+include_absolute_path = "0.1.5"
 mazer-core = { path = "../mazer-core", version="^0.*" }
 notify = "6.1.1"
 opener = "0.7.1"
