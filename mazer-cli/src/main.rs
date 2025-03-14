@@ -344,7 +344,7 @@ fn to_document(
 
                     let mathml: MathML = MathML::from(&exprs);
 
-                    document.append_raw_math_ml(mathml);
+                    document.append_math_ml(mathml);
                 }
             },
             Token::Literal(lit) => {

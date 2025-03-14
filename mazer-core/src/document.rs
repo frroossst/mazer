@@ -1,4 +1,4 @@
-use crate::{parser::MathML, tokenizer::{Emphasis, LinkKind, MarkdownTag}};
+use crate::{parser::MathML, tokenizer::{Emphasis, LinkKind, MarkdownTag}, wrap_mathml};
 
 #[derive(Debug)]
 pub struct Document {
@@ -305,11 +305,14 @@ impl Document {
         self.body.push(String::from("<br>\n"));
     }
 
-    pub fn append_math_ml(&mut self, content: &str) {
-        self.append_wrapped("math", content);
+    pub fn append_math_ml(&mut self, content: MathML) {
+        self.append_wrapped("math", &wrap_mathml!(content.string()));
     }
 
     pub fn append_raw_math_ml(&mut self, content: MathML) {
+        if content.string().starts_with("<math") {
+            panic!("Invalid MathML content");
+        }
         self.append(content.string());
     }
 
