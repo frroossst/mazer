@@ -311,7 +311,7 @@ fn to_document(
                             Parser::new(expr.to_string())
                         },
                         None => {
-                            let expr = Parser::wrap_parens_safely(expr);
+                            let expr = Parser::wrap_parens_safely(expr.clone());
                             Parser::new(expr)
                         }
                     };
@@ -328,7 +328,7 @@ fn to_document(
                         }
                     };
 
-                    document.append_evaluation(p.source(), &result);
+                    document.append_evaluation(&expr, &result);
                 }
                 FnKind::Fmt => {
                     let mut p = match envmnt.get(&expr) {
