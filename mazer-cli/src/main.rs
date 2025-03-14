@@ -1,10 +1,12 @@
 use std::io::{self, Write};
+use std::sync::RwLock;
 use std::{
     convert::Infallible,
     sync::{Arc, Mutex},
 };
 
 use mazer_cli::state::State;
+use mazer_cli::timer::Timer;
 use mazer_core::interpreter::Environment;
 use mazer_core::parser::MathML;
 use mazer_core::{
@@ -40,6 +42,9 @@ struct Args {
     /// Dry-run, does not create html file as output
     #[clap(short, long)]
     dry_run: bool,
+    /// Enable verbose output
+    #[clap(short, long)]
+    verbose: bool,
 }
 
 fn print_help_message() {
@@ -76,9 +81,18 @@ fn prompt() -> String {
     buffer.trim().to_string()
 }
 
+lazy_static::lazy_static! {
+    static ref VRBS: RwLock<bool> = RwLock::new(false);
+}
+
 #[tokio::main]
 async fn main() {
     let args = <Args as clap::Parser>::parse();
+
+    {
+        let mut flag = VRBS.write().unwrap();
+        *flag = args.verbose;
+    }
 
     if args.repl {
         println!("welcome to the mazer REPL");
@@ -95,8 +109,6 @@ async fn main() {
             .unwrap()
             .to_owned()
             + "<REPL>";
-
-        let _interp: Interpreter = Interpreter::new();
 
         loop {
             let src = prompt();
@@ -263,6 +275,13 @@ fn to_document(
     content: String,
     file_path: &str,
 ) -> (Document, Option<DebugContext>) {
+    let mut timer = Timer::new();
+    let verbose_output = *VRBS.read().unwrap();
+
+    if verbose_output {
+        timer.start();
+    }
+
     let mut t: Lexer = Lexer::new(content, DebugContext::new(file_path));
 
     let mut tokens: Vec<Token> = Vec::with_capacity(512);
@@ -282,6 +301,18 @@ fn to_document(
     }
 
     let tokens = Lexer::compact(tokens);
+    let t = timer.stop();
+    if verbose_output {
+        println!(
+            "{}",
+            format!(
+                "{} {} {}",
+                "[INFO]".yellow(),
+                "Lexing completed in",
+                format!("{}ms", t).magenta()
+            )
+        );
+    }
 
     // handle for the document that outputs HTML
     let mut document: Document = Document::new(file_title);
@@ -289,6 +320,8 @@ fn to_document(
     // handle for the interpreter that emits MathML or values
     // we reset the debug context as we need the file_path but do not need other debug info, as
     // we will be setting new interpreter specific and later parser specific debug info
+
+    timer.start();
     let mut interp: Interpreter = Interpreter::new();
     let mut envmnt: Environment = interp.environment();
 
@@ -363,6 +396,19 @@ fn to_document(
                 document.append_newline();
             }
         }
+    }
+
+    let t = timer.stop();
+    if verbose_output {
+        println!(
+            "{}",
+            format!(
+                "{} {} {}",
+                "[INFO]".yellow(),
+                "Parsing completed in",
+                format!("{}ms", t).magenta()
+            )
+        );
     }
 
     // type checking and syntax errors

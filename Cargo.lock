@@ -855,6 +855,7 @@ dependencies = [
  "clap",
  "colored",
  "include_absolute_path",
+ "lazy_static",
  "mazer-core",
  "notify",
  "opener",
