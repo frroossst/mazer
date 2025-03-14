@@ -1,7 +1,12 @@
 let x = (matrix 1 2 3)
+
 let y = (matrix 4 5 6)
 
-let ans = (dot x y);
+fmt(x)
 
-eval(ans)
+fmt(y)
+
+// let ans = (dot x y);
+
+// eval(ans)
 

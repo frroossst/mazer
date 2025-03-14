@@ -262,16 +262,16 @@ mod parser_tests {
         let mut p = Parser::new("5".to_string());
         let expr = p.parse();
         let mathml = MathML::from(&expr);
-        let repr = MathML::from(mathml.to_string());
+        let repr = MathML::from(mathml.string());
 
-        assert_eq!(repr.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>5</mn></math>");
+        assert_eq!(wrap_mathml!(repr.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>5</mn></math>");
 
         let mut p = Parser::new("(+ 1 2)".to_string());
         let expr = p.parse();
         let mathml = MathML::from(&expr);
-        let repr = MathML::from(mathml.to_string());
+        let repr = MathML::from(mathml.string());
 
-        assert_eq!(repr.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn></mrow></math></math>");
+        assert_eq!(wrap_mathml!(repr.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn></mrow></math>");
     }
 
     #[test]
@@ -306,7 +306,8 @@ mod parser_tests {
 
     #[test]
     fn test_addition_codegen() {
-        let mut p = Parser::new("(+ 1 2 3 4 5)".into());
+        let src = "(+ 1 2 3 4 5)";
+        let mut p = Parser::new(src.into());
         let ast = p.parse();
 
         let list_len = if let LispExpr::List(list) = ast.clone() {
@@ -318,7 +319,7 @@ mod parser_tests {
 
         let mathml: MathML = (&ast).into();
 
-        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn><mo>+</mo><mn>3</mn><mo>+</mo><mn>4</mn><mo>+</mo><mn>5</mn></mrow></math>");
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mn>1</mn><mo>+</mo><mn>2</mn><mo>+</mo><mn>3</mn><mo>+</mo><mn>4</mn><mo>+</mo><mn>5</mn></mrow></math>");
     }
 
     #[test]
@@ -335,7 +336,7 @@ mod parser_tests {
 
         let mathml: MathML = (&ast).into();
 
-        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr><mtr><mtd><mn>4</mn></mtd><mtd><mn>5</mn></mtd><mtd><mn>6</mn></mtd></mtr><mtr><mtd><mn>7</mn></mtd><mtd><mn>8</mn></mtd><mtd><mn>9</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>2</mn></mtd><mtd><mn>3</mn></mtd></mtr><mtr><mtd><mn>4</mn></mtd><mtd><mn>5</mn></mtd><mtd><mn>6</mn></mtd></mtr><mtr><mtd><mn>7</mn></mtd><mtd><mn>8</mn></mtd><mtd><mn>9</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
     }
 
     #[test]
@@ -352,7 +353,7 @@ mod parser_tests {
 
         let mathml = MathML::from(&ast);
 
-        assert_eq!(mathml.to_string(), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></math></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr><mtr><mtd><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>]</mo></mrow></math></mtd></mtr><mtr><mtd><mn>5</mn></mtd></mtr><mtr><mtd><mn>6</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>5</mn></mtd></mtr><mtr><mtd><mn>6</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
     }
 
     #[test]

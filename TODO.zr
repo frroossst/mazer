@@ -2,6 +2,7 @@
 
 ## Unsure
 - [ ] test big markdown files and benchmark against linear allocator
+- [ ] test with mazer not updating the file for different tabs and windows
 
 ## Broken
 - [ ] need to figure broken cargo install

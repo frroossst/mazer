@@ -86,14 +86,14 @@ impl MathML {
         MathML(src)
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn string(&self) -> String {
         self.0.clone()
     }
 }
 
 impl From<String> for MathML {
     fn from(content: String) -> Self {
-        MathML(wrap_mathml!(content))
+        MathML(content)
     }
 }
 

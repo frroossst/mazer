@@ -3,7 +3,7 @@ use crate::parser::{LispExpr, MathML};
 impl MathML {
     pub fn addition(args: &[LispExpr]) -> Self {
         let args_mathml: Vec<String> = args.iter()
-            .map(|arg| MathML::from(arg).to_string())
+            .map(|arg| MathML::from(arg).string())
             .collect();
         
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>+</mo>")).into()
@@ -11,7 +11,7 @@ impl MathML {
 
     pub fn subtraction(args: &[LispExpr]) -> Self {
         let args_mathml: Vec<String> = args.iter()
-            .map(|arg| MathML::from(arg).to_string())
+            .map(|arg| MathML::from(arg).string())
             .collect();
 
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>-</mo>")).into()
@@ -19,7 +19,7 @@ impl MathML {
 
     pub fn multiplication(args: &[LispExpr]) -> Self {
         let args_mathml: Vec<String> = args.iter()
-            .map(|arg| MathML::from(arg).to_string())
+            .map(|arg| MathML::from(arg).string())
             .collect();
 
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>*</mo>")).into()
@@ -27,7 +27,7 @@ impl MathML {
 
     pub fn division(args: &[LispExpr]) -> Self {
         let args_mathml: Vec<String> = args.iter()
-            .map(|arg| MathML::from(arg).to_string())
+            .map(|arg| MathML::from(arg).string())
             .collect();
 
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>/</mo>")).into()
@@ -37,7 +37,7 @@ impl MathML {
         let rows_mathml = args.iter().map(|row| {
             if let LispExpr::List(cells) = row {
                 let cells_mathml = cells.iter()
-                    .map(|cell| format!("<mtd>{}</mtd>", MathML::from(cell).to_string()))
+                    .map(|cell| format!("<mtd>{}</mtd>", MathML::from(cell).string()))
                     .collect::<Vec<String>>()
                     .join("");
                 format!("<mtr>{}</mtr>", cells_mathml)

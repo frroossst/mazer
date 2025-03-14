@@ -208,6 +208,7 @@ impl Document {
           cursor: pointer;
           font-family: monospace;
           transition: background-color 0.2s ease;
+          color: #000000;
         }
 
         .eval-result.dark-mode {
@@ -309,7 +310,7 @@ impl Document {
     }
 
     pub fn append_raw_math_ml(&mut self, content: MathML) {
-        self.append(content.to_string());
+        self.append(content.string());
     }
 
     pub fn append_code(&mut self, content: &str) {
