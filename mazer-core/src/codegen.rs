@@ -10,33 +10,27 @@ impl MathML {
     }
 
     pub fn subtraction(args: &[LispExpr]) -> Self {
-        if args.len() == 1 {
-            format!("<mrow><mo>-</mo>{}</mrow>", MathML::from(&args[0]).string()).into()
-        } else {
-            let args_mathml = args.iter().map(|arg| MathML::from(arg).string()).collect::<Vec<_>>().join("<mo>-</mo>");
-            format!("<mrow>{}</mrow>", args_mathml).into()
-        }
+        let args_mathml: Vec<String> = args.iter()
+            .map(|arg| MathML::from(arg).string())
+            .collect();
+
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>-</mo>")).into()
     }
 
     pub fn multiplication(args: &[LispExpr]) -> Self {
-        let args_mathml = args.iter().map(|arg| MathML::from(arg).string()).collect::<Vec<_>>().join("<mo>×</mo>");
-        format!("<mrow>{}</mrow>", args_mathml).into()
+        let args_mathml: Vec<String> = args.iter()
+            .map(|arg| MathML::from(arg).string())
+            .collect();
+
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>*</mo>")).into()
     }
 
     pub fn division(args: &[LispExpr]) -> Self {
-        format!("<mfrac>{}<mrow>{}</mrow></mfrac>", MathML::from(&args[0]).string(), MathML::from(&args[1]).string()).into()
-    }
+        let args_mathml: Vec<String> = args.iter()
+            .map(|arg| MathML::from(arg).string())
+            .collect();
 
-    pub fn square_root(args: &[LispExpr]) -> Self {
-        format!("<msqrt>{}</msqrt>", MathML::from(&args[0]).string()).into()
-    }
-
-    pub fn power(args: &[LispExpr]) -> Self {
-        format!("<msup><mrow>{}</mrow><mrow>{}</mrow></msup>", MathML::from(&args[0]).string(), MathML::from(&args[1]).string()).into()
-    }
-
-    pub fn fraction(args: &[LispExpr]) -> Self {
-        format!("<mfrac><mrow>{}</mrow><mrow>{}</mrow></mfrac>", MathML::from(&args[0]).string(), MathML::from(&args[1]).string()).into()
+        format!("<mrow>{}</mrow>", args_mathml.join("<mo>/</mo>")).into()
     }
 
     pub fn matrix(args: &[LispExpr]) -> Self {
@@ -52,19 +46,69 @@ impl MathML {
             }
         }).collect::<Vec<String>>().join("");
         
-        format!("<mrow>
-            <mo>[</mo>
-            <mtable>
-                {}
-            </mtable>
-            <mo>]</mo>
-        </mrow>", rows_mathml).into()
+        format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", rows_mathml).into()
     }
 
-    pub fn integral(args: &[LispExpr]) -> Self {
-        let integrand = MathML::from(&args[0]).string();
-        let limits = MathML::from(&args[1]).string();
-        format!("<mrow><mo>∫</mo><mrow>{}</mrow><mrow>{}</mrow></mrow>", integrand, limits).into()
+    pub fn fraction(args: &[LispExpr]) -> Self {
+        let numerator = MathML::from(&args[0]).string();
+        let denominator = MathML::from(&args[1]).string();
+
+        format!("<mfrac><mrow>{}</mrow><mrow>{}</mrow></mfrac>", numerator, denominator).into()
+    }
+
+    pub fn subscript(args: &[LispExpr]) -> Self {
+        let base = MathML::from(&args[0]).string();
+        let subscript = MathML::from(&args[1]).string();
+
+        format!("<msub><mrow>{}</mrow><mrow>{}</mrow></msub>", base, subscript).into()
+    }
+
+    pub fn superscript(args: &[LispExpr]) -> Self {
+        let base = MathML::from(&args[0]).string();
+        let superscript = MathML::from(&args[1]).string();
+
+        format!("<msup><mrow>{}</mrow><mrow>{}</mrow></msup>", base, superscript).into()
+    }
+
+    pub fn vector(args: &[LispExpr]) -> Self {
+        let components = args.iter()
+            .map(|component| format!("<mtd>{}</mtd>", MathML::from(component).string()))
+            .collect::<Vec<String>>()
+            .join("");
+
+        format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", components).into()
+    }
+
+    pub fn derivative(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn integral(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn limit(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn sum(_args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
+    pub fn abs(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mo>|</mo>{}</mrow><mo>|</mo>", arg).into()
+    }
+
+    pub fn sqrt(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<msqrt>{}</msqrt>", arg).into()
+    }
+
+    pub fn nth_root(args: &[LispExpr]) -> Self {
+        let base = MathML::from(&args[0]).string();
+        let root = MathML::from(&args[1]).string();
+        format!("<mroot><mrow>{}</mrow><mrow>{}</mrow></mroot>", base, root).into()
     }
 
 }
