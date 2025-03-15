@@ -1,0 +1,40 @@
+### Addition
+
+let x = (+ 1 1);
+
+fmt(+ 1 2 (sin 1))
+
+fmt(x)
+
+
+
+### Subtraction
+
+let x = (- 1 1);
+
+fmt(x)
+
+
+
+### Multiplication
+
+let x = (* 2 2);
+
+fmt(x)
+
+
+
+### Division
+
+let x = (/ 4 2);
+
+fmt(x)
+
+
+
+### Fraction
+
+let x = (frac 1 2);
+
+fmt(x)
+

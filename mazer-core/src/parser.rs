@@ -119,7 +119,9 @@ impl From<&LispExpr> for MathML {
                         "-" => MathML::subtraction(args),
                         "*" => MathML::multiplication(args),
                         "/" => MathML::division(args),
+                        "frac" => MathML::fraction(args),
                         "matrix"=> MathML::matrix(args),
+                        "integral" => MathML::integral(args),
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }
                 } else {

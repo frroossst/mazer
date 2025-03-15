@@ -1,1 +1,4 @@
-(matrix )
+let m0 = (matrix 1 1 1);
+
+fmt(matrix 1 1 1);
+
