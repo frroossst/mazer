@@ -103,7 +103,7 @@ impl Lexer {
         // that the last line is parsed and it does not run out of
         // bounds
         let mut uni_vec = uni_vec;
-        for _ in 0..5 {
+        for _ in 0..25 {
             uni_vec.push("\n".to_string());
         }
 
