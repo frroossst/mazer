@@ -119,6 +119,7 @@ impl From<&LispExpr> for MathML {
                         "-" => MathML::subtraction(args),
                         "*" => MathML::multiplication(args),
                         "/" => MathML::division(args),
+                        "pow" => MathML::power(args),
                         "frac" => MathML::fraction(args),
                         "matrix"=> MathML::matrix(args),
                         "integral" => MathML::integral(args),

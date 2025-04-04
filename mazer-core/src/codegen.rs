@@ -33,6 +33,13 @@ impl MathML {
         format!("<mrow>{}</mrow>", args_mathml.join("<mo>/</mo>")).into()
     }
 
+    pub fn power(args: &[LispExpr]) -> Self {
+        let base = MathML::from(&args[0]).string();
+        let exponent = MathML::from(&args[1]).string();
+
+        format!("<msup><mrow>{}</mrow><mrow>{}</mrow></msup>", base, exponent).into()
+    }
+
     pub fn matrix(args: &[LispExpr]) -> Self {
         let rows_mathml = args.iter().map(|row| {
             if let LispExpr::List(cells) = row {
@@ -94,11 +101,11 @@ impl MathML {
                         <mrow>{}</mrow>
                     </msubsup>
                     <mrow>{}</mrow>
-                    <mo>d</mo><mi>{}</mi>
+                    <mi>{}</mi>
                 </mrow>",
-                &args[1],
-                &args[2],
-                &args[0],
+                MathML::from(&args[1]).string(),
+                MathML::from(&args[2]).string(),
+                MathML::from(&args[0]).string(),
                 var).into()
             } else {
                 "<mrow>Error: integration variable must be a symbol</mrow>".to_string().into()
@@ -108,9 +115,9 @@ impl MathML {
             format!("<mrow>
                 <mo>∫</mo>
                 <mrow>{}</mrow>
-                <mo>d</mo><mi>{}</mi>
+                <mi>{}</mi>
             </mrow>",
-            &args[0],
+            MathML::from(&args[0]).string(),
             var).into()
         } else {
             "<mrow>Error: integration variable must be a symbol</mrow>".to_string().into()

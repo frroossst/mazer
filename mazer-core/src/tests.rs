@@ -359,11 +359,65 @@ mod parser_tests {
 
     #[test]
     fn test_integration() {
-        let mut p = Parser::new("(integral (x) dx)".into());
+        let mut p = Parser::new("(integral x dx)".into());
         let ast = p.parse();
 
         let mathml = MathML::from(&ast);
-        eprintln!("{}", wrap_mathml!(mathml.string()));
+
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+                <mo>∫</mo>
+                <mrow><mi>x</mi></mrow>
+                <mi>dx</mi>
+            </mrow></math>");
+    }
+
+    #[test]
+    fn test_chained_integration() {
+        let src = "(integral (pow x 2) 0 1 dx)";
+        let mut p = Parser::new(src.into());
+        let ast = p.parse();
+
+        let mathml = MathML::from(&ast);
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+                    <msubsup>
+                        <mo>∫</mo>
+                        <mrow><mn>0</mn></mrow>
+                        <mrow><mn>1</mn></mrow>
+                    </msubsup>
+                    <mrow><msup><mrow><mi>x</mi></mrow><mrow><mn>2</mn></mrow></msup></mrow>
+                    <mi>dx</mi>
+                </mrow></math>");
+
+        let src = "(integral (integral (integral (pow x 2) 0 1 dx) 0 1 dy) 0 1 dz)";
+        let mut p = Parser::new(src.into());
+        let ast = p.parse();
+
+        let mathml = MathML::from(&ast);
+        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+                    <msubsup>
+                        <mo>∫</mo>
+                        <mrow><mn>0</mn></mrow>
+                        <mrow><mn>1</mn></mrow>
+                    </msubsup>
+                    <mrow><mrow>
+                    <msubsup>
+                        <mo>∫</mo>
+                        <mrow><mn>0</mn></mrow>
+                        <mrow><mn>1</mn></mrow>
+                    </msubsup>
+                    <mrow><mrow>
+                    <msubsup>
+                        <mo>∫</mo>
+                        <mrow><mn>0</mn></mrow>
+                        <mrow><mn>1</mn></mrow>
+                    </msubsup>
+                    <mrow><msup><mrow><mi>x</mi></mrow><mrow><mn>2</mn></mrow></msup></mrow>
+                    <mi>dx</mi>
+                </mrow></mrow>
+                    <mi>dy</mi>
+                </mrow></mrow>
+                    <mi>dz</mi>
+                </mrow></math>");
     }
 
     #[test]
