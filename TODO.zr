@@ -9,10 +9,8 @@
 
 ## Bugs 
 - [ ] fix bug where on reload the file is blank until changed
-- [ ] make sure the tooltip for variable when env var might be used
 
 ## Features
-- [ ] matrix
 - [ ] markdown tables
 - [ ] impl fmt
 - [ ] impl eval

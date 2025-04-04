@@ -91,6 +91,7 @@ impl MathML {
     }
 
     pub fn integral(args: &[LispExpr]) -> Self {
+        dbg!(&args);
         if args.len() > 3 {
             if let LispExpr::Symbol(var) = &args[3] {
                 // Definite integral
