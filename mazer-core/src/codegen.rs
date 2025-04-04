@@ -83,8 +83,38 @@ impl MathML {
         unimplemented!()
     }
 
-    pub fn integral(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+    pub fn integral(args: &[LispExpr]) -> Self {
+        if args.len() > 3 {
+            if let LispExpr::Symbol(var) = &args[3] {
+                // Definite integral
+                format!("<mrow>
+                    <msubsup>
+                        <mo>∫</mo>
+                        <mrow>{}</mrow>
+                        <mrow>{}</mrow>
+                    </msubsup>
+                    <mrow>{}</mrow>
+                    <mo>d</mo><mi>{}</mi>
+                </mrow>",
+                &args[1],
+                &args[2],
+                &args[0],
+                var).into()
+            } else {
+                "<mrow>Error: integration variable must be a symbol</mrow>".to_string().into()
+            }
+        } else if let LispExpr::Symbol(var) = &args[1] {
+            // Indefinite integral
+            format!("<mrow>
+                <mo>∫</mo>
+                <mrow>{}</mrow>
+                <mo>d</mo><mi>{}</mi>
+            </mrow>",
+            &args[0],
+            var).into()
+        } else {
+            "<mrow>Error: integration variable must be a symbol</mrow>".to_string().into()
+        }
     }
 
     pub fn limit(_args: &[LispExpr]) -> Self {

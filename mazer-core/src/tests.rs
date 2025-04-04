@@ -356,6 +356,16 @@ mod parser_tests {
         assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>5</mn></mtd></mtr><mtr><mtd><mn>6</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
     }
 
+
+    #[test]
+    fn test_integration() {
+        let mut p = Parser::new("(integral (x) dx)".into());
+        let ast = p.parse();
+
+        let mathml = MathML::from(&ast);
+        eprintln!("{}", wrap_mathml!(mathml.string()));
+    }
+
     #[test]
     fn test_simple_env_sub() {
         let i = Interpreter::new();
