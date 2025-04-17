@@ -29,7 +29,7 @@ impl From<LispErr> for String {
 impl LispErr {
     pub fn new(message: &str) -> Self {
         LispErr {
-            message: message.to_string(),
+            message: message.to_string().into(),
         }
     }
 }
@@ -121,6 +121,7 @@ impl From<&LispExpr> for MathML {
                         "/" => MathML::division(args),
                         "pow" => MathML::power(args),
                         "frac" => MathML::fraction(args),
+                        "sin" => MathML::sin(args),
                         "matrix"=> MathML::matrix(args),
                         "integral" => MathML::integral(args),
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),

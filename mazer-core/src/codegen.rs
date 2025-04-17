@@ -125,6 +125,10 @@ impl MathML {
         }
     }
 
+    pub fn sin(args: &[LispExpr]) -> Self {
+        unimplemented!()
+    }
+
     pub fn limit(_args: &[LispExpr]) -> Self {
         unimplemented!()
     }

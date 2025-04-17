@@ -22,6 +22,8 @@ let x = (* 2 2);
 
 fmt(x)
 
+eval(x)
+
 
 
 ### Division
