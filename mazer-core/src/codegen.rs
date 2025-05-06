@@ -146,18 +146,20 @@ impl MathML {
 
     pub fn sum(args: &[LispExpr]) -> Self {
         if args.len() >= 4 {
-            if let LispExpr::Symbol(index) = &args[1] {
-                let expr = MathML::from(&args[0]).string();
-                let lower = MathML::from(&args[2]).string();
-                let upper = MathML::from(&args[3]).string();
-                
-                format!("<mrow><munderover><mo>∑</mo><mrow><mi>{}</mi><mo>=</mo>{}</mrow>{}</munderover><mrow>{}</mrow></mrow>",
-                    index, lower, upper, expr).into()
+            if let LispExpr::Symbol(index) = &args[0] {
+                let lower = MathML::from(&args[1]).string();
+                let upper = MathML::from(&args[2]).string();
+                let expr = MathML::from(&args[3]).string();
+
+                format!(
+                    "<mrow><munderover><mo>∑</mo><mrow><mi>{}</mi><mo>=</mo>{}</mrow>{}</munderover><mrow>{}</mrow></mrow>",
+                    index, lower, upper, expr
+                ).into()
             } else {
                 "<mrow>Error: summation index must be a symbol</mrow>".to_string().into()
             }
         } else {
-            "<mrow>Error: sum requires expression, index, lower bound and upper bound</mrow>".to_string().into()
+            "<mrow>Error: sum requires index, lower bound, upper bound, and expression</mrow>".to_string().into()
         }
     }
 

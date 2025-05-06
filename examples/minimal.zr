@@ -1,17 +1,36 @@
+# matrix (1 1 1)
+
 fmt(matrix (1 1 1))
+
+# matrix (2) (2) (2)
 
 fmt(matrix (2) (2) (2))
 
+# matrix (1) (2 3) (4)
+
 fmt(matrix (1) (2 3) (4))
+
+# matrix ((sin x)) ((cos x)) ((tan x))
 
 fmt(matrix ((sin x)) ((cos x)) ((tan x)))
 
+# sin (matrix (x) (y))
+
 fmt(sin (matrix (x) (y)))
+
+# integral (integral (integral (pow x 2) 0 1 x) 0 1 y) 0 1 z
 
 fmt(integral (integral (integral (pow x 2) 0 1 x) 0 1 y) 0 1 z)
 
+# sin (sum i 1 10 (integral (pow x 2) 0 1 x))
+
 fmt(sin (sum i 1 10 (integral (pow x 2) 0 1 x)))
+
+# matrix ((matrix (0)) (matrix (1))) (2) ((matrix (3 4))) (5) (6)
 
 fmt(matrix ((matrix (0)) (matrix (1))) (2) ((matrix (3 4))) (5) (6))
 
+# matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6)
+
 fmt(matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6))
+
