@@ -126,15 +126,39 @@ impl MathML {
     }
 
     pub fn sin(args: &[LispExpr]) -> Self {
-        unimplemented!()
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>sin</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn cos(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>cos</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn tan(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>tan</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
     }
 
     pub fn limit(_args: &[LispExpr]) -> Self {
         unimplemented!()
     }
 
-    pub fn sum(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+    pub fn sum(args: &[LispExpr]) -> Self {
+        if args.len() >= 4 {
+            if let LispExpr::Symbol(index) = &args[1] {
+                let expr = MathML::from(&args[0]).string();
+                let lower = MathML::from(&args[2]).string();
+                let upper = MathML::from(&args[3]).string();
+                
+                format!("<mrow><munderover><mo>∑</mo><mrow><mi>{}</mi><mo>=</mo>{}</mrow>{}</munderover><mrow>{}</mrow></mrow>",
+                    index, lower, upper, expr).into()
+            } else {
+                "<mrow>Error: summation index must be a symbol</mrow>".to_string().into()
+            }
+        } else {
+            "<mrow>Error: sum requires expression, index, lower bound and upper bound</mrow>".to_string().into()
+        }
     }
 
     pub fn abs(args: &[LispExpr]) -> Self {

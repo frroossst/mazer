@@ -12,3 +12,4 @@ let malformed = (
 );
 
 fmt(malformed)
+

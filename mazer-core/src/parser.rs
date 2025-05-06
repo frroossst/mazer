@@ -122,8 +122,11 @@ impl From<&LispExpr> for MathML {
                         "pow" => MathML::power(args),
                         "frac" => MathML::fraction(args),
                         "sin" => MathML::sin(args),
+                        "cos" => MathML::cos(args),
+                        "tan" => MathML::tan(args),
                         "matrix"=> MathML::matrix(args),
                         "integral" => MathML::integral(args),
+                        "sum" => MathML::sum(args),
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }
                 } else {
