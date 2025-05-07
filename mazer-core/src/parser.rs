@@ -115,18 +115,43 @@ impl From<&LispExpr> for MathML {
                 if let LispExpr::Symbol(operator) = &list[0] {
                     let args = &list[1..];
                     match operator.as_str() {
+                        // basic arithmetic operations
                         "+" => MathML::addition(args),
                         "-" => MathML::subtraction(args),
                         "*" => MathML::multiplication(args),
                         "/" => MathML::division(args),
                         "pow" => MathML::power(args),
                         "frac" => MathML::fraction(args),
+
+                        // trigonometric functions
                         "sin" => MathML::sin(args),
                         "cos" => MathML::cos(args),
                         "tan" => MathML::tan(args),
-                        "matrix"=> MathML::matrix(args),
+                        "sec" => MathML::sec(args),
+                        "csc" => MathML::csc(args),
+                        "cot" => MathML::cot(args),
+                        "arcsin" => MathML::arcsin(args),
+                        "arccos" => MathML::arccos(args),
+                        "arctan" => MathML::arctan(args),
+
+                        // calculus
+                        "derivative" => MathML::derivative(args),
                         "integral" => MathML::integral(args),
+                        "limit" => MathML::limit(args),
                         "sum" => MathML::sum(args),
+                        "product" => MathML::product(args),
+
+                        // logarithmic functions
+                        "abs" => MathML::abs(args),
+                        "sqrt" => MathML::sqrt(args),
+                        "nth-root" => MathML::nth_root(args),
+                        "log" => MathML::log(args),
+                        "binomial" => MathML::binomial(args),
+
+                        // matrix operations
+                        "matrix"=> MathML::matrix(args),
+                        "determinant"=> MathML::determinant(args),
+
                         _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
                     }
                 } else {

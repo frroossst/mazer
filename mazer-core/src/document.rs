@@ -307,6 +307,7 @@ impl Document {
 
     pub fn append_math_ml(&mut self, content: MathML) {
         self.append_wrapped("math", &wrap_mathml!(content.string()));
+        self.append_newline();
     }
 
     pub fn append_raw_math_ml(&mut self, content: MathML) {

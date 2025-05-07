@@ -86,8 +86,99 @@ impl MathML {
         format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", components).into()
     }
 
-    pub fn derivative(_args: &[LispExpr]) -> Self {
-        unimplemented!()
+    pub fn derivative(args: &[LispExpr]) -> Self {
+        if args.len() >= 2 {
+            if let LispExpr::Symbol(var) = &args[1] {
+                let expr = MathML::from(&args[0]).string();
+                
+                // Check if order is specified
+                if args.len() >= 3 {
+                    if let LispExpr::Number(n) = args[2] {
+                        if n as u32 > 1 {
+                            return format!("<mrow><mfrac><msup><mi>d</mi><mn>{}</mn></msup><mrow><mi>d</mi><msup><mi>{}</mi><mn>{}</mn></msup></mrow></mfrac><mrow>{}</mrow></mrow>", 
+                                n as u32, var, n as u32, expr).into();
+                        }
+                    }
+                }
+                
+                // First order derivative
+                format!("<mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>{}</mi></mrow></mfrac><mrow>{}</mrow></mrow>", 
+                    var, expr).into()
+            } else {
+                "<mrow>Error: differentiation variable must be a symbol</mrow>".to_string().into()
+            }
+        } else {
+            "<mrow>Error: derivative requires at least an expression and variable</mrow>".to_string().into()
+        }
+    }
+
+    pub fn determinant(args: &[LispExpr]) -> Self {
+        if args.len() == 1 {
+            if let LispExpr::List(rows) = &args[0] {
+                let rows_mathml = rows.iter().map(|row| {
+                    if let LispExpr::List(cells) = row {
+                        let cells_mathml = cells.iter()
+                            .map(|cell| format!("<mtd>{}</mtd>", MathML::from(cell).string()))
+                            .collect::<Vec<String>>()
+                            .join("");
+                        format!("<mtr>{}</mtr>", cells_mathml)
+                    } else {
+                        "<mtr><mtd>Error: matrix row must be a list</mtd></mtr>".to_string()
+                    }
+                }).collect::<Vec<String>>().join("");
+                
+                format!("<mrow><mo>|</mo><mtable>{}</mtable><mo>|</mo></mrow>", rows_mathml).into()
+            } else {
+                "<mrow>Error: determinant argument must be a matrix</mrow>".to_string().into()
+            }
+        } else {
+            "<mrow>Error: determinant requires exactly one matrix argument</mrow>".to_string().into()
+        }
+    }
+
+    pub fn product(args: &[LispExpr]) -> Self {
+        if args.len() >= 4 {
+            if let LispExpr::Symbol(index) = &args[1] {
+                let expr = MathML::from(&args[0]).string();
+                let lower = MathML::from(&args[2]).string();
+                let upper = MathML::from(&args[3]).string();
+                
+                format!("<mrow><munderover><mo>∏</mo><mrow><mi>{}</mi><mo>=</mo>{}</mrow>{}</munderover><mrow>{}</mrow></mrow>",
+                    index, lower, upper, expr).into()
+            } else {
+                "<mrow>Error: product index must be a symbol</mrow>".to_string().into()
+            }
+        } else {
+            "<mrow>Error: product requires expression, index, lower bound and upper bound</mrow>".to_string().into()
+        }
+    }
+
+    pub fn log(args: &[LispExpr]) -> Self {
+        if args.len() == 1 {
+            // Natural logarithm
+            let arg = MathML::from(&args[0]).string();
+            format!("<mrow><mi>ln</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+        } else if args.len() >= 2 {
+            // Logarithm with base
+            let arg = MathML::from(&args[0]).string();
+            let base = MathML::from(&args[1]).string();
+            format!("<mrow><msub><mi>log</mi><mrow>{}</mrow></msub><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", 
+                base, arg).into()
+        } else {
+            "<mrow>Error: log requires at least one argument</mrow>".to_string().into()
+        }
+    }
+
+    pub fn binomial(args: &[LispExpr]) -> Self {
+        if args.len() >= 2 {
+            let n = MathML::from(&args[0]).string();
+            let k = MathML::from(&args[1]).string();
+            
+            format!("<mrow><mo>(</mo><mfrac linethickness=\"0\"><mrow>{}</mrow><mrow>{}</mrow></mfrac><mo>)</mo></mrow>", 
+                n, k).into()
+        } else {
+            "<mrow>Error: binomial requires n and k</mrow>".to_string().into()
+        }
     }
 
     pub fn integral(args: &[LispExpr]) -> Self {
@@ -138,6 +229,51 @@ impl MathML {
     pub fn tan(args: &[LispExpr]) -> Self {
         let arg = MathML::from(&args[0]).string();
         format!("<mrow><mi>tan</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn sec(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>sec</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn csc(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>csc</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn cot(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>cot</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn arcsin(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>arcsin</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn arccos(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>arccos</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn arctan(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>arctan</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn sinh(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>sinh</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn cosh(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>cosh</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+    }
+
+    pub fn tanh(args: &[LispExpr]) -> Self {
+        let arg = MathML::from(&args[0]).string();
+        format!("<mrow><mi>tanh</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
     }
 
     pub fn limit(_args: &[LispExpr]) -> Self {
