@@ -34,3 +34,8 @@ fmt(matrix ((matrix (0)) (matrix (1))) (2) ((matrix (3 4))) (5) (6))
 
 fmt(matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6))
 
+
+
+fmt(log 10 1000)
+fmt(log e 1000)
+fmt(ln 1000)

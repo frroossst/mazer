@@ -155,17 +155,31 @@ impl MathML {
 
     pub fn log(args: &[LispExpr]) -> Self {
         if args.len() == 1 {
-            // Natural logarithm
             let arg = MathML::from(&args[0]).string();
-            format!("<mrow><mi>ln</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+            format!("<mrow><mi>log</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
         } else if args.len() >= 2 {
             // Logarithm with base
-            let arg = MathML::from(&args[0]).string();
-            let base = MathML::from(&args[1]).string();
+            let base = args[0].to_string();
+            if base == "e" {
+                // pass args[0] onwars
+                return Self::ln(args[1..].as_ref());
+            }
+
+            let base = MathML::from(&args[0]).string();
+            let arg = MathML::from(&args[1]).string();
             format!("<mrow><msub><mi>log</mi><mrow>{}</mrow></msub><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", 
                 base, arg).into()
         } else {
             "<mrow>Error: log requires at least one argument</mrow>".to_string().into()
+        }
+    }
+
+    pub fn ln(args: &[LispExpr]) -> Self {
+        if args.len() == 1 {
+            let arg = MathML::from(&args[0]).string();
+            format!("<mrow><mi>ln</mi><mo>&#x2061;</mo><mrow>{}</mrow></mrow>", arg).into()
+        } else {
+            "<mrow>Error: ln requires exactly one argument</mrow>".to_string().into()
         }
     }
 
@@ -182,7 +196,6 @@ impl MathML {
     }
 
     pub fn integral(args: &[LispExpr]) -> Self {
-        dbg!(&args);
         if args.len() > 3 {
             if let LispExpr::Symbol(var) = &args[3] {
                 // Definite integral

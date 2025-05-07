@@ -193,7 +193,7 @@ impl Interpreter {
     }
 
     pub fn eval(&self, symbol: String) -> Result<LispExpr, LispErr> {
-        let expr = self.get_symbol(symbol.clone()).ok_or(LispErr::new(&format!("Symbol {} not found", symbol)))?;
+        let _expr = self.get_symbol(symbol.clone()).ok_or(LispErr::new(&format!("Symbol {} not found", symbol)))?;
         unimplemented!("interpreter::eval")
     }
 }

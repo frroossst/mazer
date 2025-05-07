@@ -146,6 +146,7 @@ impl From<&LispExpr> for MathML {
                         "sqrt" => MathML::sqrt(args),
                         "nth-root" => MathML::nth_root(args),
                         "log" => MathML::log(args),
+                        "ln" => MathML::ln(args),
                         "binomial" => MathML::binomial(args),
 
                         // matrix operations

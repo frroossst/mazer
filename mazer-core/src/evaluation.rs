@@ -23,6 +23,7 @@ impl Interpreter {
                     }
                     Ok(value.clone())
                 } else {
+                    dbg!(env);
                     Err(LispErr::new(&format!("Symbol {} not found", s)))
                 }
             },
