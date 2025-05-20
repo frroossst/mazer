@@ -1,3 +1,2 @@
 [build]
-linker = "clang"
 rustflags = ["-Clink-arg=-fuse-ld=lld", "-Zthreads=22", "-Ctarget-cpu=native"]

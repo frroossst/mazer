@@ -336,6 +336,20 @@ impl Lexer {
             let mut val = self.consume_till(";")?.trim().to_string();
             self.must_consume(";")?;
 
+            // sometimes things like let foo = (+ 1 2) \n\n let bar = (0); are valid; 
+            // must prevent this by checking that value has only one let binding
+            // if there are multiple let bindings then it is invalid
+
+            val.contains("let")
+                .then(|| {
+                    let e = ErrorKind::GrammarGoblin(
+                        "Let statement cannot be nested inside another let statement".to_string(),
+                    );
+                    self.create_error(e);
+                    Err(self.ctx.clone())
+                })
+                .unwrap_or(Ok(()))?;
+
             val.push_str(";");
 
             return Ok(Some(Token::LetExpr(var, val)));
