@@ -114,7 +114,7 @@ async fn main() {
             let src = prompt();
 
             let mut tokens: Vec<Token> = Vec::new();
-            let mut t: Lexer = Lexer::new(src, DebugContext::new(&env_path));
+            let mut t: Lexer = Lexer::new(src, DebugContext::new(Some(&env_path)));
             loop {
                 match t.next_line() {
                     Ok(Some(l)) => {
@@ -203,7 +203,7 @@ async fn main() {
     let content = read_file(&file);
     let (doc, ctx) = to_document(file_name_title, content, file.as_str());
     if ctx.is_some() {
-        ctx.unwrap().display();
+        ctx.expect("is_some guaranteed").display();
     } else {
         println!(
             "{}",
@@ -282,9 +282,9 @@ fn to_document(
         timer.start();
     }
 
-    let mut t: Lexer = Lexer::new(content, DebugContext::new(file_path));
+    let mut t: Lexer = Lexer::new(content, DebugContext::new(Some(file_path)));
 
-    let mut tokens: Vec<Token> = Vec::with_capacity(512);
+    let mut tokens: Vec<Token> = Vec::with_capacity(1024);
 
     let mut ctx: Option<DebugContext> = None;
     loop {

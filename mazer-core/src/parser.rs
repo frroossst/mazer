@@ -245,10 +245,6 @@ impl Parser {
         expr
     }
 
-    pub fn ast(&self) -> Vec<LispExpr> {
-        self.ast.clone()
-    }
-
     fn parse_tokens(tokens: &[String], start_index: usize) -> (LispExpr, usize) {
         if start_index >= tokens.len() {
             return (LispExpr::Nil, start_index);

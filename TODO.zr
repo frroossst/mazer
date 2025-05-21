@@ -11,6 +11,7 @@
 - [ ] fix bug where on reload the file is blank until changed
 
 ## Features
+- [ ] fix pretty errors
 - [ ] markdown tables
 - [ ] impl fmt
 - [ ] impl eval

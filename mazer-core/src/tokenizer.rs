@@ -119,13 +119,7 @@ impl Lexer {
     }
 
     fn create_error(&mut self, err: ErrorKind) {
-        let src = self.src.join("");
-        let src = src.split("\n").collect::<Vec<&str>>();
-
-        let err_line = src[self.line - 1].to_string();
-        self.ctx.set_source_code(err_line);
-        self.ctx.set_position(self.pos);
-        self.ctx.set_error(err);
+        self.ctx = self.ctx.clone().with_error_kind(err).with_src(self.src.join("")).with_location(self.pos, self.pos + 1);
     }
 
     fn char(&mut self) -> Result<String, DebugContext> {

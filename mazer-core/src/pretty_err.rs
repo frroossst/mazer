@@ -1,86 +1,60 @@
 use colored::*;
 
+
+#[derive(Debug, Clone)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
+}
+
+
 #[derive(Debug, Clone)]
 pub struct DebugContext {
-    file_path: String,
+    file_path: Option<String>,
     err_kind: Option<ErrorKind>,
     src: String,
-    err_pos: usize,
+    err_pos: Span,
 }
 
 impl DebugContext {
-    pub fn new(file_path: &str) -> Self {
-        DebugContext {
-            file_path: file_path.to_string(),
+    pub fn new(file_path: Option<&str>) -> Self {
+        Self {
+            file_path: file_path.map(|s| s.to_string()),
             err_kind: None,
             src: String::new(),
-            err_pos: 0,
+            err_pos: Span { start: 0, end: 0 },
         }
     }
 
-    pub fn reset(&mut self) -> Self {
-        self.err_kind = None;
-        self.src = String::new();
-        self.err_pos = 0;
-
-        self.clone()
+    pub fn with_location(mut self, start: usize, end: usize) -> Self {
+        self.err_pos = Span { start, end };
+        self
     }
 
-    pub fn is_err(&self) -> bool {
-        self.err_kind.is_some()
-    }
-
-    pub fn set_source_code(&mut self, src: String) {
+    pub fn with_src(mut self, src: String) -> Self {
         self.src = src;
+        self
     }
 
-    pub fn set_error(&mut self, kind: ErrorKind) {
-        self.err_kind = Some(kind);
-    }
-
-    pub fn get_position(&self) -> usize {
-        self.err_pos
-    }
-
-    pub fn set_position(&mut self, err_pos: usize) {
-        self.err_pos = err_pos;
+    pub fn with_error_kind(mut self, err_kind: ErrorKind) -> Self {
+        self.err_kind = Some(err_kind);
+        self
     }
 
     pub fn display(&self) {
-        if let Some(err_kind) = &self.err_kind {
-            eprintln!("src: {}", self.file_path);
-            eprintln!("{} {}", "[ERROR]".red().bold(), err_kind.error().red());
-            eprintln!("{} At position = {} ", "  -->".blue().bold(), self.err_pos);
-            eprintln!("{}", "  |".blue().bold());
-            eprintln!("{}", self.src.trim().dimmed());
-            eprintln!("{}", "  |".blue().bold());
-            eprint!("{}", "  =".blue().bold());
-            eprintln!(" {}: {:?}", "help".bold(), err_kind.message());
-            let mazer_colour = Color::TrueColor {
-                r: 236,
-                g: 166,
-                b: 124,
-            };
-            eprintln!(
-                "\n{} {}",
-                "  Mazer says".color(mazer_colour),
-                err_kind.name().bold().white()
-            );
+        if let Some(ref err_kind) = self.err_kind {
+            if let Some(ref file_path) = self.file_path {
+                println!("File: {}", file_path);
+            }
+            println!("Error: {}", err_kind.error().red());
+            println!("Message: {}", err_kind.message().yellow());
+            println!("Position: {}..{}", self.err_pos.start, self.err_pos.end);
+            println!("Source: {}", self.src[self.err_pos.start..self.err_pos.end].green());
         } else {
-            eprintln!(
-                "{}",
-                "Oh no! something went terribly wrong, but we don't know what!"
-                    .red()
-                    .italic()
-            );
-            eprintln!(
-                "{}",
-                "Please report this issue to the Mazer project on GitHub."
-                    .red()
-                    .italic()
-            );
+            println!("No error information available.");
         }
     }
+
 }
 
 #[derive(Debug, Clone)]
