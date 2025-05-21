@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::pretty_err::{DebugContext, ErrorKind};
+use crate::pretty_err::{DebugContext, ErrorKind, Span};
 
 #[derive(Debug, Clone)]
 pub enum MarkdownTag {
@@ -118,8 +118,14 @@ impl Lexer {
         }
     }
 
-    fn create_error(&mut self, err: ErrorKind) {
-        self.ctx = self.ctx.clone().with_error_kind(err).with_src(self.src.join("")).with_location(self.pos, self.pos + 1);
+    fn create_error(&mut self, err: ErrorKind, span: Option<Span>) {
+        self.ctx = self.ctx.clone().with_src(self.src.join(""));
+        self.ctx = self.ctx.clone().with_error_kind(err.clone());
+
+        if let Some(span_val) = span {
+            self.ctx = self.ctx.clone().with_location(span_val.start, span_val.end);
+        }
+
     }
 
     fn char(&mut self) -> Result<String, DebugContext> {
@@ -129,7 +135,7 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e);
+            self.create_error(e, Span { start: self.pos, end: self.pos + 1 }.into());
             return Err(self.ctx.clone());
         }
         Ok(self.src[self.pos].clone())
@@ -142,7 +148,7 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e);
+            self.create_error(e, Span { start: self.pos + 1, end: self.pos + 2 }.into());
             Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + 1].clone())
@@ -157,7 +163,7 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e);
+            self.create_error(e, Span { start: self.pos + n, end: self.pos + n + 1 }.into());
             Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + n].clone())
@@ -170,7 +176,7 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e);
+            self.create_error(e, Span { start: self.pos, end: self.max }.into());
             return Err(self.ctx.clone());
         }
         self.pos += 1;
@@ -182,7 +188,7 @@ impl Lexer {
         // [ERROR]
         if curr != c {
             let e = ErrorKind::BrokenExpectations(format!("Expected '{}' but found '{}'", c, curr));
-            self.create_error(e);
+            self.create_error(e, Span { start: self.pos, end: self.pos + 1 }.into());
             return Err(self.ctx.clone());
         }
         self.advance_char()?;
@@ -229,12 +235,14 @@ impl Lexer {
         let mut store = String::from(self.char()?);
         let mut count = 1;
 
+        let start_span = self.pos;
+
         while count > 0 {
             self.advance_char()?;
             if self.pos >= self.max {
                 // [ERROR]
                 let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
-                self.create_error(e);
+                self.create_error(e, Span { start: start_span, end: self.pos }.into());
                 return Err(self.ctx.clone());
             }
 
@@ -252,7 +260,7 @@ impl Lexer {
         if count != 0 {
             // [ERROR]
             let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
-            self.create_error(e);
+            self.create_error(e, Span { start: start_span, end: self.pos }.into());
             return Err(self.ctx.clone());
         }
 
@@ -305,24 +313,46 @@ impl Lexer {
             return Ok(Some(Token::Literal(literal)));
         // let statements
         } else if curr_tok == "l" && self.peek()? == "e" && self.peek_n(2)? == "t" {
+            let let_start_span = self.pos;
             self.advance_char()?;
             self.advance_char()?;
             self.advance_char()?;
 
+            /*
             if self.char()? != " " {
                 // [ERROR]
                 let e = ErrorKind::GrammarGoblin(
                     "Let statement should be followed by a space".to_string(),
                 );
-                self.create_error(e);
+                self.create_error(e, Span { start: self.pos, end: self.pos + 1 }.into());
                 return Err(self.ctx.clone());
+            } */
+
+            let before_let_keyword_pos = self.pos;
+            self.consume_whitespace()?;
+            let did_consume_let_keyword = (self.pos - before_let_keyword_pos) > 0;
+
+            // check if it conforms to the following pattern
+            // let <var> <space> = <value>;
+            // if not then it is a normal word 
+            // if did_consume_let_keyword is false AND there is no equal to after variable name
+            // then it is a normal word
+            let curr = self.pos;
+            let l = self.consume_line()?;
+            // if l has no equal to sign then it is a normal word
+            // NOTE: This is very scuffed and should be improved
+            let has_equal = l.contains("=");
+            if !did_consume_let_keyword && !has_equal {
+                return Ok(Some(Token::Text(None, l)));
+            } else {
+                self.pos = curr;
             }
 
             let var = self.consume_till("=")?.trim().to_string();
             // [ERROR]
             if var.is_empty() {
                 let e = ErrorKind::NamelessNomad("Variable name cannot be empty".to_string());
-                self.create_error(e);
+                self.create_error(e, Span { start: let_start_span, end: self.pos }.into());
                 return Err(self.ctx.clone());
             }
 
@@ -339,7 +369,17 @@ impl Lexer {
                     let e = ErrorKind::GrammarGoblin(
                         "Let statement cannot be nested inside another let statement".to_string(),
                     );
-                    self.create_error(e);
+
+                    let second_let_span = val
+                        .find("let")
+                        .unwrap_or(val.len())
+                        + val.find("=")
+                        .unwrap_or(val.len());
+
+                    self.create_error(e, Span {
+                        start: let_start_span,
+                        end: second_let_span,
+                    }.into());
                     Err(self.ctx.clone())
                 })
                 .unwrap_or(Ok(()))?;
@@ -471,7 +511,7 @@ impl Lexer {
                 let e = ErrorKind::GrammarGoblin(
                     "Line separator should contain only '=' characters".to_string(),
                 );
-                self.create_error(e);
+                self.create_error(e, Span { start: prev, end: now }.into());
                 return Err(self.ctx.clone());
             }
 
