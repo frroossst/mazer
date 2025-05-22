@@ -100,6 +100,7 @@ impl Lexer {
             .map(|&x| x.to_string())
             .collect::<Vec<String>>();
 
+        uni_vec.push("\n".to_string());
         // push invisible characters to the end of the vector
         // this is to ensure that the lexer does not run out of bounds
         let zero_width_character = vec![0xE2, 0x80, 0x8B];

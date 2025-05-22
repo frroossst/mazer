@@ -158,6 +158,14 @@ async fn main() {
     let file;
     match args.file {
         Some(f) => {
+            // check if file exists
+            if !std::path::Path::new(&f).exists() {
+                eprintln!(
+                    "{}",
+                    format!("{} file does not exist", "[ERROR]".red()).bold()
+                );
+                std::process::exit(1);
+            }
             file = f;
         }
         None => {
