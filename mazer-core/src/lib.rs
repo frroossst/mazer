@@ -5,5 +5,6 @@ pub mod tokenizer;
 pub mod codegen;
 pub mod stdlib;
 pub mod evaluation;
+pub mod data_structures;
 pub mod pretty_err;
 pub mod tests;

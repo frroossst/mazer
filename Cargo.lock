@@ -1151,19 +1151,12 @@ name = "mazer-core"
 version = "0.12.0"
 dependencies = [
  "colored",
- "mazer-data-structures",
+ "faer",
  "mazer-macros",
  "rayon",
  "regex",
  "smartstring",
  "unicode-segmentation",
-]
-
-[[package]]
-name = "mazer-data-structures"
-version = "0.1.0"
-dependencies = [
- "faer",
 ]
 
 [[package]]
