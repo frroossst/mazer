@@ -20,3 +20,4 @@ codegen-units = 1
 panic = "abort"
 codegen-backend = "cranelift"
 strip = "symbols"
+opt-level = 3
