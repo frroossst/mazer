@@ -1,5 +1,13 @@
 # ToDo
 
+- [ ] fix integral eval
+- [ ] feature complete matrices
+- [ ] feature complete integrals
+- [ ] feature complete differentiation
+- [ ] feature complete differential equations
+- [ ] add more stdlib functions
+
+
 ## Unsure
 - [ ] test big markdown files and benchmark against linear allocator
 - [ ] test with mazer not updating the file for different tabs and windows
@@ -11,11 +19,6 @@
 - [ ] fix bug where on reload the file is blank until changed
 
 ## Features
-- [ ] fix pretty errors
-- [ ] markdown tables
-- [ ] impl fmt
-- [ ] impl eval
 - [ ] REPL
-- [ ] remove unnecessary mazer macros and mazer data structures
 - [ ] a help guide to search through documentation of inbuilt functions (maybe on html webpage)
 
