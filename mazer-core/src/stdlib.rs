@@ -65,6 +65,12 @@ impl Interpreter {
             Ok(LispExpr::Number(result))
         }));
 
+
+        env.insert("integral".to_string(), LispExpr::Function(|args, _| {
+            dbg!(&args);
+            unimplemented!()
+        }));
+
         env
     }
 

@@ -7,10 +7,11 @@ description = "A minimal, simple math markup language that compiles to HTML, wri
 
 [dependencies]
 mazer-macros = { path = "../mazer-macros", version = "^0.*" }
-faer = "0.21"
 unicode-segmentation = "1.11.0"
 colored = "2.1.0"
 rayon = "1.10.0"
 regex = "1.11.1"
 smartstring = "1.0.1"
+faer = "0.21"
+# integrate = "0.1.11"
 

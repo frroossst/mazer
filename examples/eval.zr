@@ -23,3 +23,8 @@ let b = (* 10 (* a 10));
 The answer of b is eval(b).
 
 
+let i1 = (integral (pow x 2) 0 1 x);
+
+fmt(i1)
+eval(i1)
+
