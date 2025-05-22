@@ -42,7 +42,7 @@ pub enum LispExpr {
     Boolean(bool),
     List(Vec<LispExpr>),
     Nil,
-    Function(fn(Vec<LispExpr>, &mut Environment) -> Result<LispExpr, LispErr>),
+    Function(fn(Vec<LispExpr>, &Environment) -> Result<LispExpr, LispErr>),
 }
 
 impl fmt::Display for LispExpr {

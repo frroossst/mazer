@@ -1,14 +1,25 @@
+let two = 2;
+let three = 3;
+
+let power = (pow three two);
+let root = (sqrt power);
+
+The answer of three raised to the power of two is eval(power).  
+The answer of the square root of power is eval(root).
+
 let x = (matrix 1 2 3);
 
 let y = (matrix 4 5 6);
 
 let ans = (dot x y);
 
-eval(ansg
- a = (+ 1 2 3 4 5 6 7 8 9);
+eval(ans)
+
+let a = (+ 1 2 3 4 5 6 7 8 9);
 
 let b = (* 10 (* a 10));
 let b = (* 10 (* a 10));
 
 The answer of b is eval(b).
+
 

@@ -51,7 +51,7 @@ impl From<usize> for HeaderKind {
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    LetExpr(String, String),
+    LetStmt(String, String),
     Fn(FnKind, String),
     Literal(String),
     Text(Option<Emphasis>, String),
@@ -396,8 +396,9 @@ impl Lexer {
 
             val.push_str(";");
 
-            return Ok(Some(Token::LetExpr(var, val)));
-        // inline fmt calls
+            return Ok(Some(Token::LetStmt(var, val)));
+        /*
+        // inline fmt calls 
         } else if curr_tok == "$" && self.peek()? == "(" {
             self.advance_char()?;
             self.advance_char()?;
@@ -405,6 +406,7 @@ impl Lexer {
             let fmt = self.consume_till(")")?.to_string();
 
             return Ok(Some(Token::Fn(FnKind::Fmt, fmt)));
+         */
         // fmt calls
         } else if curr_tok == "f" && self.peek()? == "m" && self.peek_n(2)? == "t" {
             self.advance_char()?;

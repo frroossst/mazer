@@ -131,7 +131,7 @@ async fn main() {
             let tokens = tokens
                 .into_iter()
                 .filter(|t| match t.clone() {
-                    Token::LetExpr(_var, _val) => true,
+                    Token::LetStmt(_var, _val) => true,
                     Token::Fn(_kind, _body) => true,
                     _ => {
                         eprintln!("[ERROR] repl can only process mazer tokens");
@@ -142,7 +142,7 @@ async fn main() {
 
             for t in tokens.iter() {
                 match t {
-                    Token::LetExpr(_var, _val) => {
+                    Token::LetStmt(_var, _val) => {
                         unimplemented!("let expr");
                     }
                     Token::Fn(_kind, _expr) => {
@@ -335,7 +335,7 @@ fn to_document(
 
     for t in tokens {
         match t {
-            Token::LetExpr(var, val) => {
+            Token::LetStmt(var, val) => {
                 document.append_code(&format!("let {} = {}", &var, &val));
 
                 let mut p = Parser::new(val);
@@ -347,6 +347,8 @@ fn to_document(
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
+                    dbg!(&kind);
+                    dbg!(&expr);
                     let mut p = match envmnt.get(&expr) {
                         Some(expr) => {
                             Parser::new(expr.to_string())
@@ -359,7 +361,10 @@ fn to_document(
                     
                     let exprs = p.parse();
 
+                    dbg!(&exprs);
+
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
+                    dbg!(&result);
                     let result: String = match result {
                         Ok(ans) => {
                             ans.to_string()

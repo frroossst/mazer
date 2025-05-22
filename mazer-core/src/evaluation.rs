@@ -82,14 +82,13 @@ impl Interpreter {
                             
                             Err(LispErr::new("Lambda functions not implemented yet"))
                         },
-                        
+
                         _ => {
                             // Regular function call
                             let evaluated_op = Interpreter::eval_expr(&list[0], env)?;
                             
                             match evaluated_op {
                                 LispExpr::Function(func) => {
-                                    eprintln!("Evaluating function call: {:?}", list);
                                     let mut evaluated_args = Vec::new();
                                     for arg in &list[1..] {
                                         evaluated_args.push(Interpreter::eval_expr(arg, env)?);
@@ -103,6 +102,7 @@ impl Interpreter {
                 } else {
                     // First element is not a symbol
                     let evaluated_op = Interpreter::eval_expr(&list[0], env)?;
+                    dbg!(&evaluated_op);
                     match evaluated_op {
                         LispExpr::Function(func) => {
                             let mut evaluated_args = Vec::new();
