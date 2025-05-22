@@ -1,7 +1,10 @@
-pub fn dot_product(a: Vec<f64>, b: Vec<f64>) -> f64 {
-    let mut sum = 0.0;
-    for i in 0..a.len() {
-        sum += a[i] * b[i];
+use faer::prelude::*;
+
+pub struct Matrix(Mat<f64>);
+
+impl Matrix {
+    pub fn new(rows: usize, cols: usize) -> Self {
+        let mat = Mat::from_fn(rows, cols, |_, _| 0.0);
+        Self(mat)
     }
-    sum
 }

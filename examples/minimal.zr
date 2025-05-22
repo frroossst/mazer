@@ -1,3 +1,29 @@
+# Mazer magic
+
+### Evaluation and Interpretation
+
+let a = (+ 1 2 3 4 5 6 7 8 9);
+
+let b = (* 10 (* a 10));
+
+The answer of b is eval(b)
+
+b can be writted as: fmt(b)
+
+let m1 = (matrix (1 2 3) (4 5 6) (7 8 9));
+
+let m2 = (matrix (1 2 3) (4 5 6) (7 8 9));
+
+let m3 = (dot (m1 m2));
+
+fmt(m1)
+
+eval(m3)
+
+
+
+# Syntax and Semantics
+
 ### matrix (1 1 1)
 
 fmt(matrix (1 1 1))
@@ -60,9 +86,5 @@ fmt(log e 1000)
 fmt(ln 1000)
 
 
-### Evaluation and Interpretation
 
-let a = (+ 1 2 3 4 5 6 7 8 9);
-
-let b = (* 10 (* a 10));
 

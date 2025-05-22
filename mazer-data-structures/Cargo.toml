@@ -7,3 +7,7 @@ description = "A minimal, simple math markup language that compiles to HTML, wri
 
 
 [dependencies]
+faer = "0.21"
+
+[profile.dev.package.faer]
+opt-level = 3
