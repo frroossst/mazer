@@ -89,6 +89,7 @@ impl Interpreter {
                             
                             match evaluated_op {
                                 LispExpr::Function(func) => {
+                                    eprintln!("Evaluating function call: {:?}", list);
                                     let mut evaluated_args = Vec::new();
                                     for arg in &list[1..] {
                                         evaluated_args.push(Interpreter::eval_expr(arg, env)?);

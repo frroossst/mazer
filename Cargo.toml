@@ -12,7 +12,7 @@ default-members = ["mazer-cli"]
 resolver = "2"
 
 [profile.dev]
-debug = "full"
+debug = 0
 opt-level = 0
 codegen-backend = "cranelift"
 

@@ -12,11 +12,13 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            env: Interpreter::stdenv(),
+            env: Interpreter::stdlib(),
         }
     }
 
-    fn stdenv() -> Environment {
+    /// Creates a standard environment with basic functions and constants.
+    /// Only the most basic primitives and functions are included.
+    pub fn stdenv() -> Environment {
         let mut env = HashMap::new();
 
         // constants
@@ -146,34 +148,6 @@ impl Interpreter {
                 Ok(LispExpr::Boolean(a < b))
             } else {
                 Err(LispErr::new(&format!("Expected number, got: {} and {}", args[0], args[1])))
-            }
-        }));
-        
-        // Math functions
-        env.insert("sqrt".to_string(), LispExpr::Function(|args, _env| {
-            if args.len() != 1 {
-                return Err(LispErr::new("sqrt requires exactly one argument"));
-            }
-            
-            if let LispExpr::Number(n) = args[0] {
-                if n < 0.0 {
-                    return Err(LispErr::new(&format!("Cannot take square root of negative number: {}", n)));
-                }
-                Ok(LispExpr::Number(n.sqrt()))
-            } else {
-                Err(LispErr::new(&format!("Expected number, got: {}", args[0])))
-            }
-        }));
-        
-        env.insert("pow".to_string(), LispExpr::Function(|args, _env| {
-            if args.len() != 2 {
-                return Err(LispErr::new("pow requires exactly two arguments"));
-            }
-            
-            if let (LispExpr::Number(base), LispExpr::Number(exp)) = (&args[0], &args[1]) {
-                Ok(LispExpr::Number(base.powf(*exp)))
-            } else {
-                Err(LispErr::new(&format!("Expected numbers, got: {} and {}", args[0], args[1])))
             }
         }));
         
