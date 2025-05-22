@@ -361,6 +361,38 @@ impl Document {
             MarkdownTag::LineSeparator => {
                 self.append_void("hr");
             }
+            MarkdownTag::Table(headers, rows) => {
+                if headers.is_empty() {
+                    // skip
+                    return;
+                }
+
+                let table_header = headers
+                    .iter()
+                    .map(|header| format!("<th>{}</th>", header))
+                    .collect::<Vec<String>>()
+                    .join("");
+
+                let table_rows = rows
+                    .iter()
+                    .map(|row| {
+                        let row_content = row
+                            .iter()
+                            .map(|cell| format!("<td>{}</td>", cell))
+                            .collect::<Vec<String>>()
+                            .join("");
+                        format!("<tr>{}</tr>", row_content)
+                    })
+                    .collect::<Vec<String>>()
+                    .join("");
+
+                self.append_wrapped_with_attr("table", "border=1", &format!(
+                    "<thead>{}</thead><tbody>{}</tbody>",
+                    table_header, table_rows
+                ));
+
+                self.append_newline();
+            }
             MarkdownTag::Checkbox(state, content) => {
                 let checked = if state { "checked" } else { "" };
 

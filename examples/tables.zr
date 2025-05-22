@@ -1,7 +1,7 @@
 # important data
 
 | Sr No. | Name | Age |
-| --- | --- | --- |
+---
 | 1 | John Doe | 25 |
 | 2 | Jane Doe | 23 |
 | 3 | John Smith | 30 |
@@ -10,4 +10,3 @@
 | 6 | Jane Brown | 33 |
 | 7 | John White | 40 |
 | 8 | Jane White | 38 |
-

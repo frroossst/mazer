@@ -12,6 +12,7 @@ pub enum MarkdownTag {
     Blockquote(String),
     CodeBlock(String),
     Link(LinkKind, String, String),
+    Table(Vec<String>, Vec<Vec<String>>),
 }
 
 #[derive(Debug, Clone)]
@@ -93,19 +94,20 @@ pub struct Lexer {
 
 impl Lexer {
     pub fn new(src: String, ctx: DebugContext) -> Self {
-        let uni_vec = UnicodeSegmentation::graphemes(src.as_str(), true)
+        let mut uni_vec = UnicodeSegmentation::graphemes(src.as_str(), true)
             .collect::<Vec<&str>>()
             .par_iter()
             .map(|&x| x.to_string())
             .collect::<Vec<String>>();
 
-        // push 5 newlines to the end of the source code to ensure
-        // that the last line is parsed and it does not run out of
-        // bounds
-        let mut uni_vec = uni_vec;
-        for _ in 0..25 {
-            uni_vec.push("\n".to_string());
-        }
+        // push invisible characters to the end of the vector
+        // this is to ensure that the lexer does not run out of bounds
+        let zero_width_character = vec![0xE2, 0x80, 0x8B];
+        let invisible_char = String::from_utf8(zero_width_character).expect("Invalid UTF-8");
+
+        let invisible_char = vec![invisible_char; 69];
+
+        uni_vec.extend(invisible_char);
 
         let max = uni_vec.len();
         Lexer {
@@ -296,6 +298,13 @@ impl Lexer {
 
         let curr_tok = self.char()?;
         self.prv = None;
+
+        // the tokenizer new adds these to prevent out of bounds
+        // for valid source input
+        if curr_tok == "\u{200b}" {
+            // end of file reached
+            return Ok(None);
+        }
 
         // consume comments
         if curr_tok == "/" && self.peek()? == "/" {
@@ -584,6 +593,56 @@ impl Lexer {
             self.must_consume("~")?;
 
             return Ok(Some(Token::Text(Some(Emphasis::Strikethrough), text)));
+        // tables
+        } else if curr_tok == "|" {
+            self.advance_char()?;
+            // tables be like
+            // | col1 | col2 | col3 |
+            // ---
+            // | val1 | val2 | val3 |
+            // | val4 | val5 | val6 |
+
+            let table_header: Vec<String> = self.consume_line()?.split("|")
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            let column_count = table_header.len();
+
+            // consume the line separator
+            self.consume_whitespace()?;
+            self.must_consume("-")?;
+            self.must_consume("-")?;
+            self.must_consume("-")?;
+            self.consume_whitespace()?;
+
+            // keep consuming lines as long as they begin with |
+            let mut table_body_unparsed = String::new();
+            while self.char()? == "|" {
+                self.consume_whitespace()?;
+
+                let row = self.consume_line()?;
+                // remove the ending |
+                let row = row.trim_end_matches("|").to_string();
+                table_body_unparsed.push_str(&row);
+
+                self.consume_whitespace()?;
+            }
+
+            let table_body = table_body_unparsed
+                .split("|")
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<String>>();
+
+
+            let table_body_grouped: Vec<Vec<String>> = table_body.chunks(column_count).map(|chunk| chunk.to_vec()).collect();
+
+            return Ok(Some(Token::Markdown(MarkdownTag::Table(
+                table_header,
+                table_body_grouped,
+            ))));
+
         // text
         } else {
             let text = curr_tok.to_string();
