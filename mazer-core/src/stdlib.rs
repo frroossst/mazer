@@ -42,41 +42,49 @@ impl Interpreter {
 
         // Add the dot product function
         env.insert("dot".to_string(), LispExpr::Function(|args, env| {
+            dbg!(&args);
+
             if args.len() != 2 {
                 return Err(LispErr::new("dot requires exactly two arguments"));
             }
-            
-            // Evaluate the arguments first
-            let eval_arg1 = match &args[0] {
-                LispExpr::Symbol(s) => env.get(&s.clone())
-                    .ok_or_else(|| LispErr::new(&format!("Symbol {} not found", s)))?,
-                other => &other.clone(),
-            };
-            
-            let eval_arg2 = match &args[1] {
-                LispExpr::Symbol(s) => env.get(&s.clone())
-                    .ok_or_else(|| LispErr::new(&format!("Symbol {} not found", s)))?,
-                other => &other.clone(),
-            };
-            
-            let vec_a = if let LispExpr::List(list) = eval_arg1 {
-                Matrix::list_to_vector(&list)?
-            } else {
-                return Err(LispErr::new("dot requires vector arguments (lists)"));
-            };
-            
-            let vec_b = if let LispExpr::List(list) = eval_arg2 {
-                Matrix::list_to_vector(&list)?
-            } else {
-                return Err(LispErr::new("dot requires vector arguments (lists)"));
-            };
-            
-            if vec_a.len() != vec_b.len() {
-                return Err(LispErr::new("Vectors must have same length for dot product"));
+
+            // ensure both arguments are lists with first symbol being a matrix
+            if !matches!(args[0], LispExpr::List(_)) || !matches!(args[1], LispExpr::List(_)) {
+                return Err(LispErr::new("dot requires two lists as arguments"));
             }
-            
-            let result: f64 = vec_a.iter().zip(vec_b.iter()).map(|(a, b)| a * b).sum();
-            Ok(LispExpr::Number(result))
+
+            // figure out if matrix is [1, 2, 3] or
+            // [ 1
+            //   2
+            //   3 ]
+
+            let v1  = match &args[0] {
+                LispExpr::List(list) => {
+                    if list.len() == 1 && matches!(list[0], LispExpr::List(_)) {
+                        // It's a column vector
+                        list[0].clone()
+                    } else {
+                        // It's a row vector
+                        LispExpr::List(list.clone())
+                    }
+                },
+                _ => return Err(LispErr::new(&format!("Expected a list, got: {}", args[0]))),
+            };
+
+            let v2 = match &args[1] {
+                LispExpr::List(list) => {
+                    if list.len() == 1 && matches!(list[0], LispExpr::List(_)) {
+                        // It's a column vector
+                        list[0].clone()
+                    } else {
+                        // It's a row vector
+                        LispExpr::List(list.clone())
+                    }
+                },
+                _ => return Err(LispErr::new(&format!("Expected a list, got: {}", args[1]))),
+            };
+
+            unimplemented!("TODO")
         }));
 
         env.insert("integral".to_string(), LispExpr::Function(|args, _| {

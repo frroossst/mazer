@@ -21,10 +21,6 @@ impl Interpreter {
             // Symbol lookup
             LispExpr::Symbol(s) => {
                 if let Some(value) = env.get(s) {
-                    // if value is a list then it must be evaluated (recursively)
-                    if let LispExpr::List(list) = value {
-                        return Interpreter::eval_expr(&LispExpr::List(list.clone()), env);
-                    }
                     Ok(value.clone())
                 } else {
                     Err(LispErr::new(&format!("Symbol {} not found", s)))
