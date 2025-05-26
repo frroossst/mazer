@@ -63,7 +63,9 @@ impl fmt::Display for LispExpr {
                 }
                 write!(f, ")")
             }
-            LispExpr::Function(_) => write!(f, "<function>"),
+            LispExpr::Function(func) => {
+                write!(f, "<function at {:p}>", func)
+            }
         }
     }
 }
