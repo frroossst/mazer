@@ -2,6 +2,10 @@ use crate::{interpreter::{Environment, Interpreter}, parser::{LispErr, LispExpr}
 
 
 impl Interpreter {
+    pub fn eval(&mut self, expr: &LispExpr) -> Result<LispExpr, LispErr> {
+        Interpreter::eval_expr(expr, &mut self.environment())
+    }
+
     pub fn eval_expr(expr: &LispExpr, env: &mut Environment) -> Result<LispExpr, LispErr> {
         match expr {
             // Self-evaluating expressions
@@ -116,5 +120,5 @@ impl Interpreter {
                 }
             }
         }
-        }
+    }
 }

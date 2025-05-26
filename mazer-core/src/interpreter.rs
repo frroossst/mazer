@@ -165,9 +165,4 @@ impl Interpreter {
     pub fn set_symbol(&mut self, symbol: String, definition: LispExpr) {
         self.env.insert(symbol, definition);
     }
-
-    pub fn eval(&self, symbol: String) -> Result<LispExpr, LispErr> {
-        let _expr = self.get_symbol(symbol.clone()).ok_or(LispErr::new(&format!("Symbol {} not found", symbol)))?;
-        unimplemented!("interpreter::eval")
-    }
 }

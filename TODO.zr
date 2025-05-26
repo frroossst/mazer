@@ -16,6 +16,7 @@
 - [ ] 
 
 ## Bugs 
+- [ ] matrix repr has a mismatch in fmt and eval reprs
 - [ ] fix bug where on reload the file is blank until changed
 
 ## Features

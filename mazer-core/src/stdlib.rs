@@ -40,19 +40,33 @@ impl Interpreter {
             Ok(LispExpr::List(args.to_vec()))
         }));
 
-        env.insert("dot".to_string(), LispExpr::Function(|args, _| {
+        // Add the dot product function
+        env.insert("dot".to_string(), LispExpr::Function(|args, env| {
             if args.len() != 2 {
                 return Err(LispErr::new("dot requires exactly two arguments"));
             }
             
-            let vec_a = if let LispExpr::List(list) = &args[0] {
-                Matrix::list_to_vector(list)?
+            // Evaluate the arguments first
+            let eval_arg1 = match &args[0] {
+                LispExpr::Symbol(s) => env.get(&s.clone())
+                    .ok_or_else(|| LispErr::new(&format!("Symbol {} not found", s)))?,
+                other => &other.clone(),
+            };
+            
+            let eval_arg2 = match &args[1] {
+                LispExpr::Symbol(s) => env.get(&s.clone())
+                    .ok_or_else(|| LispErr::new(&format!("Symbol {} not found", s)))?,
+                other => &other.clone(),
+            };
+            
+            let vec_a = if let LispExpr::List(list) = eval_arg1 {
+                Matrix::list_to_vector(&list)?
             } else {
                 return Err(LispErr::new("dot requires vector arguments (lists)"));
             };
             
-            let vec_b = if let LispExpr::List(list) = &args[1] {
-                Matrix::list_to_vector(list)?
+            let vec_b = if let LispExpr::List(list) = eval_arg2 {
+                Matrix::list_to_vector(&list)?
             } else {
                 return Err(LispErr::new("dot requires vector arguments (lists)"));
             };
@@ -64,7 +78,6 @@ impl Interpreter {
             let result: f64 = vec_a.iter().zip(vec_b.iter()).map(|(a, b)| a * b).sum();
             Ok(LispExpr::Number(result))
         }));
-
 
         env.insert("integral".to_string(), LispExpr::Function(|args, _| {
             dbg!(&args);
