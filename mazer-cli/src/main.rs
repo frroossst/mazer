@@ -13,7 +13,7 @@ use mazer_core::{
     document::Document,
     interpreter::Interpreter,
     parser::Parser,
-    pretty_err::DebugContext,
+    pretty_err::ErrCtx,
     tokenizer::{FnKind, Lexer, Token},
 };
 
@@ -114,7 +114,7 @@ async fn main() {
             let src = prompt();
 
             let mut tokens: Vec<Token> = Vec::new();
-            let mut t: Lexer = Lexer::new(src, DebugContext::new(Some(&env_path)));
+            let mut t: Lexer = Lexer::new(src, ErrCtx::new(Some(&env_path)));
             loop {
                 match t.next_line() {
                     Ok(Some(l)) => {
@@ -282,7 +282,7 @@ fn to_document(
     file_title: &str,
     content: String,
     file_path: &str,
-) -> (Document, Option<DebugContext>) {
+) -> (Document, Option<ErrCtx>) {
     let mut timer = Timer::new();
     let verbose_output = *VRBS.read().unwrap();
 
@@ -290,11 +290,11 @@ fn to_document(
         timer.start();
     }
 
-    let mut t: Lexer = Lexer::new(content, DebugContext::new(Some(file_path)));
+    let mut t: Lexer = Lexer::new(content, ErrCtx::new(Some(file_path)));
 
     let mut tokens: Vec<Token> = Vec::with_capacity(1024);
 
-    let mut ctx: Option<DebugContext> = None;
+    let mut ctx: Option<ErrCtx> = None;
     loop {
         match t.next_line() {
             Ok(Some(l)) => {
@@ -351,7 +351,17 @@ fn to_document(
                         // If evaluation fails, store the unevaluated expression (for debugging)
                         envmnt.insert(var.clone(), expr.clone());
                         interp.set_symbol(var.clone(), expr);
-                        eprintln!("Warning: Failed to evaluate expression for {}: {}", &var, e);
+                        if verbose_output {
+                            eprintln!(
+                                "{}",
+                                format!(
+                                    "{} Error evaluating expression for variable '{}': {}",
+                                    "[ERROR]".red(),
+                                    var,
+                                    e
+                                )
+                            );
+                        }
                     }
                 }
             }

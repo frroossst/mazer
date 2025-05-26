@@ -9,14 +9,14 @@ pub struct Span {
 
 
 #[derive(Debug, Clone)]
-pub struct DebugContext {
+pub struct ErrCtx {
     file_path: Option<String>,
     err_kind: Option<ErrorKind>,
     src: String,
     err_pos: Span,
 }
 
-impl DebugContext {
+impl ErrCtx {
     pub fn new(file_path: Option<&str>) -> Self {
         Self {
             file_path: file_path.map(|s| s.to_string()),

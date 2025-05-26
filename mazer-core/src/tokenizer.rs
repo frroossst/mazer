@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::pretty_err::{DebugContext, ErrorKind, Span};
+use crate::pretty_err::{ErrCtx, ErrorKind, Span};
 
 #[derive(Debug, Clone)]
 pub enum MarkdownTag {
@@ -89,11 +89,11 @@ pub struct Lexer {
     line: usize,
     max: usize,
     prv: Option<String>,
-    ctx: DebugContext,
+    ctx: ErrCtx,
 }
 
 impl Lexer {
-    pub fn new(src: String, ctx: DebugContext) -> Self {
+    pub fn new(src: String, ctx: ErrCtx) -> Self {
         let mut uni_vec = UnicodeSegmentation::graphemes(src.as_str(), true)
             .collect::<Vec<&str>>()
             .par_iter()
@@ -131,7 +131,7 @@ impl Lexer {
 
     }
 
-    fn char(&mut self) -> Result<String, DebugContext> {
+    fn char(&mut self) -> Result<String, ErrCtx> {
         if self.pos >= self.max {
             // [ERROR]
             let e = ErrorKind::AbruptAdieu(format!(
@@ -144,7 +144,7 @@ impl Lexer {
         Ok(self.src[self.pos].clone())
     }
 
-    fn peek(&mut self) -> Result<String, DebugContext> {
+    fn peek(&mut self) -> Result<String, ErrCtx> {
         if self.pos >= self.max {
             // [ERROR]
             let e = ErrorKind::AbruptAdieu(format!(
@@ -159,7 +159,7 @@ impl Lexer {
     }
 
     // peeks the char after the next char
-    fn peek_n(&mut self, n: usize) -> Result<String, DebugContext> {
+    fn peek_n(&mut self, n: usize) -> Result<String, ErrCtx> {
         if self.pos >= self.max {
             // [ERROR]
             let e = ErrorKind::AbruptAdieu(format!(
@@ -173,7 +173,7 @@ impl Lexer {
         }
     }
 
-    fn advance_char(&mut self) -> Result<(), DebugContext> {
+    fn advance_char(&mut self) -> Result<(), ErrCtx> {
         if self.pos >= self.max {
             let e = ErrorKind::AbruptAdieu(format!(
                 "Reached the end of file looking for position {}",
@@ -186,7 +186,7 @@ impl Lexer {
         Ok(())
     }
 
-    fn must_consume(&mut self, c: &str) -> Result<(), DebugContext> {
+    fn must_consume(&mut self, c: &str) -> Result<(), ErrCtx> {
         let curr = self.char()?;
         // [ERROR]
         if curr != c {
@@ -198,7 +198,7 @@ impl Lexer {
         Ok(())
     }
 
-    fn consume_whitespace(&mut self) -> Result<(), DebugContext> {
+    fn consume_whitespace(&mut self) -> Result<(), ErrCtx> {
         // keep moving forward if current string is made up of
         // whitespaces
         while self.char()?.trim().is_empty() {
@@ -208,7 +208,7 @@ impl Lexer {
         Ok(())
     }
 
-    fn consume_until_not(&mut self, c: &str) -> Result<String, DebugContext> {
+    fn consume_until_not(&mut self, c: &str) -> Result<String, ErrCtx> {
         let start = self.pos;
         while self.char()? == c {
             self.pos += 1;
@@ -217,7 +217,7 @@ impl Lexer {
         Ok(self.src[start..self.pos].join(""))
     }
 
-    fn consume_till(&mut self, c: &str) -> Result<String, DebugContext> {
+    fn consume_till(&mut self, c: &str) -> Result<String, ErrCtx> {
         let start = self.pos;
         while self.char()? != c {
             self.pos += 1;
@@ -225,11 +225,11 @@ impl Lexer {
         Ok(self.src[start..self.pos].join(""))
     }
 
-    fn consume_line(&mut self) -> Result<String, DebugContext> {
+    fn consume_line(&mut self) -> Result<String, ErrCtx> {
         self.consume_till("\n")
     }
 
-    fn consume_nested_parenthesis(&mut self) -> Result<String, DebugContext> {
+    fn consume_nested_parenthesis(&mut self) -> Result<String, ErrCtx> {
         // iterate over source from current position
         // keep adding when ( is encountered
         // and decreasing when ) is encountered
@@ -270,7 +270,7 @@ impl Lexer {
         Ok(store)
     }
 
-    pub fn next_line(&mut self) -> Result<Option<Vec<Token>>, DebugContext> {
+    pub fn next_line(&mut self) -> Result<Option<Vec<Token>>, ErrCtx> {
         self.line += 1;
         if self.pos >= self.max {
             return Ok(None);
@@ -289,7 +289,7 @@ impl Lexer {
         Ok(Some(tokens))
     }
 
-    fn next_token(&mut self) -> Result<Option<Token>, DebugContext> {
+    fn next_token(&mut self) -> Result<Option<Token>, ErrCtx> {
         if self.pos >= self.max || self.char()? == "\n" {
             if self.char()? == "\n" {
                 self.prv = Some("\n".to_string());
