@@ -1,0 +1,23 @@
+# Testing New Lispy Let Statement Syntax
+
+// Old style (should still work in some cases)
+let old_style = (+ 1 2 3);
+
+// New lispy style - single extra paren
+let x = (+ 1 1))
+
+// New lispy style - multiple extra parens  
+let y = (+ 1 1))))
+
+// More complex expression
+let z = (* (+ 2 3) (- 10 5))))
+
+// Test evaluation
+eval(x)
+eval(y) 
+eval(z)
+
+// Test formatting
+fmt(x)
+fmt(y)
+fmt(z)

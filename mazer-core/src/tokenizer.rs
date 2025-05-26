@@ -270,6 +270,38 @@ impl Lexer {
         Ok(store)
     }
 
+    fn consume_until_uneven_paren(&mut self) -> Result<String, ErrCtx> {
+        // Consume until we have more closing parentheses than opening ones
+        // This creates a "lispy" parsing behavior where extra closing parens
+        // signal the end of the let statement
+        let mut store = String::new();
+        let mut paren_count = 0;
+
+        while self.pos < self.max && self.char()? != "\n" {
+            let curr = self.char()?;
+            
+            if curr == "(" {
+                paren_count += 1;
+                store.push_str(&curr);
+                self.advance_char()?;
+            } else if curr == ")" {
+                paren_count -= 1;
+                store.push_str(&curr);
+                self.advance_char()?;
+                
+                // If we have more closing than opening parens, we've hit the end
+                if paren_count < 0 {
+                    break;
+                }
+            } else {
+                store.push_str(&curr);
+                self.advance_char()?;
+            }
+        }
+
+        Ok(store.trim().to_string())
+    }
+
     pub fn next_line(&mut self) -> Result<Option<Vec<Token>>, ErrCtx> {
         self.line += 1;
         if self.pos >= self.max {
@@ -367,8 +399,12 @@ impl Lexer {
             }
 
             self.must_consume("=")?;
-            let mut val = self.consume_till(";")?.trim().to_string();
-            self.must_consume(";")?;
+            let mut val = self.consume_until_uneven_paren()?.trim().to_string();
+            
+            // Remove any trailing parentheses that caused us to stop parsing
+            while val.ends_with(')') {
+                val.pop();
+            }
 
             // sometimes things like let foo = (+ 1 2) \n\n let bar = (0); are valid; 
             // must prevent this by checking that value has only one let binding
@@ -393,8 +429,6 @@ impl Lexer {
                     Err(self.ctx.clone())
                 })
                 .unwrap_or(Ok(()))?;
-
-            val.push_str(";");
 
             return Ok(Some(Token::LetStmt(var, val)));
         /*
