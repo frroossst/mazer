@@ -21,7 +21,9 @@ impl Interpreter {
             // Symbol lookup
             LispExpr::Symbol(s) => {
                 if let Some(value) = env.get(s) {
-                    Ok(value.clone())
+                    let value = value.clone();
+                    // Recursively evaluate the value in case it's an unevaluated expression
+                    Interpreter::eval_expr(&value, env)
                 } else {
                     Err(LispErr::new(&format!("Symbol {} not found", s)))
                 }
