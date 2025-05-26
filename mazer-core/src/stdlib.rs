@@ -42,73 +42,59 @@ impl Interpreter {
 
         // Add the dot product function
         env.insert("dot".to_string(), LispExpr::Function(|args, _env| {
-            // Accepts two arguments, both should be lists (matrices/vectors)
             if args.len() != 2 {
                 return Err(LispErr::new("dot requires exactly two arguments"));
-            
             }
-
-            dbg!(&args);
-
-            // Helper to flatten a matrix to a vector of numbers
-            fn flatten_matrix(expr: &LispExpr) -> Result<Vec<f64>, LispErr> {
-                match expr {
-                    LispExpr::List(list) => {
-                        // If the first element is Symbol("matrix"), skip it
-                        let slice = if let Some(LispExpr::Symbol(sym)) = list.get(0) {
-                            if sym == "matrix" {
-                                &list[1..]
-                            } else {
-                                &list[..]
-                            }
-                        } else {
-                            &list[..]
-                        };
-                        // If it's a row vector: (matrix 1 2 3) => [1,2,3]
-                        if slice.iter().all(|e| matches!(e, LispExpr::Number(_))) {
-                            Matrix::list_to_vector(slice)
-                        }
-                        // If it's a column vector: (matrix (1) (2) (3)) => [1,2,3]
-                        else if slice.iter().all(|e| matches!(e, LispExpr::List(_))) {
-                            if slice.len() == 1 {
-                                if let LispExpr::List(inner) = &slice[0] {
-                                    flatten_matrix(&LispExpr::List(inner.clone()))
-                                } else {
-                                    Err(LispErr::new("Single element is not a list"))
-                                }
-                            } else {
-                                let mut result = Vec::new();
-                                for e in slice {
-                                    if let LispExpr::List(inner) = e {
-                                        if inner.len() == 1 {
-                                            if let LispExpr::Number(n) = inner[0] {
-                                                result.push(n);
-                                            } else {
-                                                return Err(LispErr::new("Column vector inner element is not a number"));
-                                            }
-                                        } else {
-                                            return Err(LispErr::new("Column vector inner list must have exactly one element"));
-                                        }
-                                    } else {
-                                        return Err(LispErr::new("Column vector element is not a list"));
-                                    }
-                                }
-                                Ok(result)
-                            }
-                        } else {
-                            Err(LispErr::new("Matrix/vector must be a flat list of numbers or a list of single-element lists"))
+            // Flattens a matrix or vector to a Vec<f64>, skipping Symbol("matrix") and unwrapping single-list nesting
+            fn flatten(expr: &LispExpr) -> Result<Vec<f64>, LispErr> {
+                // Always skip a leading (matrix ...)
+                let cur: &LispExpr = match expr {
+                    LispExpr::List(list) if matches!(list.get(0), Some(LispExpr::Symbol(sym)) if sym == "matrix") => {
+                        // Create a new owned list without the first element
+                        let owned = LispExpr::List(list[1..].to_vec());
+                        // Recurse on the owned value
+                        return flatten(&owned);
+                    }
+                    _ => expr,
+                };
+                // Unwrap single nested list (for (matrix (1 2 3)))
+                if let LispExpr::List(list) = cur {
+                    if list.len() == 1 {
+                        if let LispExpr::List(inner) = &list[0] {
+                            return flatten(&LispExpr::List(inner.clone()));
                         }
                     }
-                    _ => Err(LispErr::new("dot expects list arguments")),
+                    // Row: (matrix 1 2 3)
+                    if list.iter().all(|e| matches!(e, LispExpr::Number(_))) {
+                        return Matrix::list_to_vector(list);
+                    }
+                    // Column: (matrix (1) (2) (3))
+                    if list.iter().all(|e| matches!(e, LispExpr::List(_))) {
+                        return list.iter().map(|e| {
+                            if let LispExpr::List(inner) = e {
+                                if inner.len() == 1 {
+                                    if let LispExpr::Number(n) = inner[0] {
+                                        Ok(n)
+                                    } else {
+                                        Err(LispErr::new("Column vector inner element is not a number"))
+                                    }
+                                } else {
+                                    Err(LispErr::new("Column vector inner list must have exactly one element"))
+                                }
+                            } else {
+                                Err(LispErr::new("Column vector element is not a list"))
+                            }
+                        }).collect();
+                    }
                 }
+                Err(LispErr::new("Matrix/vector must be a flat list of numbers or a list of single-element lists"))
             }
-            let v1 = flatten_matrix(&args[0])?;
-            let v2 = flatten_matrix(&args[1])?;
+            let v1 = flatten(&args[0])?;
+            let v2 = flatten(&args[1])?;
             if v1.len() != v2.len() {
                 return Err(LispErr::new("Vectors must be the same length for dot product"));
             }
-            let dot = v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum::<f64>();
-            Ok(LispExpr::Number(dot))
+            Ok(LispExpr::Number(v1.iter().zip(v2.iter()).map(|(a, b)| a * b).sum()))
         }));
 
         env.insert("integral".to_string(), LispExpr::Function(|args, _| {
