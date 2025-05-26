@@ -341,9 +341,19 @@ fn to_document(
                 let mut p = Parser::new(val);
                 let expr = p.parse();
 
-                envmnt.insert(var.clone(), expr.clone());
-
-                interp.set_symbol(var, expr);
+                // Evaluate the expression before storing it in the environment
+                match Interpreter::eval_expr(&expr, &mut envmnt) {
+                    Ok(evaluated_expr) => {
+                        envmnt.insert(var.clone(), evaluated_expr.clone());
+                        interp.set_symbol(var, evaluated_expr);
+                    }
+                    Err(e) => {
+                        // If evaluation fails, store the unevaluated expression (for debugging)
+                        envmnt.insert(var.clone(), expr.clone());
+                        interp.set_symbol(var.clone(), expr);
+                        eprintln!("Warning: Failed to evaluate expression for {}: {}", &var, e);
+                    }
+                }
             }
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
