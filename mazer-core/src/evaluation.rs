@@ -92,13 +92,10 @@ impl Interpreter {
                             match evaluated_op {
                                 LispExpr::Function(func) => {
 
-                    eprintln!("hit = {:?}", list);
-                            
                                     let mut evaluated_args = Vec::new();
                                     for arg in &list[1..] {
                                         evaluated_args.push(Interpreter::eval_expr(arg, env)?);
                                     }
-                    dbg!(&evaluated_args);
                                     func(evaluated_args, env)
                                 },
                                 _ => Err(LispErr::new(&format!("Expected function, got: {}", evaluated_op))),
@@ -108,7 +105,6 @@ impl Interpreter {
                 } else {
                     // First element is not a symbol
                     let evaluated_op = Interpreter::eval_expr(&list[0], env)?;
-                    dbg!(&evaluated_op);
                     match evaluated_op {
                         LispExpr::Function(func) => {
                             let mut evaluated_args = Vec::new();

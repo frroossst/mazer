@@ -1,0 +1,316 @@
+# Comprehensive Test File for Mazer Language Features
+# This file tests all implemented features and edge cases
+# All expressions in this file should evaluate successfully
+
+## Basic Arithmetic Operations
+
+### Addition
+let add_simple = (+ 1 2)
+let add_multiple = (+ 1 2 3 4 5)
+let add_single = (+ 42)
+let add_zero = (+ 0 0 0)
+
+eval(add_simple)    // Should be 3
+eval(add_multiple)  // Should be 15
+eval(add_single)    // Should be 42
+eval(add_zero)      // Should be 0
+
+### Subtraction
+let sub_simple = (- 5 3)
+let sub_unary = (- 10)
+let sub_multiple = (- 100 20 5)
+let sub_zero = (- 5 0)
+
+eval(sub_simple)    // Should be 2
+eval(sub_unary)     // Should be -10
+eval(sub_multiple)  // Should be 75
+eval(sub_zero)      // Should be 5
+
+### Multiplication
+let mul_simple = (* 3 4)
+let mul_multiple = (* 2 3 4 5)
+let mul_zero = (* 10 0)
+let mul_one = (* 7 1)
+
+eval(mul_simple)    // Should be 12
+eval(mul_multiple)  // Should be 120
+eval(mul_zero)      // Should be 0
+eval(mul_one)       // Should be 7
+
+### Division
+let div_simple = (/ 12 3)
+let div_reciprocal = (/ 8)
+let div_multiple = (/ 100 2 5)
+
+eval(div_simple)      // Should be 4
+eval(div_reciprocal)  // Should be 0.125
+eval(div_multiple)    // Should be 10
+
+## New Lispy Let Statement Syntax
+
+### Single extra parenthesis
+let lispy1 = (+ 1 2))
+let lispy2 = (* 3 4))
+let lispy3 = (- 10 5))
+
+eval(lispy1)  // Should be 3
+eval(lispy2)  // Should be 12
+eval(lispy3)  // Should be 5
+
+### Multiple extra parentheses
+let lispy4 = (+ 1 1))))
+let lispy5 = (* 2 3))))
+let lispy6 = (/ 20 4))))
+
+eval(lispy4)  // Should be 2
+eval(lispy5)  // Should be 6
+eval(lispy6)  // Should be 5
+
+### Complex expressions with lispy syntax
+let complex1 = (* (+ 2 3) (- 10 5))))
+let complex2 = (+ (* 2 3) (/ 12 4))))
+let complex3 = (- (+ 10 5) (* 2 3))))
+
+eval(complex1)  // Should be 25
+eval(complex2)  // Should be 9
+eval(complex3)  // Should be 9
+
+## Constants
+
+### Mathematical constants
+let const_pi = pi
+let const_e = e
+
+eval(const_pi)  // Should be approximately 3.14159
+eval(const_e)   // Should be approximately 2.71828
+
+### Using constants in expressions
+let circle_area = (* pi (* 5 5))
+let exp_calc = (* e 2)
+
+eval(circle_area)  // Should be approximately 78.54
+eval(exp_calc)     // Should be approximately 5.44
+
+## Comparison Operations
+
+### Equality
+let eq1 = (= 5 5)
+let eq2 = (= 3 4)
+let eq3 = (= 1 1 1 1)
+let eq4 = (= 1 1 1 2)
+
+eval(eq1)  // Should be true
+eval(eq2)  // Should be false
+eval(eq3)  // Should be true
+eval(eq4)  // Should be false
+
+### Greater than
+let gt1 = (> 5 3)
+let gt2 = (> 2 7)
+let gt3 = (> 5 5)
+
+eval(gt1)  // Should be true
+eval(gt2)  // Should be false
+eval(gt3)  // Should be false
+
+### Less than
+let lt1 = (< 3 5)
+let lt2 = (< 7 2)
+let lt3 = (< 5 5)
+
+eval(lt1)  // Should be true
+eval(lt2)  // Should be false
+eval(lt3)  // Should be false
+
+## Control Flow
+
+### If statements
+let if1 = (if (> 5 3) 10 20)
+let if2 = (if (< 5 3) 10 20)
+let if3 = (if (= 5 5) (+ 1 2) (* 3 4))
+
+eval(if1)  // Should be 10
+eval(if2)  // Should be 20
+eval(if3)  // Should be 3
+
+## Mathematical Functions
+
+### Square root
+let sqrt1 = (sqrt 16)
+let sqrt2 = (sqrt 25)
+let sqrt3 = (sqrt 2)
+
+eval(sqrt1)  // Should be 4
+eval(sqrt2)  // Should be 5
+eval(sqrt3)  // Should be approximately 1.414
+
+### Power function
+let pow1 = (pow 2 3)
+let pow2 = (pow 5 2)
+let pow3 = (pow 10 0)
+
+eval(pow1)  // Should be 8
+eval(pow2)  // Should be 25
+eval(pow3)  // Should be 1
+
+## Matrix Operations
+
+### Basic matrices
+let matrix1 = (matrix 1 2 3)
+let matrix2 = (matrix (1) (2) (3))
+let matrix3 = (matrix (1 2) (3 4))
+
+### Matrix dot product
+let vec1 = (matrix 1 2 3)
+let vec2 = (matrix 4 5 6)
+let dot_result = (dot vec1 vec2)
+
+eval(dot_result)  // Should be 32 (1*4 + 2*5 + 3*6)
+
+### More matrix operations
+let col_vec1 = (matrix (1) (2) (3))
+let col_vec2 = (matrix (4) (5) (6))
+let col_dot = (dot col_vec1 col_vec2)
+
+eval(col_dot)  // Should be 32
+
+## Variable Substitution and Environment
+
+### Simple variable substitution
+let x = 5
+let y = (+ x 3)
+let z = (* x y)
+
+eval(x)  // Should be 5
+eval(y)  // Should be 8
+eval(z)  // Should be 40
+
+### Complex variable substitution
+let a = (+ 1 2)
+let b = (* a 3)
+let c = (+ a b)
+
+eval(a)  // Should be 3
+eval(b)  // Should be 9
+eval(c)  // Should be 12
+
+### Variable substitution with lispy syntax
+let var1 = (+ 1 1))
+let var2 = (* var1 3))
+let var3 = (+ var1 var2))
+
+eval(var1)  // Should be 2
+eval(var2)  // Should be 6
+eval(var3)  // Should be 8
+
+## Define statements
+let my_var = 42;
+let calculated = (+ my_var 8);
+
+eval(my_var)     // Should be 42
+eval(calculated) // Should be 50
+
+## Nested Expressions
+
+### Deeply nested arithmetic
+let nested1 = (+ 1 (+ 2 (+ 3 4)))
+let nested2 = (* 2 (* 3 (* 4 5)))
+let nested3 = (- 100 (- 50 (- 25 10)))
+
+eval(nested1)  // Should be 10
+eval(nested2)  // Should be 120
+eval(nested3)  // Should be 65
+
+### Mixed operations
+let mixed1 = (+ (* 2 3) (/ 8 2))
+let mixed2 = (- (* 5 4) (+ 3 2))
+let mixed3 = (* (+ 1 2) (- 5 2))
+
+eval(mixed1)  // Should be 10
+eval(mixed2)  // Should be 15
+eval(mixed3)  // Should be 9
+
+## Formatting Tests (MathML Generation)
+
+### Basic formatting
+fmt(add_simple)
+fmt(mul_multiple)
+fmt(nested1)
+
+### Matrix formatting
+fmt(matrix1)
+fmt(matrix2)
+fmt(matrix3)
+
+### Complex expression formatting
+fmt(complex1)
+fmt(mixed3)
+fmt(circle_area)
+
+### Trigonometric function formatting
+fmt(sin x)
+fmt(cos (+ x 1))
+fmt(tan (* 2 x))
+
+### Logarithmic function formatting
+fmt(log 10 100)
+fmt(ln e)
+fmt(sqrt (+ x 1))
+
+### Calculus formatting
+fmt(derivative (pow x 2) x)
+fmt(integral (pow x 2) 0 1 x)
+fmt(sum i 1 10 i)
+
+### Advanced mathematical formatting
+fmt(binomial n k)
+fmt(matrix ((sin x)) ((cos x)) ((tan x)))
+fmt(determinant (matrix (a b) (c d)))
+
+## Edge Cases and Error Handling
+
+### Empty operations (should work)
+let empty_add = (+)
+eval(empty_add)  // Should be 0
+
+### Single argument operations
+let single_mul = (* 7)
+let single_add = (+ 9)
+
+eval(single_mul)  // Should be 7
+eval(single_add)  // Should be 9
+
+### Complex variable chains
+let chain1 = 1
+let chain2 = (+ chain1 1)
+let chain3 = (+ chain2 chain1)
+let chain4 = (* chain3 chain2)
+
+eval(chain4)  // Should be 6
+
+### Boolean operations in arithmetic contexts
+let bool_test1 = (if (> 3 2) 5 0)
+let bool_test2 = (+ bool_test1 (if (< 1 2) 10 0))
+
+eval(bool_test2)  // Should be 15
+
+## Mixed Syntax Tests
+
+### Old and new syntax together
+let old_syntax = (+ 1 2 3);
+let new_syntax = (+ 4 5 6))
+let combined = (+ old_syntax new_syntax))
+
+eval(combined)  // Should be 21
+
+### Complex nesting with mixed syntax
+let complex_mixed = (+ (* 2 3) (* (+ 1 1) 4) 5)
+
+eval(complex_mixed)  // Should be 19
+
+# End of comprehensive test file
+# All expressions above should evaluate successfully
+# This demonstrates all major features of the Mazer language
+
+
+

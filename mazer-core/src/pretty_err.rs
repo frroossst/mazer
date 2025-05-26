@@ -46,15 +46,16 @@ impl ErrCtx {
             if let Some(ref file_path) = self.file_path {
                 println!("File: {}", file_path);
             }
-            println!("Error: {}", err_kind.error().red());
-            println!("Message: {}", err_kind.message().yellow());
-            println!("Position: {}..{}", self.err_pos.start, self.err_pos.end);
+            eprintln!("Error: {}", err_kind.error().red());
+            eprintln!("Message: {}", err_kind.message().yellow());
+            eprintln!("Position: {}..{}/{}", self.err_pos.start, self.err_pos.end, self.src.chars().count());
+            
             match self.src.get(self.err_pos.start..self.err_pos.end) {
                 Some(fragment) => println!("Source: {}", fragment.green()),
                 None => println!("Source: <invalid UTF-8 range>"),
             }
         } else {
-            println!("No error information available.");
+            eprintln!("No error information available.");
         }
     }
 }

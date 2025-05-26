@@ -378,6 +378,7 @@ fn to_document(
                     };
                     
                     let exprs = p.parse();
+                    dbg!(&exprs);
 
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
                     dbg!(&result);
@@ -386,7 +387,8 @@ fn to_document(
                             ans.to_string()
                         }
                         Err(e) => {
-                            e.into()
+                            // e.into()
+                            unimplemented!()
                         }
                     };
 
