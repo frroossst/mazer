@@ -12,17 +12,25 @@ b can be writted as: fmt(b)
 
 
 
-let m1 = (matrix (1 2 3));
-
-let m2 = (matrix (4 5 6));
-
-let m3 = (dot m1 m2);
-
-eval(m3)
-
 fmt(matrix (1 2 3))
 fmt(matrix (1) (2) (3))
 
+let m1 = (matrix 1 2 3);
+
+let m2 = (matrix 4 5 6);
+
+let m3 = (dot m1 m2);
+
+eval(m3) // this works
+
+
+let m10 = (matrix (11 12 13));
+
+let m20 = (matrix (14 15 16));
+
+let m30 = (dot m10 m20);
+
+eval(m30) // this results in an error saying "expected function got 1
 
 
 # Syntax and Semantics
