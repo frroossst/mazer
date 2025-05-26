@@ -7,4 +7,5 @@ pub mod stdlib;
 pub mod evaluation;
 pub mod data_structures;
 pub mod pretty_err;
+pub mod debug_ctx;
 pub mod tests;

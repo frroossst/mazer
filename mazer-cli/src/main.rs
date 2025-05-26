@@ -7,6 +7,7 @@ use std::{
 
 use mazer_cli::state::State;
 use mazer_cli::timer::Timer;
+use mazer_core::debug_ctx::DebugContext;
 use mazer_core::interpreter::Environment;
 use mazer_core::parser::MathML;
 use mazer_core::{
@@ -290,7 +291,7 @@ fn to_document(
         timer.start();
     }
 
-    let mut t: Lexer = Lexer::new(content, ErrCtx::new(Some(file_path)));
+    let mut t: Lexer = Lexer::new(content.clone(), ErrCtx::new(Some(file_path)));
 
     let mut tokens: Vec<Token> = Vec::with_capacity(1024);
 
@@ -439,6 +440,15 @@ fn to_document(
             )
         );
     }
+
+    let dbg_ctx = DebugContext::new(
+        file_path.to_string(),
+        content,
+        document.output(),
+        "empty".into(),
+        envmnt.clone(),
+    );
+    dbg_ctx.dump();
 
     // type checking and syntax errors
     // compile the language to bytecode?
