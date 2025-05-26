@@ -4,7 +4,6 @@ use std::fmt;
 
 use crate::interpreter::Environment;
 
-#[derive(serde::Serialize, serde::Deserialize)]
 pub struct LispErr {
     message: String,
 }
@@ -35,7 +34,6 @@ impl LispErr {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum LispExpr {
     Number(f64),
@@ -45,7 +43,6 @@ pub enum LispExpr {
     List(Vec<LispExpr>),
     Nil,
     /// okay to skip as users cannot create functions directly in the source code
-    #[serde(skip)]
     Function(fn(Vec<LispExpr>, &Environment) -> Result<LispExpr, LispErr>),
 }
 

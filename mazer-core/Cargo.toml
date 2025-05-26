@@ -13,8 +13,5 @@ rayon = "1.10.0"
 regex = "1.11.1"
 smartstring = "1.0.1"
 faer = "0.21"
-ron = "0.10.1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.140"
 # integrate = "0.1.11"
 
