@@ -387,8 +387,7 @@ fn to_document(
                             ans.to_string()
                         }
                         Err(e) => {
-                            // e.into()
-                            unimplemented!()
+                            e.into()
                         }
                     };
 

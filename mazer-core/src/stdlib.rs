@@ -1,4 +1,4 @@
-use crate::{data_structures::Matrix, interpreter::{Environment, Interpreter}, parser::{LispErr, LispExpr}};
+use crate::{interpreter::{Environment, Interpreter}, parser::{LispErr, LispExpr}};
 
 
 impl Interpreter {
@@ -41,11 +41,8 @@ impl Interpreter {
         }));
 
         // Add the dot product function
-        env.insert("dot".to_string(), LispExpr::Function(|args, _env| {
-            if args.len() != 2 {
-                return Err(LispErr::new("dot requires exactly two arguments"));
-            }
-            
+        env.insert("dot".to_string(), LispExpr::Function(|_args, _env| {
+            unimplemented!()
         }));
 
         env.insert("integral".to_string(), LispExpr::Function(|_args, _| {

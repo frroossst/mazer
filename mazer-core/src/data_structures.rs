@@ -2,6 +2,7 @@ use faer::prelude::*;
 
 use crate::parser::{LispErr, LispExpr};
 
+#[allow(dead_code)]
 pub struct Matrix(Mat<f64>);
 
 impl Matrix {
