@@ -8,4 +8,3 @@ impl SerializableDebugContext {
         unimplemented!("SerializableDebugContext is not implemented yet");
     }
 }
-

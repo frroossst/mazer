@@ -104,7 +104,9 @@ impl From<&LispExpr> for MathML {
     fn from(expr: &LispExpr) -> Self {
         let expr = expr.clone();
         match expr {
-            LispExpr::Function(_) => MathML::new("<mrow>Error: function in expression</mrow>".to_string()),
+            LispExpr::Function(_) => {
+                MathML::new("<mrow>Error: function in expression</mrow>".to_string())
+            }
             LispExpr::Number(n) => format!("<mn>{}</mn>", n).into(),
             LispExpr::Symbol(s) => format!("<mi>{}</mi>", s).into(),
             LispExpr::String(s) => format!("<mtext>{}</mtext>", s).into(),
@@ -153,19 +155,23 @@ impl From<&LispExpr> for MathML {
                         "binomial" => MathML::binomial(args),
 
                         // matrix operations
-                        "matrix"=> MathML::matrix(args),
-                        "determinant"=> MathML::determinant(args),
+                        "matrix" => MathML::matrix(args),
+                        "determinant" => MathML::determinant(args),
 
-                        _ => unimplemented!("From<&LispExpr> for MathML: operator `{}` not implemented", operator),
+                        _ => unimplemented!(
+                            "From<&LispExpr> for MathML: operator `{}` not implemented",
+                            operator
+                        ),
                     }
                 } else {
-                    return MathML::new("<mrow>Error: first element of a list must be a symbol</mrow>".to_string());
+                    return MathML::new(
+                        "<mrow>Error: first element of a list must be a symbol</mrow>".to_string(),
+                    );
                 }
             }
         }
     }
 }
-
 
 pub struct Parser {
     tokens: Vec<String>,
@@ -206,22 +212,22 @@ impl Parser {
     }
 
     /// This regular expression is used for tokenizing a Lisp-like language.
-    /// 
+    ///
     /// It matches and captures different types of tokens, including:
-    /// 
+    ///
     /// - **Whitespace and commas** (`[\s,]*`)  
     ///   - These are ignored as separators.
-    /// 
+    ///
     /// - **Special symbols** (`~@|[\[\]{}()'`~^@]`)  
     ///   - Matches Lisp syntax elements like `(`, `)`, `[`, `]`, `{`, `}`, `'`, `` ` ``, `~`, `@`, `^`, and `~@`.
-    /// 
+    ///
     /// - **String literals** (`"(?:\\.|[^\\"])*"?`)  
     ///   - Matches double-quoted strings, allowing for escaped characters (e.g., `"hello"`, `"escaped \" quote"`).
     ///   - The trailing `"?` allows capturing an incomplete string (e.g., `"unterminated`).
-    /// 
+    ///
     /// - **Comments** (`;.*`)  
     ///   - Matches Lisp-style comments starting with `;` and continuing to the end of the line.
-    /// 
+    ///
     /// - **Identifiers and other tokens** (`[^\s\[\]{}('"`,;)]*`)  
     ///   - Matches symbols, numbers, and variable names, ensuring they don't include special characters.
     pub fn tokenize(src: &str) -> Vec<String> {
@@ -302,4 +308,3 @@ impl Parser {
         LispExpr::Symbol(token.to_string())
     }
 }
-

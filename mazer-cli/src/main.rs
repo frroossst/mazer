@@ -18,8 +18,8 @@ use mazer_core::{
 };
 
 use colored::*;
-use warp::{reject::Rejection, reply::Reply, Filter};
 use rust_embed::RustEmbed;
+use warp::{reject::Rejection, reply::Reply, Filter};
 
 #[derive(RustEmbed)]
 #[folder = "templates/"]
@@ -183,7 +183,9 @@ async fn main() {
 
     if args.serve {
         let index_temp = Templates::get("index.html").expect("unable to get index.html");
-        let index_html = std::str::from_utf8(index_temp.data.as_ref()).expect("unable to convert to utf8").to_string();
+        let index_html = std::str::from_utf8(index_temp.data.as_ref())
+            .expect("unable to convert to utf8")
+            .to_string();
 
         let index_route = warp::path::end().map(move || warp::reply::html(index_html.clone()));
         let serve_route = warp::path("serve")
@@ -244,7 +246,7 @@ async fn serve_route(state: Arc<Mutex<State>>) -> Result<Box<dyn Reply>, Rejecti
             state.has_file_changed(),
         )
     };
-    
+
     let has_changed = true;
     if !has_changed {
         Ok(Box::new(warp::reply::with_status(
@@ -278,11 +280,7 @@ fn read_file(file_path: &str) -> String {
     content
 }
 
-fn to_document(
-    file_title: &str,
-    content: String,
-    file_path: &str,
-) -> (Document, Option<ErrCtx>) {
+fn to_document(file_title: &str, content: String, file_path: &str) -> (Document, Option<ErrCtx>) {
     let mut timer = Timer::new();
     let verbose_output = *VRBS.read().unwrap();
 
@@ -368,36 +366,28 @@ fn to_document(
             Token::Fn(kind, expr) => match kind {
                 FnKind::Eval => {
                     let mut p = match envmnt.get(&expr) {
-                        Some(expr) => {
-                            Parser::new(expr.to_string())
-                        },
+                        Some(expr) => Parser::new(expr.to_string()),
                         None => {
                             let expr = Parser::wrap_parens_safely(expr.clone());
                             Parser::new(expr)
                         }
                     };
-                    
+
                     let exprs = p.parse();
                     dbg!(&exprs);
 
                     let result = Interpreter::eval_expr(&exprs, &mut envmnt);
                     dbg!(&result);
                     let result: String = match result {
-                        Ok(ans) => {
-                            ans.to_string()
-                        }
-                        Err(e) => {
-                            e.into()
-                        }
+                        Ok(ans) => ans.to_string(),
+                        Err(e) => e.into(),
                     };
 
                     document.append_evaluation(&expr, &result);
                 }
                 FnKind::Fmt => {
                     let mut p = match envmnt.get(&expr) {
-                        Some(expr) => {
-                            Parser::new(expr.to_string())
-                        },
+                        Some(expr) => Parser::new(expr.to_string()),
                         None => {
                             let expr = Parser::wrap_parens_safely(expr.clone());
                             Parser::new(expr)

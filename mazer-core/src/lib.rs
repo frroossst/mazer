@@ -1,11 +1,11 @@
+pub mod codegen;
+pub mod data_structures;
+pub mod debug_ctx;
 pub mod document;
+pub mod evaluation;
 pub mod interpreter;
 pub mod parser;
-pub mod tokenizer;
-pub mod codegen;
-pub mod stdlib;
-pub mod evaluation;
-pub mod data_structures;
 pub mod pretty_err;
-pub mod debug_ctx;
+pub mod stdlib;
 pub mod tests;
+pub mod tokenizer;

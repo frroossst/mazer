@@ -1,4 +1,8 @@
-use crate::{parser::MathML, tokenizer::{Emphasis, LinkKind, MarkdownTag}, wrap_mathml};
+use crate::{
+    parser::MathML,
+    tokenizer::{Emphasis, LinkKind, MarkdownTag},
+    wrap_mathml,
+};
 
 #[derive(Debug)]
 pub struct Document {
@@ -10,7 +14,9 @@ pub struct Document {
 impl Document {
     pub fn new(title: &str) -> Self {
         Document {
-            head: format!("<!DOCTYPE html lang=\"en\">\n<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n"),
+            head: format!(
+                "<!DOCTYPE html lang=\"en\">\n<html>\n<head>\n<meta charset=\"utf-8\">\n</head>\n"
+            ),
             title: format!("<title> Mazer - {} </title>", title),
             body: Vec::new(),
         }
@@ -271,16 +277,16 @@ impl Document {
     </div>
         "#;
 
-    body.push_str(before);
+        body.push_str(before);
 
-    for content in self.body.clone() {
-        body.push_str(&content);
-    }
+        for content in self.body.clone() {
+            body.push_str(&content);
+        }
 
-    body.push_str("</body>\n");
-    body.push_str("</html>\n");
+        body.push_str("</body>\n");
+        body.push_str("</html>\n");
 
-    body
+        body
     }
 
     // appends to the body tag
@@ -386,10 +392,14 @@ impl Document {
                     .collect::<Vec<String>>()
                     .join("");
 
-                self.append_wrapped_with_attr("table", "border=1", &format!(
-                    "<thead>{}</thead><tbody>{}</tbody>",
-                    table_header, table_rows
-                ));
+                self.append_wrapped_with_attr(
+                    "table",
+                    "border=1",
+                    &format!(
+                        "<thead>{}</thead><tbody>{}</tbody>",
+                        table_header, table_rows
+                    ),
+                );
 
                 self.append_newline();
             }

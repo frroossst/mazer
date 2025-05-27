@@ -4,9 +4,7 @@ pub struct Timer(Option<Instant>);
 
 impl Timer {
     pub fn new() -> Self {
-        Self {
-            0: None,
-        }
+        Self { 0: None }
     }
 
     pub fn start(&mut self) {

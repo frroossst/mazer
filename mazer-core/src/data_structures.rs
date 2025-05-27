@@ -22,6 +22,4 @@ impl Matrix {
         }
         Ok(vec)
     }
-
 }
-

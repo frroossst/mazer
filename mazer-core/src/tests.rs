@@ -193,7 +193,11 @@ mod markdown_tests {
 
 #[cfg(test)]
 mod parser_tests {
-    use crate::{interpreter::{Environment, Interpreter}, parser::{LispExpr, MathML, Parser}, wrap_mathml};
+    use crate::{
+        interpreter::{Environment, Interpreter},
+        parser::{LispExpr, MathML, Parser},
+        wrap_mathml,
+    };
 
     #[test]
     fn test_simple() {
@@ -245,7 +249,6 @@ mod parser_tests {
             LispExpr::Nil
         };
         assert_eq!(first, LispExpr::Symbol("+".to_string()));
-
     }
 
     #[test]
@@ -264,7 +267,10 @@ mod parser_tests {
         let mathml = MathML::from(&expr);
         let repr = MathML::from(mathml.string());
 
-        assert_eq!(wrap_mathml!(repr.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>5</mn></math>");
+        assert_eq!(
+            wrap_mathml!(repr.string()),
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mn>5</mn></math>"
+        );
 
         let mut p = Parser::new("(+ 1 2)".to_string());
         let expr = p.parse();
@@ -276,7 +282,6 @@ mod parser_tests {
 
     #[test]
     fn test_simple_tokenize() {
-
         let p = Parser::tokenize("(+ 1 2)");
         assert_eq!(p.len(), 5);
         assert_eq!(p[0], "(");
@@ -341,7 +346,8 @@ mod parser_tests {
 
     #[test]
     fn test_nested_matrix_codegen() {
-        let mut p = Parser::new(" (matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6)) ".into());
+        let mut p =
+            Parser::new(" (matrix ((matrix (0) (1))) (2) ((matrix (3 4))) (5) (6)) ".into());
         let ast = p.parse();
 
         let list_len = if let LispExpr::List(list) = ast.clone() {
@@ -356,7 +362,6 @@ mod parser_tests {
         assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow><mo>[</mo><mtable><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>2</mn></mtd></mtr><mtr><mtd><mrow><mo>[</mo><mtable><mtr><mtd><mn>3</mn></mtd><mtd><mn>4</mn></mtd></mtr></mtable><mo>]</mo></mrow></mtd></mtr><mtr><mtd><mn>5</mn></mtd></mtr><mtr><mtd><mn>6</mn></mtd></mtr></mtable><mo>]</mo></mrow></math>");
     }
 
-
     #[test]
     fn test_integration() {
         let mut p = Parser::new("(integral x dx)".into());
@@ -364,11 +369,14 @@ mod parser_tests {
 
         let mathml = MathML::from(&ast);
 
-        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+        assert_eq!(
+            wrap_mathml!(mathml.string()),
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
                 <mo>∫</mo>
                 <mrow><mi>x</mi></mrow>
                 <mi>dx</mi>
-            </mrow></math>");
+            </mrow></math>"
+        );
     }
 
     #[test]
@@ -378,7 +386,9 @@ mod parser_tests {
         let ast = p.parse();
 
         let mathml = MathML::from(&ast);
-        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+        assert_eq!(
+            wrap_mathml!(mathml.string()),
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
                     <msubsup>
                         <mo>∫</mo>
                         <mrow><mn>0</mn></mrow>
@@ -386,14 +396,17 @@ mod parser_tests {
                     </msubsup>
                     <mrow><msup><mrow><mi>x</mi></mrow><mrow><mn>2</mn></mrow></msup></mrow>
                     <mi>dx</mi>
-                </mrow></math>");
+                </mrow></math>"
+        );
 
         let src = "(integral (integral (integral (pow x 2) 0 1 dx) 0 1 dy) 0 1 dz)";
         let mut p = Parser::new(src.into());
         let ast = p.parse();
 
         let mathml = MathML::from(&ast);
-        assert_eq!(wrap_mathml!(mathml.string()), "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
+        assert_eq!(
+            wrap_mathml!(mathml.string()),
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mrow>
                     <msubsup>
                         <mo>∫</mo>
                         <mrow><mn>0</mn></mrow>
@@ -417,7 +430,8 @@ mod parser_tests {
                     <mi>dy</mi>
                 </mrow></mrow>
                     <mi>dz</mi>
-                </mrow></math>");
+                </mrow></math>"
+        );
     }
 
     #[test]
@@ -441,7 +455,7 @@ mod parser_tests {
         let mut env: Environment = i.environment();
 
         env.insert("x".to_string(), LispExpr::Number(1.0));
-        
+
         let expression = Parser::new("(+ x 2)".to_string()).parse();
         let ans = Interpreter::eval_expr(&expression, &mut env);
 
@@ -481,6 +495,5 @@ mod parser_tests {
 
         let ans = Interpreter::eval_expr(&expression, &mut env);
         assert_eq!(ans.unwrap(), LispExpr::Number(35.0));
-
     }
 }

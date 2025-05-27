@@ -1,12 +1,10 @@
 use colored::*;
 
-
 #[derive(Debug, Clone)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct ErrCtx {
@@ -48,8 +46,13 @@ impl ErrCtx {
             }
             eprintln!("Error: {}", err_kind.error().red());
             eprintln!("Message: {}", err_kind.message().yellow());
-            eprintln!("Position: {}..{}/{}", self.err_pos.start, self.err_pos.end, self.src.chars().count());
-            
+            eprintln!(
+                "Position: {}..{}/{}",
+                self.err_pos.start,
+                self.err_pos.end,
+                self.src.chars().count()
+            );
+
             match self.src.get(self.err_pos.start..self.err_pos.end) {
                 Some(fragment) => println!("Source: {}", fragment.green()),
                 None => println!("Source: <invalid UTF-8 range>"),

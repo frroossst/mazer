@@ -128,7 +128,6 @@ impl Lexer {
         if let Some(span_val) = span {
             self.ctx = self.ctx.clone().with_location(span_val.start, span_val.end);
         }
-
     }
 
     fn char(&mut self) -> Result<String, ErrCtx> {
@@ -138,7 +137,14 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e, Span { start: self.pos, end: self.pos + 1 }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: self.pos,
+                    end: self.pos + 1,
+                }
+                .into(),
+            );
             return Err(self.ctx.clone());
         }
         Ok(self.src[self.pos].clone())
@@ -151,7 +157,14 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e, Span { start: self.pos + 1, end: self.pos + 2 }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: self.pos + 1,
+                    end: self.pos + 2,
+                }
+                .into(),
+            );
             Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + 1].clone())
@@ -166,7 +179,14 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e, Span { start: self.pos + n, end: self.pos + n + 1 }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: self.pos + n,
+                    end: self.pos + n + 1,
+                }
+                .into(),
+            );
             Err(self.ctx.clone())
         } else {
             Ok(self.src[self.pos + n].clone())
@@ -179,7 +199,14 @@ impl Lexer {
                 "Reached the end of file looking for position {}",
                 self.pos
             ));
-            self.create_error(e, Span { start: self.pos, end: self.max }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: self.pos,
+                    end: self.max,
+                }
+                .into(),
+            );
             return Err(self.ctx.clone());
         }
         self.pos += 1;
@@ -191,7 +218,14 @@ impl Lexer {
         // [ERROR]
         if curr != c {
             let e = ErrorKind::BrokenExpectations(format!("Expected '{}' but found '{}'", c, curr));
-            self.create_error(e, Span { start: self.pos, end: self.pos + 1 }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: self.pos,
+                    end: self.pos + 1,
+                }
+                .into(),
+            );
             return Err(self.ctx.clone());
         }
         self.advance_char()?;
@@ -245,7 +279,14 @@ impl Lexer {
             if self.pos >= self.max {
                 // [ERROR]
                 let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
-                self.create_error(e, Span { start: start_span, end: self.pos }.into());
+                self.create_error(
+                    e,
+                    Span {
+                        start: start_span,
+                        end: self.pos,
+                    }
+                    .into(),
+                );
                 return Err(self.ctx.clone());
             }
 
@@ -263,7 +304,14 @@ impl Lexer {
         if count != 0 {
             // [ERROR]
             let e = ErrorKind::LonelyParenthesis("Unmatched parenthesis".to_string());
-            self.create_error(e, Span { start: start_span, end: self.pos }.into());
+            self.create_error(
+                e,
+                Span {
+                    start: start_span,
+                    end: self.pos,
+                }
+                .into(),
+            );
             return Err(self.ctx.clone());
         }
 
@@ -279,7 +327,7 @@ impl Lexer {
 
         while self.pos < self.max && self.char()? != "\n" {
             let curr = self.char()?;
-            
+
             if curr == "(" {
                 paren_count += 1;
                 store.push_str(&curr);
@@ -288,7 +336,7 @@ impl Lexer {
                 paren_count -= 1;
                 store.push_str(&curr);
                 self.advance_char()?;
-                
+
                 // If we have more closing than opening parens, we've hit the end
                 if paren_count < 0 {
                     break;
@@ -376,7 +424,7 @@ impl Lexer {
 
             // check if it conforms to the following pattern
             // let <var> <space> = <value>;
-            // if not then it is a normal word 
+            // if not then it is a normal word
             // if did_consume_let_keyword is false AND there is no equal to after variable name
             // then it is a normal word
             let curr = self.pos;
@@ -394,19 +442,26 @@ impl Lexer {
             // [ERROR]
             if var.is_empty() {
                 let e = ErrorKind::NamelessNomad("Variable name cannot be empty".to_string());
-                self.create_error(e, Span { start: let_start_span, end: self.pos }.into());
+                self.create_error(
+                    e,
+                    Span {
+                        start: let_start_span,
+                        end: self.pos,
+                    }
+                    .into(),
+                );
                 return Err(self.ctx.clone());
             }
 
             self.must_consume("=")?;
             let mut val = self.consume_until_uneven_paren()?.trim().to_string();
-            
+
             // Remove any trailing parentheses that caused us to stop parsing
             while val.ends_with(')') {
                 val.pop();
             }
 
-            // sometimes things like let foo = (+ 1 2) \n\n let bar = (0); are valid; 
+            // sometimes things like let foo = (+ 1 2) \n\n let bar = (0); are valid;
             // must prevent this by checking that value has only one let binding
             // if there are multiple let bindings then it is invalid
 
@@ -416,23 +471,24 @@ impl Lexer {
                         "Let statement cannot be nested inside another let statement".to_string(),
                     );
 
-                    let second_let_span = val
-                        .find("let")
-                        .unwrap_or(val.len())
-                        + val.find("=")
-                        .unwrap_or(val.len());
+                    let second_let_span =
+                        val.find("let").unwrap_or(val.len()) + val.find("=").unwrap_or(val.len());
 
-                    self.create_error(e, Span {
-                        start: let_start_span,
-                        end: second_let_span,
-                    }.into());
+                    self.create_error(
+                        e,
+                        Span {
+                            start: let_start_span,
+                            end: second_let_span,
+                        }
+                        .into(),
+                    );
                     Err(self.ctx.clone())
                 })
                 .unwrap_or(Ok(()))?;
 
             return Ok(Some(Token::LetStmt(var, val)));
         /*
-        // inline fmt calls 
+        // inline fmt calls
         } else if curr_tok == "$" && self.peek()? == "(" {
             self.advance_char()?;
             self.advance_char()?;
@@ -557,7 +613,14 @@ impl Lexer {
                 let e = ErrorKind::GrammarGoblin(
                     "Line separator should contain only '=' characters".to_string(),
                 );
-                self.create_error(e, Span { start: prev, end: now }.into());
+                self.create_error(
+                    e,
+                    Span {
+                        start: prev,
+                        end: now,
+                    }
+                    .into(),
+                );
                 return Err(self.ctx.clone());
             }
 
@@ -639,7 +702,9 @@ impl Lexer {
             // | val1 | val2 | val3 |
             // | val4 | val5 | val6 |
 
-            let table_header: Vec<String> = self.consume_line()?.split("|")
+            let table_header: Vec<String> = self
+                .consume_line()?
+                .split("|")
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
@@ -672,8 +737,10 @@ impl Lexer {
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<String>>();
 
-
-            let table_body_grouped: Vec<Vec<String>> = table_body.chunks(column_count).map(|chunk| chunk.to_vec()).collect();
+            let table_body_grouped: Vec<Vec<String>> = table_body
+                .chunks(column_count)
+                .map(|chunk| chunk.to_vec())
+                .collect();
 
             return Ok(Some(Token::Markdown(MarkdownTag::Table(
                 table_header,
