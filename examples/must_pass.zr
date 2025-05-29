@@ -308,9 +308,16 @@ let complex_mixed = (+ (* 2 3) (* (+ 1 1) 4) 5)
 
 eval(complex_mixed)  // Should be 19
 
+let final_test = (+ 
+    (* pi 2) 
+    (sqrt 16) 
+    (pow 2 3) 
+    (if (> 10 5) 1 0)
+)
+
+eval(final_test)
+
 # End of comprehensive test file
 # All expressions above should evaluate successfully
 # This demonstrates all major features of the Mazer language
-
-
 

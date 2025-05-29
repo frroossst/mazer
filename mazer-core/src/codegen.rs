@@ -175,6 +175,26 @@ impl MathML {
         }
     }
 
+    pub fn dot(args: &[LispExpr]) -> Self {
+        if args.len() < 2 {
+            // dot product needs atleast two arguments
+            return "<mrow>Error: dot product requires at least two vectors</mrow>"
+                .to_string()
+                .into();
+        }
+
+        let mut result = String::new();
+        for expr in args {
+            let mathml = MathML::from(expr).string();
+            if !result.is_empty() {
+                result.push_str("<mo>⋅</mo>");
+            }
+            result.push_str(&mathml);
+        }
+
+        format!("<mrow>{}</mrow>", result).into()
+    }
+
     pub fn product(args: &[LispExpr]) -> Self {
         if args.len() >= 4 {
             if let LispExpr::Symbol(index) = &args[1] {

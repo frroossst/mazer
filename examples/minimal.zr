@@ -96,6 +96,23 @@ fmt(log e 1000)
 
 fmt(ln 1000)
 
+### dot product
+
+
+fmt(
+    (dot
+        (matrix (1 2 3))
+        (matrix (4 5 6))
+    )
+)
+
+fmt(
+    (dot
+        (matrix (1) (2) (3))
+        (matrix (4) (5) (6))
+    )
+)
+
 
 
 

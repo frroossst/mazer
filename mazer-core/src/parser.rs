@@ -157,6 +157,7 @@ impl From<&LispExpr> for MathML {
                         // matrix operations
                         "matrix" => MathML::matrix(args),
                         "determinant" => MathML::determinant(args),
+                        "dot" => MathML::dot(args),
 
                         _ => unimplemented!(
                             "From<&LispExpr> for MathML: operator `{}` not implemented",

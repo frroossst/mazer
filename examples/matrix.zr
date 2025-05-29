@@ -1,6 +1,6 @@
-let m0 = (matrix 1 2 3);
+let m0 = (matrix (1 2 3));
 
-let m1 = (matrix 4 5 6);
+let m1 = (matrix (4 5 6));
 
 let m3 = (dot m0 m1);
 
