@@ -89,6 +89,12 @@ lazy_static::lazy_static! {
 async fn main() {
     mazer_dbg::init();
 
+    let x = 123;
+    let y = "hello";
+    let z = vec![1, 2, 3];
+
+    mazer_dbg::inspect!(x, y, z);
+
     let args = <Args as clap::Parser>::parse();
 
     {
