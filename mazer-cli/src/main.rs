@@ -90,6 +90,8 @@ lazy_static::lazy_static! {
 async fn main() {
     let args = <Args as clap::Parser>::parse();
 
+    mazer_dbg::init_inspector();
+
     {
         let mut flag = VRBS.write().unwrap();
         *flag = args.verbose;

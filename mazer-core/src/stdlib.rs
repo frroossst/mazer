@@ -45,6 +45,8 @@ impl Interpreter {
             if args.len() != 2 {
                 return Err(LispErr::new("dot requires exactly two arguments"));
             }
+
+            unimplemented!()
             
         }));
 
