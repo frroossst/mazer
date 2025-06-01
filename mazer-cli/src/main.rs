@@ -18,7 +18,6 @@ use mazer_core::{
 };
 
 use colored::*;
-use mazer_dbg::inspect;
 use rust_embed::RustEmbed;
 use warp::{reject::Rejection, reply::Reply, Filter};
 
@@ -88,7 +87,7 @@ lazy_static::lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    mazer_dbg::init().expect("Failed to initialize mazer_dbg");
+    mazer_dbg::init();
 
     let args = <Args as clap::Parser>::parse();
 
@@ -295,7 +294,6 @@ fn to_document(file_title: &str, content: String, file_path: &str) -> (Document,
 
     let mut tokens: Vec<Token> = Vec::with_capacity(1024);
 
-    inspect!(t);
 
     let mut ctx: Option<ErrCtx> = None;
     loop {
