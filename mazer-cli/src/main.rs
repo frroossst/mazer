@@ -18,6 +18,7 @@ use mazer_core::{
 };
 
 use colored::*;
+use mazer_dbg::inspect;
 use rust_embed::RustEmbed;
 use warp::{reject::Rejection, reply::Reply, Filter};
 
@@ -291,6 +292,8 @@ fn to_document(file_title: &str, content: String, file_path: &str) -> (Document,
     let mut t: Lexer = Lexer::new(content, ErrCtx::new(Some(file_path)));
 
     let mut tokens: Vec<Token> = Vec::with_capacity(1024);
+
+    inspect!(t);
 
     let mut ctx: Option<ErrCtx> = None;
     loop {

@@ -5,14 +5,17 @@ members = [
     "mazer-core",
     "mazer-cli",
     "mazer-macros",
+    "mazer-dbg",
 ]
 default-members = ["mazer-cli"]
 
 resolver = "2"
 
 [profile.dev]
-debug = 0
-opt-level = 0
+debug = true          
+opt-level = 0         
+lto = false           
+incremental = true    
 codegen-backend = "cranelift"
 
 [profile.release]

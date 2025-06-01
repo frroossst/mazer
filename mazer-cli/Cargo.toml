@@ -18,6 +18,7 @@ opener = "0.7.1"
 rust-embed = "8.6.0"
 tokio = { version = "1.38.0", features = ["full"] }
 warp = "0.3.7"
+mazer-dbg ={ path = "../mazer-dbg", version="^0.*" }
 
 [[bin]]
 name = "mazer"
