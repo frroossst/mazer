@@ -88,9 +88,9 @@ lazy_static::lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    let args = <Args as clap::Parser>::parse();
+    mazer_dbg::init().expect("Failed to initialize mazer_dbg");
 
-    mazer_dbg::init_inspector();
+    let args = <Args as clap::Parser>::parse();
 
     {
         let mut flag = VRBS.write().unwrap();
