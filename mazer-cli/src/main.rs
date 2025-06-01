@@ -93,7 +93,9 @@ async fn main() {
     let y = "hello";
     let z = vec![1, 2, 3];
 
+    println!("before inspect!");
     mazer_dbg::inspect!(x, y, z);
+    println!("after inspect!");
 
     let args = <Args as clap::Parser>::parse();
 

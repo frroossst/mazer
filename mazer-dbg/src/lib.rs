@@ -2,21 +2,36 @@ use nix::unistd::{fork, ForkResult};
 use eframe::egui;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::{Read, Write, BufReader, BufRead};
+use std::time::Duration;
 use serde::{Serialize, Deserialize};
+use std::fs;
+use std::path::Path;
 
 // Shared state for the GUI
 #[derive(Clone, Default)]
 struct DebugData {
     entries: Arc<Mutex<Vec<BTreeMap<String, String>>>>,
+    active_inspections: Arc<Mutex<Vec<String>>>,
+    shutdown: Arc<AtomicBool>,
 }
 
 // Message format for communication
 #[derive(Serialize, Deserialize, Debug)]
 struct InspectMessage {
     data: BTreeMap<String, String>,
+    session_id: String,
+    request_type: MessageType,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+enum MessageType {
+    Inspect,
+    Continue,
+    CheckStatus,
 }
 
 static mut DEBUG_SERVER_PORT: Option<u16> = None;
@@ -86,11 +101,43 @@ fn handle_client(stream: &mut TcpStream, debug_data: DebugData) {
     match reader.read_line(&mut line) {
         Ok(_) => {
             if let Ok(message) = serde_json::from_str::<InspectMessage>(&line.trim()) {
-                println!("Received debug data: {:#?}", message.data);
-                
-                // Add to GUI data
-                if let Ok(mut entries) = debug_data.entries.lock() {
-                    entries.push(message.data);
+                match message.request_type {
+                    MessageType::Inspect => {
+                        println!("Received debug data: {:#?}", message.data);
+                        
+                        // Add to GUI data
+                        if let Ok(mut entries) = debug_data.entries.lock() {
+                            entries.push(message.data);
+                        }
+                        
+                        // Store active inspection
+                        if let Ok(mut active_inspections) = debug_data.active_inspections.lock() {
+                            if !active_inspections.contains(&message.session_id) {
+                                active_inspections.push(message.session_id);
+                            }
+                        }
+                    },
+                    MessageType::Continue => {
+                        // Remove from active inspections
+                        if let Ok(mut active_inspections) = debug_data.active_inspections.lock() {
+                            active_inspections.retain(|id| *id != message.session_id);
+                        }
+                        
+                        // Update active inspections file
+                        let active_file_path = "/tmp/debug_active_inspections";
+                        if let Ok(mut active_inspections) = debug_data.active_inspections.lock() {
+                            if let Some(current_id) = active_inspections.last() {
+                                let _ = std::fs::write(active_file_path, current_id);
+                            } else {
+                                // No more active inspections, delete the file
+                                let _ = std::fs::remove_file(active_file_path);
+                            }
+                        }
+                    },
+                    MessageType::CheckStatus => {
+                        // Just a heartbeat to check if server is alive
+                        // No action needed
+                    }
                 }
             }
         }
@@ -108,6 +155,40 @@ struct DebugWindow {
 impl DebugWindow {
     fn new(debug_data: DebugData) -> Self {
         Self { debug_data }
+    }
+    
+    fn send_continue_message(&self, session_id: &str) {
+        // Try to read port from file
+        let port = match std::fs::read_to_string("/tmp/debug_server_port") {
+            Ok(port_str) => match port_str.trim().parse::<u16>() {
+                Ok(port) => port,
+                Err(_) => {
+                    eprintln!("Failed to parse port from file");
+                    return;
+                }
+            },
+            Err(_) => {
+                eprintln!("Debug server not available (port file not found)");
+                return;
+            }
+        };
+        
+        let message = InspectMessage { 
+            data: BTreeMap::new(),
+            session_id: session_id.to_string(),
+            request_type: MessageType::Continue 
+        };
+        
+        if let Ok(json) = serde_json::to_string(&message) {
+            match TcpStream::connect(format!("127.0.0.1:{}", port)) {
+                Ok(mut stream) => {
+                    let _ = writeln!(stream, "{}", json);
+                },
+                Err(_) => {
+                    eprintln!("Failed to connect to debug server");
+                }
+            }
+        }
     }
 }
 
@@ -144,11 +225,24 @@ impl eframe::App for DebugWindow {
             }
             
             ui.separator();
-            if ui.button("Clear All").clicked() {
-                if let Ok(mut entries) = self.debug_data.entries.lock() {
-                    entries.clear();
+            
+            ui.horizontal(|ui| {
+                if ui.button("Clear All").clicked() {
+                    if let Ok(mut entries) = self.debug_data.entries.lock() {
+                        entries.clear();
+                    }
                 }
-            }
+                
+                // Add a continue button to signal that inspection is done
+                if ui.button("Continue").clicked() {
+                    if let Ok(active_inspections) = self.debug_data.active_inspections.lock() {
+                        if let Some(current_id) = active_inspections.last() {
+                            // Send continue message for the current inspection
+                            self.send_continue_message(current_id);
+                        }
+                    }
+                }
+            });
         });
         
         // Request repaint to keep GUI responsive
@@ -187,7 +281,21 @@ pub fn send_to_debug_server(data: BTreeMap<String, String>) {
         }
     };
     
-    let message = InspectMessage { data };
+    // Generate a unique session ID
+    let session_id = format!("session_{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis());
+    
+    // Write session ID to active inspections file
+    let active_file_path = "/tmp/debug_active_inspections";
+    let _ = std::fs::write(active_file_path, &session_id);
+    
+    let message = InspectMessage { 
+        data, 
+        session_id: session_id.clone(), 
+        request_type: MessageType::Inspect 
+    };
     let json = match serde_json::to_string(&message) {
         Ok(json) => json,
         Err(e) => {
@@ -206,6 +314,48 @@ pub fn send_to_debug_server(data: BTreeMap<String, String>) {
             eprintln!("Failed to connect to debug server: {}", e);
         }
     }
+    
+    // Busy wait until the inspection is complete
+    println!("Debug inspection active - waiting for debugger window to close...");
+    loop {
+        // Check if our session is still active
+        match std::fs::read_to_string(active_file_path) {
+            Ok(active_session) => {
+                if active_session.trim() != session_id {
+                    // Either no active session or a different one
+                    break;
+                }
+            },
+            Err(_) => {
+                // File doesn't exist anymore, which means no active sessions
+                break;
+            }
+        }
+        
+        // Send a check status message to see if the server is still running
+        match TcpStream::connect(format!("127.0.0.1:{}", port)) {
+            Ok(mut stream) => {
+                let check_message = InspectMessage {
+                    data: BTreeMap::new(),
+                    session_id: session_id.clone(),
+                    request_type: MessageType::CheckStatus,
+                };
+                
+                if let Ok(check_json) = serde_json::to_string(&check_message) {
+                    let _ = writeln!(stream, "{}", check_json);
+                }
+            },
+            Err(_) => {
+                // Server is not responding, which means it's probably closed
+                break;
+            }
+        }
+        
+        // Sleep a bit to avoid hammering the CPU
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    
+    println!("Debug inspection complete - continuing execution");
 }
 
 #[macro_export]
