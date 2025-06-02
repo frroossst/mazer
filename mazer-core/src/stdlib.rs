@@ -1,4 +1,4 @@
-use crate::{data_structures::Matrix, interpreter::{Environment, Interpreter}, parser::{LispErr, LispExpr}};
+use crate::{interpreter::{Environment, Interpreter}, parser::{LispErr, LispExpr}};
 
 
 impl Interpreter {
