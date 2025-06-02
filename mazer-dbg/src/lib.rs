@@ -23,57 +23,42 @@ struct DebugResponse {
 static DEBUG_SENDER: OnceLock<Arc<Mutex<ipc::IpcSender<DebugMessage>>>> = OnceLock::new();
 static RESPONSE_RECEIVER: OnceLock<Arc<Mutex<ipc::IpcReceiver<DebugResponse>>>> = OnceLock::new();
 
-/// Initialize the debug IPC system
-/// Returns true if initialization was successful
-pub fn init() -> bool {
-    // Create bidirectional IPC channels
+pub fn init() {
     let (debug_tx, debug_rx) = match ipc::channel() {
         Ok(channel) => channel,
         Err(e) => {
-            eprintln!("Failed to create debug IPC channel: {}", e);
-            return false;
+            panic!("Failed to create debug IPC channel: {}", e);
         }
     };
     
     let (response_tx, response_rx) = match ipc::channel() {
         Ok(channel) => channel,
         Err(e) => {
-            eprintln!("Failed to create response IPC channel: {}", e);
-            return false;
+            panic!("Failed to create response IPC channel: {}", e);
         }
     };
 
-    // Fork the process
     match unsafe { fork() } {
-        Ok(ForkResult::Parent { child }) => {
+        Ok(ForkResult::Parent { child: _ }) => {
             // Parent process - store channels globally
             if DEBUG_SENDER.set(Arc::new(Mutex::new(debug_tx))).is_err() {
-                eprintln!("Failed to set debug sender");
-                return false;
+                panic!("Failed to set debug sender");
             }
             
             if RESPONSE_RECEIVER.set(Arc::new(Mutex::new(response_rx))).is_err() {
-                eprintln!("Failed to set response receiver");
-                return false;
+                panic!("Failed to set response receiver");
             }
-            
-            println!("Debug server initialized (child PID: {})", child);
-            true
         }
         Ok(ForkResult::Child) => {
-            // Child process - start debug server with GUI
             debug_server_process(debug_rx, response_tx);
-            // This will never return as child exits
             unreachable!()
         }
         Err(e) => {
-            eprintln!("Fork failed: {}", e);
-            false
+            panic!("Fork failed: {}", e);
         }
     }
 }
 
-/// Send debug data to the server and wait for user to close GUI (called by inspect macro)
 pub fn send_to_debug_server_and_wait(
     variables: BTreeMap<String, String>,
     file: &str,
@@ -93,7 +78,6 @@ pub fn send_to_debug_server_and_wait(
                 variables,
             };
             
-            // Send debug message
             if let Err(e) = sender.send(message) {
                 eprintln!("Failed to send debug message: {}", e);
                 return;
@@ -102,7 +86,7 @@ pub fn send_to_debug_server_and_wait(
             // Wait for response (GUI window closed)
             match receiver.recv() {
                 Ok(_response) => {
-                    // Continue execution
+                    // continue execution
                 }
                 Err(e) => {
                     eprintln!("Failed to receive response from debug server: {}", e);
@@ -114,14 +98,9 @@ pub fn send_to_debug_server_and_wait(
 
 /// The debug server process that receives debug messages and shows GUI
 fn debug_server_process(rx: ipc::IpcReceiver<DebugMessage>, response_tx: ipc::IpcSender<DebugResponse>) {
-    println!("Debug server started (PID: {})", process::id());
-    
     loop {
         match rx.recv() {
             Ok(message) => {
-                println!("\n=== DEBUG BREAKPOINT [{}:{}] ===", message.file, message.line);
-                
-                // Show GUI window and wait for it to be closed
                 show_debug_gui(&message);
                 
                 // Send response to continue execution
@@ -135,13 +114,11 @@ fn debug_server_process(rx: ipc::IpcReceiver<DebugMessage>, response_tx: ipc::Ip
                 }
             }
             Err(e) => {
-                println!("Debug server: Channel error: {}", e);
+                eprintln!("Debug server: Channel error: {}", e);
                 break;
             }
         }
     }
-    
-    println!("Debug server shutting down");
     process::exit(0);
 }
 
@@ -149,13 +126,12 @@ fn debug_server_process(rx: ipc::IpcReceiver<DebugMessage>, response_tx: ipc::Ip
 fn show_debug_gui(message: &DebugMessage) {
     use eframe::egui;
     
-    // Extract just the filename from the full path for cleaner display
     let filename = std::path::Path::new(&message.file)
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or(&message.file);
     
-    let window_title = format!("Debug Inspector - {}:{}", filename, message.line);
+    let window_title = format!("[Mazer Debug] - {}:{}", filename, message.line);
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -175,28 +151,6 @@ fn show_debug_gui(message: &DebugMessage) {
                 // Header with location information
                 ui.heading("🔍 Debug Breakpoint");
                 ui.separator();
-                
-                // Location information panel
-                egui::Frame::none()
-                    .fill(egui::Color32::from_gray(240))
-                    .inner_margin(10.0)
-                    .rounding(5.0)
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.strong("📂 File:");
-                            ui.label(&message_clone.file);
-                        });
-                        ui.horizontal(|ui| {
-                            ui.strong("📍 Line:");
-                            ui.label(message_clone.line.to_string());
-                            ui.strong("Column:");
-                            ui.label(message_clone.column.to_string());
-                        });
-                        ui.horizontal(|ui| {
-                            ui.strong("⏰ Timestamp:");
-                            ui.label(format_timestamp(message_clone.timestamp));
-                        });
-                    });
                 
                 ui.add_space(10.0);
                 ui.strong("Variables:");
