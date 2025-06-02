@@ -142,7 +142,7 @@ fn show_debug_gui(message: &DebugMessage) {
     };
     
     let message_clone = message.clone();
-    
+
     let _ = eframe::run_simple_native(
         &window_title,
         options,
@@ -151,32 +151,38 @@ fn show_debug_gui(message: &DebugMessage) {
                 // Header with location information
                 ui.heading("🔍 Debug Breakpoint");
                 ui.separator();
-                
-                ui.add_space(10.0);
-                ui.strong("Variables:");
-                ui.separator();
-                
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    // Create a table-like display
-                    egui::Grid::new("debug_table")
-                        .num_columns(2)
-                        .spacing([40.0, 4.0])
-                        .striped(true)
-                        .show(ui, |ui| {
-                            // Table headers
-                            ui.strong("Variable Name");
-                            ui.strong("Value");
-                            ui.end_row();
-                            
-                            // Table rows
-                            for (name, value) in &message_clone.variables {
-                                ui.label(name);
-                                ui.label(value);
-                                ui.end_row();
-                            }
-                        });
-                });
-                
+
+                egui::ScrollArea::vertical()
+                    .max_width(f32::INFINITY)
+                    .auto_shrink([false; 2])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .show(ui, |ui| {
+                        ui.allocate_ui_with_layout(
+                            ui.available_size(),
+                            egui::Layout::left_to_right(egui::Align::Min),
+                            |ui| {
+                                egui::Grid::new("debug_table")
+                                    .num_columns(2)
+                                    .spacing([40.0, 4.0])
+                                    .striped(true)
+                                    .min_col_width(ui.available_width() / 2.0)
+                                    .show(ui, |ui| {
+                                        // Table headers
+                                        ui.strong("Variable Name");
+                                        ui.strong("Value");
+                                        ui.end_row();
+
+                                        // Table rows
+                                        for (name, value) in &message_clone.variables {
+                                            ui.label(name);
+                                            ui.label(value);
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    });
+
                 ui.separator();
                 ui.horizontal(|ui| {
                     if ui.button("▶ Continue Execution").clicked() {
