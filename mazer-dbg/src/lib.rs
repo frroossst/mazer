@@ -8,6 +8,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DebugMessage {
     timestamp: u64,
+    file: String,
+    line: u32,
+    column: u32,
     variables: BTreeMap<String, String>,
 }
 
@@ -71,7 +74,12 @@ pub fn init() -> bool {
 }
 
 /// Send debug data to the server and wait for user to close GUI (called by inspect macro)
-pub fn send_to_debug_server_and_wait(variables: BTreeMap<String, String>) {
+pub fn send_to_debug_server_and_wait(
+    variables: BTreeMap<String, String>,
+    file: &str,
+    line: u32,
+    column: u32,
+) {
     if let (Some(sender), Some(receiver)) = (DEBUG_SENDER.get(), RESPONSE_RECEIVER.get()) {
         if let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock()) {
             let message = DebugMessage {
@@ -79,6 +87,9 @@ pub fn send_to_debug_server_and_wait(variables: BTreeMap<String, String>) {
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as u64,
+                file: file.to_string(),
+                line,
+                column,
                 variables,
             };
             
@@ -108,10 +119,10 @@ fn debug_server_process(rx: ipc::IpcReceiver<DebugMessage>, response_tx: ipc::Ip
     loop {
         match rx.recv() {
             Ok(message) => {
-                println!("\n=== DEBUG BREAKPOINT [{}] ===", message.timestamp);
+                println!("\n=== DEBUG BREAKPOINT [{}:{}] ===", message.file, message.line);
                 
                 // Show GUI window and wait for it to be closed
-                show_debug_gui(&message.variables);
+                show_debug_gui(&message);
                 
                 // Send response to continue execution
                 let response = DebugResponse {
@@ -135,25 +146,60 @@ fn debug_server_process(rx: ipc::IpcReceiver<DebugMessage>, response_tx: ipc::Ip
 }
 
 /// Show GUI window with debug variables (blocking until window is closed)
-fn show_debug_gui(variables: &BTreeMap<String, String>) {
+fn show_debug_gui(message: &DebugMessage) {
     use eframe::egui;
+    
+    // Extract just the filename from the full path for cleaner display
+    let filename = std::path::Path::new(&message.file)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&message.file);
+    
+    let window_title = format!("Debug Inspector - {}:{}", filename, message.line);
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 600.0])
-            .with_title("Debug Inspector")
+            .with_inner_size([900.0, 700.0])
+            .with_title(&window_title)
             .with_resizable(true),
         ..Default::default()
     };
     
-    let variables_clone = variables.clone();
+    let message_clone = message.clone();
     
     let _ = eframe::run_simple_native(
-        "Debug Inspector",
+        &window_title,
         options,
         move |ctx, _frame| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading("Debug Variables");
+                // Header with location information
+                ui.heading("🔍 Debug Breakpoint");
+                ui.separator();
+                
+                // Location information panel
+                egui::Frame::none()
+                    .fill(egui::Color32::from_gray(240))
+                    .inner_margin(10.0)
+                    .rounding(5.0)
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.strong("📂 File:");
+                            ui.label(&message_clone.file);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.strong("📍 Line:");
+                            ui.label(message_clone.line.to_string());
+                            ui.strong("Column:");
+                            ui.label(message_clone.column.to_string());
+                        });
+                        ui.horizontal(|ui| {
+                            ui.strong("⏰ Timestamp:");
+                            ui.label(format_timestamp(message_clone.timestamp));
+                        });
+                    });
+                
+                ui.add_space(10.0);
+                ui.strong("Variables:");
                 ui.separator();
                 
                 egui::ScrollArea::vertical().show(ui, |ui| {
@@ -164,12 +210,12 @@ fn show_debug_gui(variables: &BTreeMap<String, String>) {
                         .striped(true)
                         .show(ui, |ui| {
                             // Table headers
-                            ui.strong("Variable");
+                            ui.strong("Variable Name");
                             ui.strong("Value");
                             ui.end_row();
                             
                             // Table rows
-                            for (name, value) in &variables_clone {
+                            for (name, value) in &message_clone.variables {
                                 ui.label(name);
                                 ui.label(value);
                                 ui.end_row();
@@ -179,7 +225,7 @@ fn show_debug_gui(variables: &BTreeMap<String, String>) {
                 
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button("Continue Execution").clicked() {
+                    if ui.button("▶ Continue Execution").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     ui.label("Close this window to continue program execution");
@@ -199,7 +245,13 @@ macro_rules! inspect {
         )+
         
         // Send to debug server and wait for GUI to be closed (blocking)
-        $crate::send_to_debug_server_and_wait(map.clone());
+        // Capture file, line, and column information
+        $crate::send_to_debug_server_and_wait(
+            map.clone(), 
+            file!(), 
+            line!(), 
+            column!()
+        );
         
         map
     }};
