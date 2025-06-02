@@ -1,3 +1,4 @@
+use std::collections::{HashMap, LinkedList};
 use std::io::{self, Write};
 use std::sync::RwLock;
 use std::{
@@ -96,6 +97,15 @@ async fn main() {
     println!("before inspect!");
     mazer_dbg::inspect!(x, y, z);
     println!("after inspect!");
+
+    let a = String::from("hello");
+    let b = std::collections::HashMap::from([
+        ("key1", "value1"),
+        ("key2", "value2"),
+    ]);
+    let c = LinkedList::from([1, 2, 3, 4, 5]);
+    mazer_dbg::inspect!(a, b, c);
+
 
     let args = <Args as clap::Parser>::parse();
 
