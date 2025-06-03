@@ -33,7 +33,7 @@ struct DebugMessage {
     file: String,
     line: u32,
     column: u32,
-    variables: BTreeMap<String, String>,
+    variables: BTreeMap<String, VariableDebugFrame>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -85,7 +85,7 @@ fn init() {
 }
 
 pub fn send_to_debug_server_and_wait(
-    variables: BTreeMap<String, String>,
+    variables: BTreeMap<String, VariableDebugFrame>,
     file: &str,
     line: u32,
     column: u32,
@@ -150,20 +150,33 @@ fn debug_server_process(
     process::exit(0);
 }
 
-/// Create a JSON string from the variables map
-fn create_json_from_variables(variables: &BTreeMap<String, String>) -> String {
+fn create_json_from_variables(variables: &BTreeMap<String, VariableDebugFrame>) -> String {
     let mut json_parts = Vec::new();
 
-    for (name, value) in variables {
-        // Escape the value for JSON (basic escaping)
-        let escaped_value = value
+    for (name, var_frame) in variables {
+        let escaped_value = var_frame.value
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
             .replace('\r', "\\r")
             .replace('\t', "\\t");
 
+        // Escape the type name for JSON
+        let escaped_type = var_frame.type_name
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
+
         json_parts.push(format!("  \"{}\": \"{}\"", name, escaped_value));
+        json_parts.push(format!("  \"{}_type\": \"{}\"", name, escaped_type));
+        
+        let size_value = if let Some(size) = var_frame.size_hint {
+            size.to_string()
+        } else {
+            "unknown".to_string()
+        };
+
+        // size in bytes
+        json_parts.push(format!("  \"{}_size\": \"{}\"", name, size_value));
     }
 
     format!("{{\n{}\n}}", json_parts.join(",\n"))
@@ -242,7 +255,7 @@ fn show_debug_gui(message: &DebugMessage) {
                                     .striped(true)
                                     .min_col_width(ui.available_width() / 2.0)
                                     .show(ui, |ui| {
-                                        ui.strong("Name ");
+                                        ui.strong("Name (Type, Size)");
                                         ui.strong("Value");
                                         ui.end_row();
 
@@ -251,9 +264,22 @@ fn show_debug_gui(message: &DebugMessage) {
                                             CodeTheme, code_view_ui,
                                         };
                                         let theme = CodeTheme::from_style(&style);
-                                        for (name, value) in &message.variables {
-                                            ui.label(name);
-                                            code_view_ui(ui, &theme, &value[..], "rs");
+                                        for (name, var_frame) in &message.variables {
+                                            // Format the name with type and size information
+                                            let size_info = if let Some(size) = var_frame.size_hint {
+                                                format!("{} bytes", size)
+                                            } else {
+                                                "unknown".to_string()
+                                            };
+                                            
+                                            let name_with_info = format!("{}\n({}, {})", 
+                                                name, 
+                                                var_frame.type_name, 
+                                                size_info
+                                            );
+                                            
+                                            ui.label(name_with_info);
+                                            code_view_ui(ui, &theme, &var_frame.value, "rs");
                                             ui.end_row();
                                         }
                                     });
@@ -274,6 +300,14 @@ pub fn ensure_init() {
 
 static START: Once = Once::new();
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VariableDebugFrame {
+    pub name: String,
+    pub value: String,
+    pub type_name: String,
+    pub size_hint: Option<usize>,
+}
+
 #[macro_export]
 macro_rules! inspect {
     ( $( $var:expr ),+ $(,)? ) => {{
@@ -281,8 +315,19 @@ macro_rules! inspect {
         use std::collections::BTreeMap;
         let mut map = BTreeMap::new();
         $(
-            map.insert(stringify!($var).to_string(), format!("{:#?}", $var));
+        let type_name = std::any::type_name_of_val(&$var).to_string();
+        let size_hint = std::mem::size_of_val(&$var);
+
+        let vframe = $crate::VariableDebugFrame {
+            name: stringify!($var).to_string(),
+            value: format!("{:#?}", $var),
+            type_name: type_name.clone(),
+            size_hint: Some(size_hint),
+        };
+
+            map.insert(stringify!($var).to_string(), vframe);
         )+
+
 
         // Send to debug server and wait for GUI to be closed (blocking)
         // Capture file, line, and column information
