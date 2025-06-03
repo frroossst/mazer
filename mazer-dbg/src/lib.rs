@@ -5,14 +5,10 @@ use std::collections::BTreeMap;
 use std::process;
 use std::sync::{Arc, Mutex, OnceLock};
 
-
-
 #[cfg(test)]
 mod tests;
 #[cfg(not(unix))]
 compile_error!("This crate is only supported on Unix-like systems (Linux, macOS, etc.)");
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DebugMessage {
@@ -136,6 +132,33 @@ fn debug_server_process(
     process::exit(0);
 }
 
+/// Create a JSON string from the variables map
+fn create_json_from_variables(variables: &BTreeMap<String, String>) -> String {
+    let mut json_parts = Vec::new();
+
+    for (name, value) in variables {
+        // Escape the value for JSON (basic escaping)
+        let escaped_value = value
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t");
+
+        json_parts.push(format!("  \"{}\": \"{}\"", name, escaped_value));
+    }
+
+    format!("{{\n{}\n}}", json_parts.join(",\n"))
+}
+
+/// Copy text to clipboard
+fn copy_to_clipboard(text: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use arboard::Clipboard;
+    let mut clipboard = Clipboard::new()?;
+    clipboard.set_text(text)?;
+    Ok(())
+}
+
 /// Show GUI window with debug variables (blocking until window is closed)
 fn show_debug_gui(message: &DebugMessage) {
     use eframe::egui;
@@ -164,42 +187,62 @@ fn show_debug_gui(message: &DebugMessage) {
             (egui::TextStyle::Monospace, egui::FontId::monospace(22.0)),
             (egui::TextStyle::Button, egui::FontId::proportional(24.0)),
             (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
-        ].into();
+        ]
+        .into();
         style.wrap_mode = Some(egui::TextWrapMode::Wrap);
         ctx.set_style(style.clone());
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical()
-                .max_width(f32::INFINITY)
-                .auto_shrink([false; 2])
-                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-                .show(ui, |ui| {
-                    ui.allocate_ui_with_layout(
-                        ui.available_size(),
-                        egui::Layout::left_to_right(egui::Align::Min),
-                        |ui| {
-                            egui::Grid::new("debug_table")
-                                .num_columns(2)
-                                .spacing([40.0, 4.0])
-                                .striped(true)
-                                .min_col_width(ui.available_width() / 2.0)
-                                .show(ui, |ui| {
-                                    ui.strong("Name ");
-                                    ui.strong("Value");
-                                    ui.end_row();
-
-                                    // Table rows
-                                    use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
-                                    let theme = CodeTheme::from_style(&style);
-                                    for (name, value) in &message.variables {
-                                        ui.label(name);
-                                        code_view_ui(ui, &theme, &value[..], "rs");
-                                        ui.end_row();
-                                    }
-                                });
-                        },
-                    );
+            // Top panel for copy button
+            egui::TopBottomPanel::top("top_panel").show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button("📋").clicked() {
+                            let json_string = create_json_from_variables(&message.variables);
+                            if let Err(e) = copy_to_clipboard(&json_string) {
+                                eprintln!("Failed to copy to clipboard: {}", e);
+                            }
+                        }
+                    });
                 });
+            });
+
+            // Main content area
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_width(f32::INFINITY)
+                    .auto_shrink([false; 2])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .show(ui, |ui| {
+                        ui.allocate_ui_with_layout(
+                            ui.available_size(),
+                            egui::Layout::left_to_right(egui::Align::Min),
+                            |ui| {
+                                egui::Grid::new("debug_table")
+                                    .num_columns(2)
+                                    .spacing([40.0, 4.0])
+                                    .striped(true)
+                                    .min_col_width(ui.available_width() / 2.0)
+                                    .show(ui, |ui| {
+                                        ui.strong("Name ");
+                                        ui.strong("Value");
+                                        ui.end_row();
+
+                                        // Table rows
+                                        use egui_extras::syntax_highlighting::{
+                                            CodeTheme, code_view_ui,
+                                        };
+                                        let theme = CodeTheme::from_style(&style);
+                                        for (name, value) in &message.variables {
+                                            ui.label(name);
+                                            code_view_ui(ui, &theme, &value[..], "rs");
+                                            ui.end_row();
+                                        }
+                                    });
+                            },
+                        );
+                    });
+            });
         });
     });
 }
