@@ -6,16 +6,19 @@
 //! This works under the hood by forking the process and using IPC channels to communicate with a GUI server.
 //! Only supported on Unix-like systems (Linux, macOS, etc.).
 //! 
+//! This also allows you to "time travel" through your debug frames, letting you go back and forth through previous variable states.
+//! NOTE: This does not change the execution of your program, only debug's inspect history.
+//! 
 //! Usage:  
 //!     ```
 //!         mazer_dbg::inspect!(var1, var2, ...);
 //!     ```
-//! 
+//!
 
 use ipc_channel::ipc;
 use nix::unistd::{ForkResult, fork};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::process;
 use std::sync::{Arc, Mutex, OnceLock, Once};
 
@@ -39,6 +42,65 @@ struct DebugMessage {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DebugResponse {
     continue_execution: bool,
+}
+
+/// Debug frame history manager for time traveling
+/// 
+/// Stores all debug frames without limit to allow comprehensive debugging sessions.
+/// Memory usage grows with the number of inspect!() calls, but this provides maximum
+/// flexibility for debugging complex applications.
+#[derive(Debug, Clone)]
+struct DebugFrameHistory {
+    frames: VecDeque<DebugMessage>,
+    current_index: usize,
+}
+
+impl DebugFrameHistory {
+    fn new() -> Self {
+        Self {
+            frames: VecDeque::new(),
+            current_index: 0,
+        }
+    }
+
+    fn add_frame(&mut self, frame: DebugMessage) {
+        self.frames.push_back(frame);
+        self.current_index = self.frames.len().saturating_sub(1);
+    }
+
+    fn go_backward(&mut self) -> bool {
+        if self.current_index > 0 {
+            self.current_index -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn go_forward(&mut self) -> bool {
+        if self.current_index + 1 < self.frames.len() {
+            self.current_index += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn get_current_frame(&self) -> Option<&DebugMessage> {
+        self.frames.get(self.current_index)
+    }
+
+    fn can_go_backward(&self) -> bool {
+        self.current_index > 0
+    }
+
+    fn can_go_forward(&self) -> bool {
+        self.current_index + 1 < self.frames.len()
+    }
+
+    fn get_position_info(&self) -> (usize, usize) {
+        (self.current_index + 1, self.frames.len())
+    }
 }
 
 // Global channels for bidirectional communication
@@ -126,10 +188,13 @@ fn debug_server_process(
     rx: ipc::IpcReceiver<DebugMessage>,
     response_tx: ipc::IpcSender<DebugResponse>,
 ) {
+    let mut frame_history = DebugFrameHistory::new();
+    
     loop {
         match rx.recv() {
             Ok(message) => {
-                show_debug_gui(&message);
+                frame_history.add_frame(message);
+                show_debug_gui_with_history(&mut frame_history);
 
                 // Send response to continue execution
                 let response = DebugResponse {
@@ -190,108 +255,157 @@ fn copy_to_clipboard(text: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Show GUI window with debug variables (blocking until window is closed)
-fn show_debug_gui(message: &DebugMessage) {
+/// Show GUI window with debug variables and time traveling functionality
+fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
     use eframe::egui;
+    use std::sync::{Arc, Mutex};
 
-    let filename = std::path::Path::new(&message.file)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(&message.file);
+    if let Some(current_message) = frame_history.get_current_frame() {
+        let filename = std::path::Path::new(&current_message.file)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&current_message.file);
 
-    let window_title = format!("[Mazer Debug] - {}:{}", filename, message.line);
+        let window_title = format!("[Mazer Debug] - {}:{}", filename, current_message.line);
 
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([900.0, 700.0])
-            .with_title(&window_title)
-            .with_resizable(true),
-        ..Default::default()
-    };
+        let options = eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_inner_size([900.0, 700.0])
+                .with_title(&window_title)
+                .with_resizable(true),
+            ..Default::default()
+        };
 
-    let message = message.clone();
-    let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
-        let mut style = (*ctx.style()).clone();
-        style.text_styles = [
-            (egui::TextStyle::Heading, egui::FontId::proportional(2.0)),
-            (egui::TextStyle::Body, egui::FontId::proportional(24.0)),
-            (egui::TextStyle::Monospace, egui::FontId::monospace(22.0)),
-            (egui::TextStyle::Button, egui::FontId::proportional(24.0)),
-            (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
-        ]
-        .into();
-        style.wrap_mode = Some(egui::TextWrapMode::Wrap);
-        if style.visuals.dark_mode {
-            style.visuals.override_text_color = Some(egui::Color32::WHITE);
-        } // otherwise it is god damn unreadable
-        ctx.set_style(style.clone());
+        let frame_history_arc = Arc::new(Mutex::new(frame_history.clone()));
+        let frame_history_gui = frame_history_arc.clone();
+        
+        let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
+            let mut style = (*ctx.style()).clone();
+            style.text_styles = [
+                (egui::TextStyle::Heading, egui::FontId::proportional(20.0)),
+                (egui::TextStyle::Body, egui::FontId::proportional(24.0)),
+                (egui::TextStyle::Monospace, egui::FontId::monospace(22.0)),
+                (egui::TextStyle::Button, egui::FontId::proportional(24.0)),
+                (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
+            ]
+            .into();
+            style.wrap_mode = Some(egui::TextWrapMode::Wrap);
+            if style.visuals.dark_mode {
+                style.visuals.override_text_color = Some(egui::Color32::WHITE);
+            }
+            ctx.set_style(style.clone());
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // Top panel for copy button
-            egui::TopBottomPanel::top("top_panel").show_inside(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button("📋").clicked() {
-                            let json_string = create_json_from_variables(&message.variables);
-                            if let Err(e) = copy_to_clipboard(&json_string) {
-                                eprintln!("Failed to copy to clipboard: {}", e);
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let mut frame_history_guard = frame_history_gui.lock().unwrap();
+                
+                // Top panel for navigation and copy button
+                egui::TopBottomPanel::top("top_panel").show_inside(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        // Time traveling controls on the left
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            let can_go_back = frame_history_guard.can_go_backward();
+                            let can_go_forward = frame_history_guard.can_go_forward();
+                            
+                            ui.add_enabled_ui(can_go_back, |ui| {
+                                if ui.button("⬅ Previous").clicked() {
+                                    frame_history_guard.go_backward();
+                                }
+                            });
+                            
+                            ui.add_enabled_ui(can_go_forward, |ui| {
+                                if ui.button("Next ➡").clicked() {
+                                    frame_history_guard.go_forward();
+                                }
+                            });
+
+                            let (current_pos, total_frames) = frame_history_guard.get_position_info();
+                            ui.label(format!("Frame {}/{}", current_pos, total_frames));
+                        });
+
+                        // Copy button on the right
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if let Some(current_frame) = frame_history_guard.get_current_frame() {
+                                if ui.button("📋").clicked() {
+                                    let json_string = create_json_from_variables(&current_frame.variables);
+                                    if let Err(e) = copy_to_clipboard(&json_string) {
+                                        eprintln!("Failed to copy to clipboard: {}", e);
+                                    }
+                                }
                             }
-                        }
+                        });
                     });
                 });
-            });
 
-            // Main content area
-            egui::CentralPanel::default().show_inside(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .max_width(f32::INFINITY)
-                    .auto_shrink([false; 2])
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-                    .show(ui, |ui| {
-                        ui.allocate_ui_with_layout(
-                            ui.available_size(),
-                            egui::Layout::left_to_right(egui::Align::Min),
-                            |ui| {
-                                egui::Grid::new("debug_table")
-                                    .num_columns(2)
-                                    .spacing([40.0, 4.0])
-                                    .striped(true)
-                                    .min_col_width(ui.available_width() / 2.0)
-                                    .show(ui, |ui| {
-                                        ui.strong("Name (Type, Size)");
-                                        ui.strong("Value");
-                                        ui.end_row();
+                // Main content area
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    if let Some(current_frame) = frame_history_guard.get_current_frame() {
+                        // Show current frame info
+                        ui.horizontal(|ui| {
+                            ui.strong("File:");
+                            ui.label(&current_frame.file);
+                            ui.strong("Line:");
+                            ui.label(current_frame.line.to_string());
+                            ui.strong("Column:");
+                            ui.label(current_frame.column.to_string());
+                        });
+                        ui.separator();
 
-                                        // Table rows
-                                        use egui_extras::syntax_highlighting::{
-                                            CodeTheme, code_view_ui,
-                                        };
-                                        let theme = CodeTheme::from_style(&style);
-                                        for (name, var_frame) in &message.variables {
-                                            // Format the name with type and size information
-                                            let size_info = if let Some(size) = var_frame.size_hint {
-                                                format!("{} bytes", size)
-                                            } else {
-                                                "unknown".to_string()
-                                            };
+                        egui::ScrollArea::vertical()
+                            .max_width(f32::INFINITY)
+                            .auto_shrink([false; 2])
+                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                            .show(ui, |ui| {
+                                ui.allocate_ui_with_layout(
+                                    ui.available_size(),
+                                    egui::Layout::left_to_right(egui::Align::Min),
+                                    |ui| {
+                                        egui::Grid::new("debug_table")
+                                            .num_columns(2)
+                                            .spacing([40.0, 4.0])
+                                            .striped(true)
+                                            .min_col_width(ui.available_width() / 2.0)
+                                            .show(ui, |ui| {
+                                                ui.strong("Name (Type, Size)");
+                                                ui.strong("Value");
+                                                ui.end_row();
 
-                                            let name_with_info = format!("{}\n\n\t{}\n\t{}\n",
-                                                name, 
-                                                size_info,
-                                                var_frame.type_name, 
-                                            );
+                                                // Table rows
+                                                use egui_extras::syntax_highlighting::{
+                                                    CodeTheme, code_view_ui,
+                                                };
+                                                let theme = CodeTheme::from_style(&style);
+                                                for (name, var_frame) in &current_frame.variables {
+                                                    // Format the name with type and size information
+                                                    let size_info = if let Some(size) = var_frame.size_hint {
+                                                        format!("{} bytes", size)
+                                                    } else {
+                                                        "unknown".to_string()
+                                                    };
 
-                                            ui.label(name_with_info);
-                                            code_view_ui(ui, &theme, &var_frame.value, "rs");
-                                            ui.end_row();
-                                        }
-                                    });
-                            },
-                        );
-                    });
+                                                    let name_with_info = format!("{}\n\n\t{}\n\t{}\n",
+                                                        name, 
+                                                        size_info,
+                                                        var_frame.type_name, 
+                                                    );
+
+                                                    ui.label(name_with_info);
+                                                    code_view_ui(ui, &theme, &var_frame.value, "rs");
+                                                    ui.end_row();
+                                                }
+                                            });
+                                    },
+                                );
+                            });
+                    }
+                });
             });
         });
-    });
+
+        // Update the original frame_history with any navigation changes
+        if let Ok(updated_history) = frame_history_arc.lock() {
+            *frame_history = updated_history.clone();
+        }
+    }
 }
 
 pub fn ensure_init() {

@@ -1,11 +1,15 @@
 [package]
 name = "mazer-dbg"
-version = "2.3.0"
+version = "2.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A debugging tool similar to Suneido's Inspect"
 documentation = "https://docs.rs/mazer-dbg/latest/mazer_dbg/"
 repository = "https://github.com/frroossst/mazer/tree/master/mazer-dbg"
+
+[[example]]
+name = "time_travel_demo"
+path = "examples/time_travel_demo.rs"
 
 [dependencies]
 eframe = "0.31.1"
