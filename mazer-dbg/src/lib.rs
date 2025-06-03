@@ -1,3 +1,17 @@
+//! A GUI-based variable inspection tool for Rust, useful for debugging without print statements.  
+//! At runtime, `inspect!(...)` opens a window displaying your variables with pretty formatting.  
+//! 
+//! This was inspired by Suneido's Inspect tool, which allows you to inspect variables in a GUI.  
+//! 
+//! This works under the hood by forking the process and using IPC channels to communicate with a GUI server.
+//! Only supported on Unix-like systems (Linux, macOS, etc.).
+//! 
+//! Usage:  
+//!     ```
+//!         mazer_dbg::inspect!(var1, var2, ...);
+//!     ```
+//! 
+
 use ipc_channel::ipc;
 use nix::unistd::{ForkResult, fork};
 use serde::{Deserialize, Serialize};
@@ -31,6 +45,7 @@ struct DebugResponse {
 static DEBUG_SENDER: OnceLock<Arc<Mutex<ipc::IpcSender<DebugMessage>>>> = OnceLock::new();
 static RESPONSE_RECEIVER: OnceLock<Arc<Mutex<ipc::IpcReceiver<DebugResponse>>>> = OnceLock::new();
 
+/// #[deprecated(since = "2.0.0", note = "No longer needed; `inspect!` auto-initializes, init() is still called internally!")]
 fn init() {
     let (debug_tx, debug_rx) = match ipc::channel() {
         Ok(channel) => channel,
