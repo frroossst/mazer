@@ -4,6 +4,8 @@ version = "2.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A debugging tool similar to Suneido's Inspect"
+documentation = "https://docs.rs/mazer-dbg/latest/mazer_dbg/"
+repository = "https://github.com/frroossst/mazer/tree/master/mazer-dbg"
 
 [dependencies]
 eframe = "0.31.1"
