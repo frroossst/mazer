@@ -7,7 +7,7 @@ mod tests {
     }
 
     #[test]
-    fn test_inbuilt_types() {
+    fn all_tests() {
         mazer_dbg::init();
 
         let x = 123;
@@ -15,11 +15,6 @@ mod tests {
         let z = vec![1, 2, 3];
 
         mazer_dbg::inspect!(x, y, z);
-    }
-
-    #[test]
-    fn test_complex_types() {
-        mazer_dbg::init();
 
         let a = vec![1, 2, 3, 4, 5];
         let b = std::collections::HashMap::from([
@@ -31,11 +26,6 @@ mod tests {
         let c = std::collections::LinkedList::from([1, 2, 3, 4, 5]);
 
         mazer_dbg::inspect!(a, b, c);
-    }
-
-    #[test]
-    fn test_custom_types() {
-           mazer_dbg::init();
 
         #[derive(Debug, Clone, Default)]
         struct Foo {
