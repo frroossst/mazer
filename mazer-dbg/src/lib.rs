@@ -221,6 +221,9 @@ fn show_debug_gui(message: &DebugMessage) {
         ]
         .into();
         style.wrap_mode = Some(egui::TextWrapMode::Wrap);
+        if style.visuals.dark_mode {
+            style.visuals.override_text_color = Some(egui::Color32::WHITE);
+        } // otherwise it is god damn unreadable
         ctx.set_style(style.clone());
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -271,13 +274,13 @@ fn show_debug_gui(message: &DebugMessage) {
                                             } else {
                                                 "unknown".to_string()
                                             };
-                                            
-                                            let name_with_info = format!("{}\n({}, {})", 
+
+                                            let name_with_info = format!("{}\n\n\t{}\n\t{}\n",
                                                 name, 
+                                                size_info,
                                                 var_frame.type_name, 
-                                                size_info
                                             );
-                                            
+
                                             ui.label(name_with_info);
                                             code_view_ui(ui, &theme, &var_frame.value, "rs");
                                             ui.end_row();
