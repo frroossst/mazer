@@ -5,14 +5,10 @@ use std::collections::BTreeMap;
 use std::process;
 use std::sync::{Arc, Mutex, OnceLock};
 
-
-
 #[cfg(test)]
 mod tests;
 #[cfg(not(unix))]
 compile_error!("This crate is only supported on Unix-like systems (Linux, macOS, etc.)");
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DebugMessage {
@@ -155,16 +151,10 @@ fn show_debug_gui(message: &DebugMessage) {
         ..Default::default()
     };
 
-    let message_clone = message.clone();
-
-    // --- Syntax highlighting setup ---
-    use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
-    let theme = CodeTheme::default();
-    // --- End syntax highlighting setup ---
-
+    let message = message.clone();
     let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
-        // Set larger font sizes
-        let mut style = (*ctx.style()).clone();
+        /*
+        let style = (*ctx.style()).clone();
         style.text_styles = [
             (egui::TextStyle::Heading, egui::FontId::proportional(2.0)),
             (egui::TextStyle::Body, egui::FontId::proportional(24.0)),
@@ -173,6 +163,7 @@ fn show_debug_gui(message: &DebugMessage) {
             (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
         ].into();
         ctx.set_style(style);
+        */
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical()
@@ -196,11 +187,13 @@ fn show_debug_gui(message: &DebugMessage) {
                                     ui.end_row();
 
                                     // Table rows
-                                    use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
+                                    use egui_extras::syntax_highlighting::{
+                                        CodeTheme, code_view_ui,
+                                    };
                                     let theme = CodeTheme::default();
-                                    for (name, value) in &message_clone.variables {
+                                    for (name, value) in &message.variables {
                                         ui.label(name);
-                                        // Use Rust syntax highlighting for all values
+                                        // Use Rust syntax highlighting for all values; font size is set globally via Monospace style
                                         code_view_ui(ui, &theme, &value[..], "rs");
                                         ui.end_row();
                                     }
