@@ -1,6 +1,11 @@
 #[cfg(test)]    
 mod tests {
 
+    mod mazer_dbg {
+        pub use crate::init;
+        pub use crate::inspect;
+    }
+
     #[test]
     fn test_inbuilt_types() {
         mazer_dbg::init();
@@ -63,14 +68,24 @@ mod tests {
             count: 2,
         };
 
-        #[derive(Debug, Clone, Default)]
+        #[derive(Debug, Clone)]
         struct Qux {
             foo: Foo,
             bar: Bar,
             baz: Baz,
-            qux: Box<Qux>,
+            qux: Option<Box<Qux>>,
         }
 
+        impl Default for Qux {
+            fn default() -> Self {
+                Qux {
+                    foo: Foo::default(),
+                    bar: Bar::default(),
+                    baz: Baz::default(),
+                    qux: None,
+                }
+            }
+        }
 
         let p5 = Qux {
             foo: Foo { x: 1, y: 2 },
@@ -82,7 +97,7 @@ mod tests {
                 items: vec![String::from("nested_item")],
                 count: 1,
             },
-            qux: Box::new(Default::default()),
+            qux: Some(Box::new(Qux::default())),
         };
 
         let p6 = Qux {
@@ -95,7 +110,7 @@ mod tests {
                 items: vec![String::from("another_item")],
                 count: 1,
             },
-            qux: Box::new(p5.clone()),
+            qux: Some(Box::new(p5.clone())),
         };
 
         mazer_dbg::inspect!(p1, p2, p3, p4, p5, p6);
