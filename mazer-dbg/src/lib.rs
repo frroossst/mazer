@@ -158,11 +158,18 @@ fn show_debug_gui(message: &DebugMessage) {
     let message_clone = message.clone();
 
     let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // Header with location information
-            ui.heading("🔍 Debug Breakpoint");
-            ui.separator();
+        // Set larger font sizes
+        let mut style = (*ctx.style()).clone();
+        style.text_styles = [
+            (egui::TextStyle::Heading, egui::FontId::proportional(2.0)),
+            (egui::TextStyle::Body, egui::FontId::proportional(24.0)),
+            (egui::TextStyle::Monospace, egui::FontId::monospace(22.0)),
+            (egui::TextStyle::Button, egui::FontId::proportional(24.0)),
+            (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
+        ].into();
+        ctx.set_style(style);
 
+        egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical()
                 .max_width(f32::INFINITY)
                 .auto_shrink([false; 2])
