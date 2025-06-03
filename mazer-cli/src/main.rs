@@ -87,8 +87,6 @@ lazy_static::lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    mazer_dbg::init();
-
     let args = <Args as clap::Parser>::parse();
 
     {
@@ -291,8 +289,6 @@ fn to_document(file_title: &str, content: String, file_path: &str) -> (Document,
     }
 
     let mut t: Lexer = Lexer::new(content, ErrCtx::new(Some(file_path)));
-
-    mazer_dbg::inspect!(t);
 
     let mut tokens: Vec<Token> = Vec::with_capacity(1024);
 

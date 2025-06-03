@@ -3,7 +3,7 @@ use nix::unistd::{ForkResult, fork};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::process;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Once};
 
 
 
@@ -11,7 +11,6 @@ use std::sync::{Arc, Mutex, OnceLock};
 mod tests;
 #[cfg(not(unix))]
 compile_error!("This crate is only supported on Unix-like systems (Linux, macOS, etc.)");
-
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -32,7 +31,7 @@ struct DebugResponse {
 static DEBUG_SENDER: OnceLock<Arc<Mutex<ipc::IpcSender<DebugMessage>>>> = OnceLock::new();
 static RESPONSE_RECEIVER: OnceLock<Arc<Mutex<ipc::IpcReceiver<DebugResponse>>>> = OnceLock::new();
 
-pub fn init() {
+fn init() {
     let (debug_tx, debug_rx) = match ipc::channel() {
         Ok(channel) => channel,
         Err(e) => {
@@ -251,9 +250,19 @@ fn show_debug_gui(message: &DebugMessage) {
     });
 }
 
+pub fn ensure_init() {
+    START.call_once(|| {
+        init(); 
+    });
+}
+
+
+static START: Once = Once::new();
+
 #[macro_export]
 macro_rules! inspect {
     ( $( $var:expr ),+ $(,)? ) => {{
+        $crate::ensure_init();
         use std::collections::BTreeMap;
         let mut map = BTreeMap::new();
         $(

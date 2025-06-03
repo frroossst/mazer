@@ -4,13 +4,12 @@
 mod tests {
 
     mod mazer_dbg {
-        pub use crate::init;
         pub use crate::inspect;
     }
 
     #[test]
     fn all_tests() {
-        mazer_dbg::init();
+        // mazer_dbg::init();
 
         let mut a = 69;
         mazer_dbg::inspect!(a);
