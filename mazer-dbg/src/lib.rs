@@ -165,6 +165,7 @@ fn show_debug_gui(message: &DebugMessage) {
             (egui::TextStyle::Button, egui::FontId::proportional(24.0)),
             (egui::TextStyle::Small, egui::FontId::proportional(18.0)),
         ].into();
+        style.wrap_mode = Some(egui::TextWrapMode::Wrap);
         ctx.set_style(style.clone());
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -183,18 +184,15 @@ fn show_debug_gui(message: &DebugMessage) {
                                 .striped(true)
                                 .min_col_width(ui.available_width() / 2.0)
                                 .show(ui, |ui| {
-                                    // Table headers
-                                    ui.strong("Variable Name");
+                                    ui.strong("Name ");
                                     ui.strong("Value");
                                     ui.end_row();
 
                                     // Table rows
                                     use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
-                                    // let theme = CodeTheme::default();
                                     let theme = CodeTheme::from_style(&style);
                                     for (name, value) in &message.variables {
                                         ui.label(name);
-                                        // Use Rust syntax highlighting for all values; font size is set globally via Monospace style
                                         code_view_ui(ui, &theme, &value[..], "rs");
                                         ui.end_row();
                                     }
@@ -202,14 +200,6 @@ fn show_debug_gui(message: &DebugMessage) {
                         },
                     );
                 });
-
-            ui.separator();
-            ui.horizontal(|ui| {
-                if ui.button("▶ Continue Execution").clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-                ui.label("Close this window to continue program execution");
-            });
         });
     });
 }
