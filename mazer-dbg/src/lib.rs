@@ -157,6 +157,11 @@ fn show_debug_gui(message: &DebugMessage) {
 
     let message_clone = message.clone();
 
+    // --- Syntax highlighting setup ---
+    use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
+    let theme = CodeTheme::default();
+    // --- End syntax highlighting setup ---
+
     let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
         // Set larger font sizes
         let mut style = (*ctx.style()).clone();
@@ -191,9 +196,12 @@ fn show_debug_gui(message: &DebugMessage) {
                                     ui.end_row();
 
                                     // Table rows
+                                    use egui_extras::syntax_highlighting::{code_view_ui, CodeTheme};
+                                    let theme = CodeTheme::default();
                                     for (name, value) in &message_clone.variables {
                                         ui.label(name);
-                                        ui.label(value);
+                                        // Use Rust syntax highlighting for all values
+                                        code_view_ui(ui, &theme, &value[..], "rs");
                                         ui.end_row();
                                     }
                                 });
