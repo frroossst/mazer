@@ -12,6 +12,11 @@ mod tests {
     fn all_tests() {
         mazer_dbg::init();
 
+        let mut a = 69;
+        mazer_dbg::inspect!(a);
+        a = a - 420;
+        mazer_dbg::inspect!(a);
+
         let x = 123;
         let y = "hello";
         let z = vec![1, 2, 3];
