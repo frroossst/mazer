@@ -7,10 +7,6 @@ description = "A debugging tool similar to Suneido's Inspect"
 documentation = "https://docs.rs/mazer-dbg/latest/mazer_dbg/"
 repository = "https://github.com/frroossst/mazer/tree/master/mazer-dbg"
 
-[[example]]
-name = "time_travel_demo"
-path = "examples/time_travel_demo.rs"
-
 [dependencies]
 eframe = "0.31.1"
 egui = "0.31.1"
