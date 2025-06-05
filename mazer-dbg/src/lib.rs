@@ -432,22 +432,22 @@ macro_rules! inspect {
         use std::collections::BTreeMap;
         let mut map = BTreeMap::new();
         $(
+        let var_name = stringify!($var).to_string();
+
         let type_name = std::any::type_name_of_val(&$var).to_string();
         let size_hint = std::mem::size_of_val(&$var);
 
         let vframe = $crate::VariableDebugFrame {
-            name: stringify!($var).to_string(),
+            name: var_name.clone(),
             value: format!("{:#?}", $var),
             type_name: type_name.clone(),
             size_hint: Some(size_hint),
         };
 
-            map.insert(stringify!($var).to_string(), vframe);
+            map.insert(var_name, vframe);
         )+
 
-
         // Send to debug server and wait for GUI to be closed (blocking)
-        // Capture file, line, and column information
         $crate::send_to_debug_server_and_wait(
             map.clone(),
             file!(),
