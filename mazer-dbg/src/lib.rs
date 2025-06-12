@@ -281,6 +281,8 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
 
         let frame_history_arc = Arc::new(Mutex::new(frame_history.clone()));
         let frame_history_gui = frame_history_arc.clone();
+        let show_backtrace = Arc::new(Mutex::new(false));
+        let show_backtrace_gui = show_backtrace.clone();
         
         let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
             let mut style = (*ctx.style()).clone();
@@ -325,7 +327,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                             ui.label(format!("Frame {}/{}", current_pos, total_frames));
                         });
 
-                        // Copy button on the right
+                        // Copy button and backtrace button on the right
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if let Some(current_frame) = frame_history_guard.get_current_frame() {
                                 if ui.button("📋").clicked() {
@@ -333,6 +335,10 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                                     if let Err(e) = copy_to_clipboard(&json_string) {
                                         eprintln!("Failed to copy to clipboard: {}", e);
                                     }
+                                }
+                                
+                                if ui.button("📋 Backtrace").clicked() {
+                                    *show_backtrace_gui.lock().unwrap() = true;
                                 }
                             }
                         });
@@ -402,6 +408,77 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                     }
                 });
             });
+
+            // Backtrace window
+            let mut show_backtrace_state = show_backtrace_gui.lock().unwrap();
+            if *show_backtrace_state {
+                let mut open = true;
+                egui::Window::new("🔍 Call Stack / Backtrace")
+                    .open(&mut open)
+                    .default_width(800.0)
+                    .default_height(600.0)
+                    .resizable(true)
+                    .collapsible(false)
+                    .show(ctx, |ui| {
+                        let frame_history_guard = frame_history_gui.lock().unwrap();
+                        if let Some(current_frame) = frame_history_guard.get_current_frame() {
+                            ui.horizontal(|ui| {
+                                ui.strong("Backtrace for:");
+                                ui.label(format!("{}:{}", current_frame.file, current_frame.line));
+                                ui.separator();
+                                if ui.button("📋 Copy").clicked() {
+                                    if let Err(e) = copy_to_clipboard(&current_frame.backtrace) {
+                                        eprintln!("Failed to copy backtrace to clipboard: {}", e);
+                                    }
+                                }
+                            });
+                            ui.separator();
+
+                            egui::ScrollArea::vertical()
+                                .max_width(f32::INFINITY)
+                                .auto_shrink([false; 2])
+                                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                                .show(ui, |ui| {
+                                    // Format and display the backtrace nicely
+                                    let backtrace_lines: Vec<&str> = current_frame.backtrace.lines().collect();
+                                    
+                                    for line in backtrace_lines.iter() {
+                                        let line = line.trim();
+                                        if line.is_empty() {
+                                            continue;
+                                        }
+
+                                        ui.horizontal(|ui| {
+                                            // Determine line color and styling based on content
+                                            if line.contains("::") && (line.contains(".rs:") || line.contains("src/")) {
+                                                // This looks like a Rust function call with file info
+                                                ui.colored_label(egui::Color32::LIGHT_BLUE, line);
+                                            } else if line.starts_with("at ") {
+                                                // File location line
+                                                ui.colored_label(egui::Color32::LIGHT_GREEN, line);
+                                            } else if line.contains("libstd") || line.contains("libcore") || line.contains("liballoc") {
+                                                // Standard library calls
+                                                ui.colored_label(egui::Color32::GRAY, line);
+                                            } else {
+                                                // Default formatting
+                                                ui.label(line);
+                                            }
+                                        });
+                                    }
+                                    
+                                    // If backtrace is empty or doesn't contain useful info
+                                    if backtrace_lines.is_empty() || backtrace_lines.len() < 2 {
+                                        ui.colored_label(egui::Color32::YELLOW, "⚠ Backtrace information not available or limited");
+                                        ui.label("Try enabling debug symbols or running in debug mode for more detailed backtraces.");
+                                    }
+                                });
+                        }
+                    });
+                
+                if !open {
+                    *show_backtrace_state = false;
+                }
+            }
         });
 
         // Update the original frame_history with any navigation changes
