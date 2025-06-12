@@ -37,6 +37,7 @@ struct DebugMessage {
     line: u32,
     column: u32,
     variables: BTreeMap<String, VariableDebugFrame>,
+    backtrace: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -151,6 +152,7 @@ pub fn send_to_debug_server_and_wait(
     file: &str,
     line: u32,
     column: u32,
+    backtrace: String,
 ) {
     if let (Some(sender), Some(receiver)) = (DEBUG_SENDER.get(), RESPONSE_RECEIVER.get()) {
         if let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock()) {
@@ -163,6 +165,7 @@ pub fn send_to_debug_server_and_wait(
                 line,
                 column,
                 variables,
+                backtrace,
             };
 
             if let Err(e) = sender.send(message) {
@@ -447,12 +450,15 @@ macro_rules! inspect {
             map.insert(var_name, vframe);
         )+
 
+        let bt = std::backtrace::Backtrace::force_capture();
+
         // Send to debug server and wait for GUI to be closed (blocking)
         $crate::send_to_debug_server_and_wait(
             map.clone(),
             file!(),
             line!(),
-            column!()
+            column!(),
+            format!("{}", bt)
         );
 
         map
