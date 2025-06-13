@@ -541,3 +541,15 @@ macro_rules! inspect {
         map
     }};
 }
+
+#[macro_export]
+/// A conditional version of inspect! that only inspects if the condition is true
+/// Does have the runtime cost of evaluating the condition, but avoids inspecting 
+/// variables when not needed
+macro_rules! inspect_when {
+    ($condition:expr, $( $var:expr ),+ $(,)? ) => {{
+        if $condition {
+            $crate::inspect!($($var),+);
+        }
+    }};
+}
