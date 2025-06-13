@@ -12,8 +12,17 @@
 //! Usage:  
 //!     ```
 //!         mazer_dbg::inspect!(var1, var2, ...);
+//!         mazer_dbg::inspect_when!(condition, var1, var2, ...);
 //!     ```
+//! 
+//! inspect!() will automatically initialize the debug server if it hasn't been done yet.
+//! 
+//! The library wraps in #[cfg(debug_assertions)] so it only compiles in debug builds. 
+//! No runtime cost in release builds, as all inspect!() calls are optimized out.
 //!
+
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 use ipc_channel::ipc;
 use nix::unistd::{ForkResult, fork};
@@ -109,6 +118,7 @@ static DEBUG_SENDER: OnceLock<Arc<Mutex<ipc::IpcSender<DebugMessage>>>> = OnceLo
 static RESPONSE_RECEIVER: OnceLock<Arc<Mutex<ipc::IpcReceiver<DebugResponse>>>> = OnceLock::new();
 
 /// #[deprecated(since = "2.0.0", note = "No longer needed; `inspect!` auto-initializes, init() is still called internally!")]
+#[cfg(debug_assertions)]
 fn init() {
     let (debug_tx, debug_rx) = match ipc::channel() {
         Ok(channel) => channel,
@@ -488,6 +498,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
     }
 }
 
+#[cfg(debug_assertions)]
 pub fn ensure_init() {
     START.call_once(|| {
         init(); 
@@ -508,37 +519,40 @@ pub struct VariableDebugFrame {
 #[macro_export]
 macro_rules! inspect {
     ( $( $var:expr ),+ $(,)? ) => {{
-        $crate::ensure_init();
-        use std::collections::BTreeMap;
-        let mut map = BTreeMap::new();
-        $(
-        let var_name = stringify!($var).to_string();
+        #[cfg(debug_assertions)]
+        {
+            $crate::ensure_init();
+            use std::collections::BTreeMap;
+            let mut map = BTreeMap::new();
+            $(
+            let var_name = stringify!($var).to_string();
 
-        let type_name = std::any::type_name_of_val(&$var).to_string();
-        let size_hint = std::mem::size_of_val(&$var);
+            let type_name = std::any::type_name_of_val(&$var).to_string();
+            let size_hint = std::mem::size_of_val(&$var);
 
-        let vframe = $crate::VariableDebugFrame {
-            name: var_name.clone(),
-            value: format!("{:#?}", $var),
-            type_name: type_name.clone(),
-            size_hint: Some(size_hint),
-        };
+            let vframe = $crate::VariableDebugFrame {
+                name: var_name.clone(),
+                value: format!("{:#?}", $var),
+                type_name: type_name.clone(),
+                size_hint: Some(size_hint),
+            };
 
-            map.insert(var_name, vframe);
-        )+
+                map.insert(var_name, vframe);
+            )+
 
-        let bt = std::backtrace::Backtrace::force_capture();
+            let bt = std::backtrace::Backtrace::force_capture();
 
-        // Send to debug server and wait for GUI to be closed (blocking)
-        $crate::send_to_debug_server_and_wait(
-            map.clone(),
-            file!(),
-            line!(),
-            column!(),
-            format!("{}", bt)
-        );
+            // Send to debug server and wait for GUI to be closed (blocking)
+            $crate::send_to_debug_server_and_wait(
+                map.clone(),
+                file!(),
+                line!(),
+                column!(),
+                format!("{}", bt)
+            );
 
-        map
+            map
+        }
     }};
 }
 
@@ -548,8 +562,11 @@ macro_rules! inspect {
 /// variables when not needed
 macro_rules! inspect_when {
     ($condition:expr, $( $var:expr ),+ $(,)? ) => {{
-        if $condition {
-            $crate::inspect!($($var),+);
+        #[cfg(debug_assertions)]
+        {
+            if $condition {
+                $crate::inspect!($($var),+);
+            }
         }
     }};
 }
