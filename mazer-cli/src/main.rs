@@ -88,7 +88,6 @@ lazy_static::lazy_static! {
 #[tokio::main]
 async fn main() {
     let args = <Args as clap::Parser>::parse();
-    mazer_dbg::inspect!(args);
 
     {
         let mut flag = VRBS.write().unwrap();

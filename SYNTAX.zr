@@ -1,39 +1,41 @@
-# Mazer magic
+# Heading 1
 
-### Evaluation and Interpretation
+## Heading 2
 
-let a = (+ 1 2 3 4 5 6 7 8 9);
+### Heading 3
 
-let b = (* 10 (* a 10));
+Bullet points
 
-The answer of b is eval(b)
-
-b can be writted as: fmt(b)
-
-
-
-fmt(matrix (1 2 3))
-fmt(matrix (1) (2) (3))
-
-let m1 = (matrix 1 2 3);
-
-let m2 = (matrix 4 5 6);
-
-let m3 = (dot m1 m2);
-
-eval(m3) // this works
+- First
+- Second
+- Third
 
 
-let m10 = (matrix (11 12 13));
+Checkboxes
 
-let m20 = (matrix (14 15 16));
+- [ ] Not done yet
+- [x] Done
+- [x] And done
+- [ ] Stilel not done :(
 
-let m30 = (dot m10 m20);
-
-eval(m30) // this results in an error saying "expected function got 1
 
 
-# Syntax and Semantics
+| Sr No. | Name | Age |
+---
+| 1 | John Doe | 25 |
+| 2 | Jane Doe | 23 |
+| 3 | John Smith | 30 |
+| 4 | Jane Smith | 28 |
+| 5 | John Brown | 35 |
+| 6 | Jane Brown | 33 |
+| 7 | John White | 40 |
+| 8 | Jane White | 38 |
+
+
+# This is where the mazer 🍁 magic ✨ begins! 
+
+
+## Syntax and Semantics
 
 ### matrix (1 1 1)
 
@@ -112,3 +114,9 @@ fmt(
         (matrix (4) (5) (6))
     )
 )
+
+// let m0 = (matrix 1 2 3)
+// let m1 = (matrix 4 5 6)
+// fmt(dot m0 m1) prints the full expanded matrix (recursive)
+// fmt(dot (quote m0 m1)) only prints m0 . m1
+
