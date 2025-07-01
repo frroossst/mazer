@@ -34,7 +34,7 @@ impl LispErr {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum LispExpr {
     Number(f64),
     String(String),
@@ -44,6 +44,32 @@ pub enum LispExpr {
     Nil,
     /// okay to skip as users cannot create functions directly in the source code
     Function(fn(Vec<LispExpr>, &Environment) -> Result<LispExpr, LispErr>),
+}
+
+impl PartialEq for LispExpr {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LispExpr::Number(a), LispExpr::Number(b)) => a == b,
+            (LispExpr::String(a), LispExpr::String(b)) => a == b,
+            (LispExpr::Symbol(a), LispExpr::Symbol(b)) => a == b,
+            (LispExpr::Boolean(a), LispExpr::Boolean(b)) => a == b,
+            (LispExpr::Nil, LispExpr::Nil) => true,
+            // lists are equal if they have the same elements in the same order
+            (LispExpr::List(a), LispExpr::List(b)) => {
+                if a.len() != b.len() {
+                    return false;
+                }
+                a.iter().zip(b.iter()).all(|(x, y)| x == y)
+            }
+            (LispExpr::Function(foo), LispExpr::Function(bar)) => {
+                // functions must have the same signature to be considered equal
+                let foo_str = format!("{:p}", foo);
+                let bar_str = format!("{:p}", bar);
+                foo_str == bar_str
+            }
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for LispExpr {

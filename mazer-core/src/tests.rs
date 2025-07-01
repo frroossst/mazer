@@ -249,6 +249,9 @@ mod parser_tests {
             LispExpr::Nil
         };
         assert_eq!(first, LispExpr::Symbol("+".to_string()));
+
+        
+
     }
 
     #[test]
