@@ -27,6 +27,19 @@ x = 123
 y = 123
 ```
 
+# important data
+
+| Sr No. | Name | Age |
+---
+| 1 | John Doe | 25 |
+| 2 | Jane Doe | 23 |
+| 3 | John Smith | 30 |
+| 4 | Jane Smith | 28 |
+| 5 | John Brown | 35 |
+| 6 | Jane Brown | 33 |
+| 7 | John White | 40 |
+| 8 | Jane White | 38 |
+
 // this does not appear in the final document
 // but the whitespace remains
 

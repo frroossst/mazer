@@ -1,6 +1,0 @@
-let answer = (
-    (/ (* 600 5) 2)
-);
-
-Answer = eval(answer)
-

@@ -2,9 +2,15 @@ use std::time::Instant;
 
 pub struct Timer(Option<Instant>);
 
+impl Default for Timer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Timer {
     pub fn new() -> Self {
-        Self { 0: None }
+        Self(None)
     }
 
     pub fn start(&mut self) {

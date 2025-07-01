@@ -122,7 +122,7 @@ async fn main() {
                     }
                     Ok(None) => break,
                     Err(e) => {
-                        eprintln!("{:?}", e);
+                        eprintln!("{e:?}");
                         break;
                     }
                 }
@@ -199,8 +199,8 @@ async fn main() {
         let routes = index_route.or(serve_route).or(version_route);
 
         let port: u16 = 58050;
-        let link = format!("http://127.0.0.1:{}", port);
-        println!("Serving on {}", link);
+        let link = format!("http://127.0.0.1:{port}");
+        println!("Serving on {link}");
         println!("Press Ctrl+C to stop the server\n");
 
         if args.open {
@@ -225,7 +225,7 @@ async fn main() {
     if !args.dry_run {
         // create and write to file
         std::fs::create_dir_all("out").expect("Failed to create directory");
-        let mut file = std::fs::File::create(format!("out/{}.html", file_name_title))
+        let mut file = std::fs::File::create(format!("out/{file_name_title}.html"))
             .expect("Failed to create file");
         std::io::Write::write_all(&mut file, out.as_bytes()).expect("Failed to write to file");
     }
@@ -316,7 +316,7 @@ fn to_document(file_title: &str, content: String, file_path: &str) -> (Document,
                 "{} {} {}",
                 "[INFO]".yellow(),
                 "Lexing completed in",
-                format!("{}ms", t).magenta()
+                format!("{t}ms").magenta()
             )
         );
     }
@@ -427,7 +427,7 @@ fn to_document(file_title: &str, content: String, file_path: &str) -> (Document,
                 "{} {} {}",
                 "[INFO]".yellow(),
                 "Parsing completed in",
-                format!("{}ms", t).magenta()
+                format!("{t}ms").magenta()
             )
         );
     }

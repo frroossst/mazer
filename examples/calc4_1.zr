@@ -1,17 +1,12 @@
-# 15.1
+# Calculus 4 Summary Notes
 
-## Scalar Fields
-f(x) = f(x, y, z) defines a region in fmt(realNum), fmt(realNum^2), fmt(realNum^3), fmt(realNum^n)
+---
 
-===
+## Vector Calculus
 
-f(x) = f(x, y, z) defines a region in $(realNum), ${realNum^2}, ${realNum^3}, ${realNum^n}
+### Line Integrals 
 
-$( x^1 ) is a point in the region of f(x)
+(integral (dot F dr))
 
-f: fmt(realNum^N) -> fmt(realNum)
 
-$( forAll ) natural numbers ${ thereExists } another number! yay!
-
-fmt(integral(0, 10, x^2, dx))
 

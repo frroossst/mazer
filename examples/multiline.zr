@@ -1,5 +1,0 @@
-let x = integral(
-    0, 100,
-    "x",
-    "dx"
-);
