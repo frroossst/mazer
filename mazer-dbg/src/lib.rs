@@ -27,6 +27,7 @@
 use ipc_channel::ipc;
 use nix::unistd::{ForkResult, fork};
 use serde::{Deserialize, Serialize};
+use smartstring::alias::String;
 use std::collections::{BTreeMap, VecDeque};
 use std::process;
 use std::sync::{Arc, Mutex, OnceLock, Once};
@@ -171,7 +172,7 @@ pub fn send_to_debug_server_and_wait(
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as u64,
-                file: file.to_string(),
+                file: file.into(),
                 line,
                 column,
                 variables,
@@ -257,7 +258,7 @@ fn create_json_from_variables(variables: &BTreeMap<String, VariableDebugFrame>) 
         json_parts.push(format!("  \"{}_size\": \"{}\"", name, size_value));
     }
 
-    format!("{{\n{}\n}}", json_parts.join(",\n"))
+    format!("{{\n{}\n}}", json_parts.join(",\n")).into()
 }
 
 /// Copy text to clipboard
@@ -274,7 +275,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
     use std::sync::{Arc, Mutex};
 
     if let Some(current_message) = frame_history.get_current_frame() {
-        let filename = std::path::Path::new(&current_message.file)
+        let filename = std::path::Path::new(&*current_message.file)
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or(&current_message.file);
@@ -361,7 +362,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                         // Show current frame info
                         ui.horizontal(|ui| {
                             ui.strong("File:");
-                            ui.label(&current_frame.file);
+                            ui.label(&*current_frame.file);
                             ui.strong("Line:");
                             ui.label(current_frame.line.to_string());
                             ui.strong("Column:");
@@ -523,32 +524,34 @@ macro_rules! inspect {
         {
             $crate::ensure_init();
             use std::collections::BTreeMap;
-            let mut map = BTreeMap::new();
+            use smartstring::{SmartString, LazyCompact};
+            use $crate::VariableDebugFrame;
+            let mut map: BTreeMap<SmartString<LazyCompact>, VariableDebugFrame> = BTreeMap::new();
             $(
-            let var_name = stringify!($var).to_string();
+            let var_name: String = stringify!($var).into();
 
             let type_name = std::any::type_name_of_val(&$var).to_string();
             let size_hint = std::mem::size_of_val(&$var);
 
             let vframe = $crate::VariableDebugFrame {
-                name: var_name.clone(),
-                value: format!("{:#?}", $var),
-                type_name: type_name.clone(),
+                name: var_name.clone().into(),
+                value: format!("{:#?}", $var).into(),
+                type_name: type_name.clone().into(),
                 size_hint: Some(size_hint),
             };
 
-                map.insert(var_name, vframe);
+                map.insert(var_name.into(), vframe);
             )+
 
             let bt = std::backtrace::Backtrace::force_capture();
 
             // Send to debug server and wait for GUI to be closed (blocking)
             $crate::send_to_debug_server_and_wait(
-                map.clone(),
+                map.clone().into(),
                 file!(),
                 line!(),
                 column!(),
-                format!("{}", bt)
+                format!("{}", bt).into(),
             );
 
             map
