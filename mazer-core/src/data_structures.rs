@@ -1,14 +1,21 @@
-use faer::prelude::*;
-
 use crate::parser::{LispErr, LispExpr};
 
 #[allow(dead_code)]
-pub struct Matrix(Mat<f64>);
+pub struct Matrix {
+    rows: usize,
+    cols: usize,
+    rvec: Vec<f64>,
+    cvec: Vec<f64>,
+}
 
 impl Matrix {
     pub fn new(rows: usize, cols: usize) -> Self {
-        let mat = Mat::from_fn(rows, cols, |_, _| 0.0);
-        Self(mat)
+        Self {
+            rows,
+            cols,
+            rvec: Vec::new(),
+            cvec: Vec::new(),
+        }
     }
 
     pub fn list_to_vector(list: &[LispExpr]) -> Result<Vec<f64>, LispErr> {

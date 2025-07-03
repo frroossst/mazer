@@ -12,6 +12,4 @@ colored = "2.1.0"
 rayon = "1.10.0"
 regex = "1.11.1"
 smartstring = "1.0.1"
-faer = "0.21"
-# integrate = "0.1.11"
 
