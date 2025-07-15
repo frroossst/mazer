@@ -26,3 +26,4 @@ panic = "abort"
 codegen-backend = "cranelift"
 strip = "symbols"
 opt-level = 3
+

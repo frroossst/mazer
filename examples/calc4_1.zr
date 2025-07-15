@@ -1,12 +1,153 @@
-# Calculus 4 Summary Notes
+# Calculus 4 Summary 2025 Notes
 
 ---
 
-## Vector Calculus
+## Series and Sequences
 
-### Line Integrals 
 
-(integral (dot F dr))
+fmt(pow (-1 n))
 
+This series alternates between the elements {1, -1, 1, -1...}
+
+The series is divergent but we are unable to say whether it diverges to a certain
+number.
+
+
+fmt(frac (
+    (- (- pow (2n 2)) n) 1)
+    (- (+ (pow(5n 2) n)) 3)
+)
+
+Reduces to (divide every term by fmt(pow n 2))
+
+fmt(frac (2 5)
+
+
+fmt(
+    frac(
+        (cos n)
+        n
+    )
+)
+
+We know that cos(n) is restricted to the domain between -1 and 1
+
+Squeeze theorem,
+| cos n | <= 1
+
+-1 <= cos n <= 1
+
+-1/n <= (cos n) / n <= 1 / n
+
+0 <= (cos n) / n <= 0
+
+Thus, converges to 0.
+
+
+fmt(
+    (sqrt
+        (-
+            (+
+                (pow n 2)
+                2n
+            )
+            n
+        )
+    )
+)
+
+If we have a term (x - y) then the conjugate is (x + y)
+
+Thus, out conjufate is 
+
+fmt(
+    (sqrt
+        (+
+            (+
+                (pow n 2)
+                2n
+            )
+            n
+        )
+    )
+)
+
+
+To be compileted how to solve the above ^^
+
+
+fmt(
+    (*
+        n
+        (arctan (frac 1 n))
+    )
+)
+
+
+
+
+## Comparison Test
+
+
+
+## Limit Comparison Test
+
+Let an and bn be positive sequences, such that fmt(lim n inf (frac an bn)) = L ,
+L <= 0 or inf, then 
+
+    1. if L < inf and (sum 1 inf bn) converges then (sum 1 inf an) converges
+
+    2. if L > 0 and (sum 1 inf bn) diverges then (sum 1 inf an) diverges
+
+
+fmt(
+    sum(
+        1
+        inf
+        (frac
+            1
+            (+ 1 sqrt(n))
+        )
+    )
+)
+
+
+fmt(
+    (sum
+        1
+        inf
+        (frac
+            (+ n 5)
+            (+ (-(pow n 3) 2n) 3)
+        )
+    )
+)
+
+fmt(
+    (sum
+    (= n 1)
+    inf
+    (frac
+        (pow 99 n)
+        (fac n)
+    )
+    )
+)
+
+fmt(
+    (sum
+    (= n 1)
+    inf
+    (frac
+        (fac
+            (* 2 n)
+        )
+        (pow (fac n) 2) 
+    )
+    )
+)
+
+
+## Vector and Scalar Fields
 
 
