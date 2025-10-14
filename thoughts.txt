@@ -1,0 +1,12 @@
+I want to re-write and re-structure this project as now I know a lot more than
+when I started this project
+
+I want this to be a scripting language that is feature complete lisp
+
+Write a fast markdown parser that can output HTML
+
+Each component of the lisp DSL will implement a render or display trait in Rust
+to ensure the produced MathML is uniform
+
+I also want to have a lot better errors and debug context
+
