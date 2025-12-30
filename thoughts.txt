@@ -1,3 +1,16 @@
+Minimal markdwon features
+    - #, ##, ###
+    - bold, italics, strikethrough
+    - links
+    - inline code, code blocks
+    - unordered lists, ordered lists
+    - checkboxes (clickable)
+    - blockquotes
+    - spoilers |adsf|
+    - --- dividers 
+    - images with sizes and dimensions
+    - tables (implemented with lisp DSL)
+
 I want to re-write and re-structure this project as now I know a lot more than
 when I started this project
 
@@ -10,3 +23,4 @@ to ensure the produced MathML is uniform
 
 I also want to have a lot better errors and debug context
 
+I also want to have a tree editor GUI for easily editing lisp sexprs graphically

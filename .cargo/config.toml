@@ -4,3 +4,4 @@ rustflags = ["-C", "link-arg=--ld-path=wild"]
 
 [gc.auto]
 frequency = "never"
+

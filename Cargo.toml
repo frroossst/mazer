@@ -5,7 +5,9 @@ members = [
     "mazer-core",
     "mazer-cli",
     "mazer-macros",
-    "mazer-dbg",
+    "mazer-html",
+    "mazer-md",
+    "mazer-dbg", 
 ]
 default-members = ["mazer-cli"]
 
@@ -26,4 +28,5 @@ panic = "abort"
 codegen-backend = "cranelift"
 strip = "symbols"
 opt-level = 3
+lto = "fat"
 
