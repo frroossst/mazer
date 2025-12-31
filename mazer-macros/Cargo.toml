@@ -1,8 +1,0 @@
-[package]
-name = "mazer-macros"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-description = "A minimal, simple math markup language that compiles to HTML, written in Rust"
-
-[dependencies]
