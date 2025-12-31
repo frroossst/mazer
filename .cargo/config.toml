@@ -5,3 +5,6 @@ rustflags = ["-C", "link-arg=--ld-path=wild"]
 [gc.auto]
 frequency = "never"
 
+[build]
+rustflags = ["-Clink-arg=-fuse-ld=lld", "-Zthreads=22"]
+
