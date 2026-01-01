@@ -13,6 +13,19 @@ if __name__ == "__main__":
     print("Hello, World!")
 ```
 
+```rust
+fn main() {
+    println!("Hello, World!");
+}
+```
+
+```scheme
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+```
+
 I like to write `code` snippets.
 
 ---

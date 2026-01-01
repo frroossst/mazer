@@ -1864,12 +1864,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "mazer-html"
+version = "0.0.0"
+dependencies = [
+ "bumpalo",
+ "mazer-parser",
+]
+
+[[package]]
+name = "mazer-lisp"
+version = "0.0.0"
+
+[[package]]
 name = "mazer-parser"
 version = "0.0.0"
 dependencies = [
  "rayon",
  "unicode-segmentation",
 ]
+
+[[package]]
+name = "mazer-render"
+version = "0.0.0"
 
 [[package]]
 name = "memchr"

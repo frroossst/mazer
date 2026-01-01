@@ -4,6 +4,9 @@ members = [
     "mazer-cli",
     "mazer-dbg",
     "mazer-parser",
+    "mazer-lisp",
+    "mazer-html",
+    "mazer-render",
 ]
 
 resolver = "3"

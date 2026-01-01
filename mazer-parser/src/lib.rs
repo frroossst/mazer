@@ -40,7 +40,7 @@ pub enum AST {
     BlockQuote { content: String },
     Spoiler { content: String },
     Link { text: String, url: String },
-    CodeBlock { language: String, code: String },
+    CodeBlock { language: Option<String>, code: String },
     InlineCode { code: String },
     Bold { text: String },
     Italic { text: String },
@@ -689,7 +689,8 @@ impl TokenParser {
                     let level = *level;
                     self.advance();
                     let text = self.collect_line_text();
-                    ast_nodes.push(AST::Header { level, text });
+
+                    ast_nodes.push(AST::Header { level: level.clamp(1, 6) , text });
                 }
                 Some(Token::BulletPoint) => {
                     self.advance();
@@ -725,9 +726,9 @@ impl TokenParser {
                 }
                 Some(Token::TripleBacktick) => {
                     self.advance();
-                    let mut language = String::new();
+                    let mut language = None;
                     if let Some(Token::Text(lang)) = self.peek(0) {
-                        language = lang.clone();
+                        language = Some(lang.clone());
                         self.advance();
                     }
 
@@ -897,7 +898,18 @@ mod tests {
         let ast = Parser::new(input).parse().unwrap();
         assert!(matches!(ast[0], AST::CodeBlock { .. }));
         if let AST::CodeBlock { language, .. } = &ast[0] {
-            assert_eq!(language, "rust");
+            assert_eq!(language, &Some("rust".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_code_block_no_language() {
+        let input = "```\nsome code\n```";
+        let ast = Parser::new(input).parse().unwrap();
+        assert!(matches!(ast[0], AST::CodeBlock { .. }));
+        if let AST::CodeBlock { language, code } = &ast[0] {
+            assert_eq!(language, &None);
+            assert_eq!(code, "some code\n");
         }
     }
 
