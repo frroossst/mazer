@@ -158,17 +158,24 @@ impl<'a> Tokenizer<'a> {
                     }
                     tokens.push(Token::Newline);
                 }
-                "#" if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) => {
-                    let mut level = 0;
-                    while self.peek(0) == Some("#") && level < 6 {
-                        self.advance();
-                        level += 1;
-                    }
-                    if self.peek(0) == Some(" ") {
-                        self.advance();
-                        tokens.push(Token::Header(level));
+                "#" => {
+                    // Only parse as header at start of line
+                    if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) {
+                        let mut level = 0;
+                        while self.peek(0) == Some("#") && level < 6 {
+                            self.advance();
+                            level += 1;
+                        }
+                        if self.peek(0) == Some(" ") {
+                            self.advance();
+                            tokens.push(Token::Header(level));
+                        } else {
+                            tokens.push(Token::Text("#".repeat(level as usize)));
+                        }
                     } else {
-                        tokens.push(Token::Text("#".repeat(level as usize)));
+                        // For # not at start of line, treat as text
+                        self.advance();
+                        tokens.push(Token::Text("#".to_string()));
                     }
                 }
                 "-" => {
@@ -254,12 +261,19 @@ impl<'a> Tokenizer<'a> {
                     self.advance();
                     tokens.push(Token::RightParen);
                 }
-                ">" if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) => {
-                    self.advance();
-                    if self.peek(0) == Some(" ") {
+                ">" => {
+                    // Only parse as blockquote at start of line
+                    if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) {
                         self.advance();
+                        if self.peek(0) == Some(" ") {
+                            self.advance();
+                        }
+                        tokens.push(Token::BlockQuote);
+                    } else {
+                        // For > not at start of line, treat as text
+                        self.advance();
+                        tokens.push(Token::Text(">".to_string()));
                     }
-                    tokens.push(Token::BlockQuote);
                 }
                 "*" => {
                     if self.peek(1) == Some("*") {
@@ -304,6 +318,13 @@ impl<'a> Tokenizer<'a> {
                     });
                     if !text.is_empty() {
                         tokens.push(Token::Text(text));
+                    } else {
+                        // Safety: if we didn't consume anything, advance to prevent infinite loop
+                        // This shouldn't happen in normal operation since all special chars are handled above
+                        if let Some(g) = self.peek(0) {
+                            tokens.push(Token::Text(g.to_string()));
+                            self.advance();
+                        }
                     }
                 }
             }
