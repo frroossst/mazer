@@ -171,49 +171,54 @@ impl<'a> Tokenizer<'a> {
                         tokens.push(Token::Text("#".repeat(level as usize)));
                     }
                 }
-                "-" if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) => {
-                    if self.peek(1) == Some("-") && self.peek(2) == Some("-") {
-                        let peek3 = self.peek(3);
-                        if peek3.is_none() || peek3 == Some("\n") || peek3 == Some(" ") {
-                            self.advance_by(3);
-                            tokens.push(Token::TripleDash);
+                "-" => {
+                    // Only check for special markdown syntax at start of line
+                    if self.pos == 0 || matches!(tokens.last(), Some(Token::Newline)) {
+                        if self.peek(1) == Some("-") && self.peek(2) == Some("-") {
+                            let peek3 = self.peek(3);
+                            if peek3.is_none() || peek3 == Some("\n") || peek3 == Some(" ") {
+                                self.advance_by(3);
+                                tokens.push(Token::TripleDash);
+                                continue;
+                            }
+                        }
+
+                        if self.peek(1) == Some("[") {
+                            self.advance_by(2);
+                            match self.peek(0) {
+                                Some(" ") if self.peek(1) == Some("]") => {
+                                    self.advance_by(2);
+                                    if self.peek(0) == Some(" ") {
+                                        self.advance();
+                                    }
+                                    tokens.push(Token::CheckboxUnchecked);
+                                    continue;
+                                }
+                                Some("x") | Some("X") if self.peek(1) == Some("]") => {
+                                    self.advance_by(2);
+                                    if self.peek(0) == Some(" ") {
+                                        self.advance();
+                                    }
+                                    tokens.push(Token::CheckboxChecked);
+                                    continue;
+                                }
+                                _ => {
+                                    tokens.push(Token::Text("-[".to_string()));
+                                    continue;
+                                }
+                            }
+                        }
+
+                        if self.peek(1) == Some(" ") {
+                            self.advance_by(2);
+                            tokens.push(Token::BulletPoint);
                             continue;
                         }
                     }
-
-                    if self.peek(1) == Some("[") {
-                        self.advance_by(2);
-                        match self.peek(0) {
-                            Some(" ") if self.peek(1) == Some("]") => {
-                                self.advance_by(2);
-                                if self.peek(0) == Some(" ") {
-                                    self.advance();
-                                }
-                                tokens.push(Token::CheckboxUnchecked);
-                                continue;
-                            }
-                            Some("x") | Some("X") if self.peek(1) == Some("]") => {
-                                self.advance_by(2);
-                                if self.peek(0) == Some(" ") {
-                                    self.advance();
-                                }
-                                tokens.push(Token::CheckboxChecked);
-                                continue;
-                            }
-                            _ => {
-                                tokens.push(Token::Text("-[".to_string()));
-                                continue;
-                            }
-                        }
-                    }
-
-                    if self.peek(1) == Some(" ") {
-                        self.advance_by(2);
-                        tokens.push(Token::BulletPoint);
-                    } else {
-                        self.advance();
-                        tokens.push(Token::Text("-".to_string()));
-                    }
+                    
+                    // For hyphens not at start of line or not followed by space, treat as text
+                    self.advance();
+                    tokens.push(Token::Text("-".to_string()));
                 }
                 "`" => {
                     if self.peek(1) == Some("`") && self.peek(2) == Some("`") {
@@ -739,10 +744,17 @@ impl TokenParser {
                         self.advance();
                     }
 
+                    eprintln!("DEBUG: Starting code block parsing at pos {}", self.pos);
                     let mut code = String::new();
+                    let mut iterations = 0;
                     while let Some(token) = self.peek(0) {
+                        iterations += 1;
+                        if iterations % 100 == 0 {
+                            eprintln!("DEBUG: Iteration {}, pos {}, token: {:?}", iterations, self.pos, token);
+                        }
                         match token {
                             Token::TripleBacktick => {
+                                eprintln!("DEBUG: Found closing backticks at pos {}", self.pos);
                                 self.advance();
                                 break;
                             }
@@ -756,6 +768,46 @@ impl TokenParser {
                             }
                             Token::Newline => {
                                 code.push('\n');
+                                self.advance();
+                            }
+                            Token::LeftParen => {
+                                code.push('(');
+                                self.advance();
+                            }
+                            Token::RightParen => {
+                                code.push(')');
+                                self.advance();
+                            }
+                            Token::LeftBracket => {
+                                code.push('[');
+                                self.advance();
+                            }
+                            Token::RightBracket => {
+                                code.push(']');
+                                self.advance();
+                            }
+                            Token::SingleBacktick => {
+                                code.push('`');
+                                self.advance();
+                            }
+                            Token::DoublePipe => {
+                                code.push_str("||");
+                                self.advance();
+                            }
+                            Token::DoubleStar => {
+                                code.push_str("**");
+                                self.advance();
+                            }
+                            Token::SingleStar => {
+                                code.push('*');
+                                self.advance();
+                            }
+                            Token::Underscore => {
+                                code.push('_');
+                                self.advance();
+                            }
+                            Token::Tilde => {
+                                code.push('~');
                                 self.advance();
                             }
                             _ => {
@@ -1085,5 +1137,24 @@ mod tests {
         // Check bullet points
         let bullet_count = ast.iter().filter(|node| matches!(node, AST::BulletPoint { .. })).count();
         assert_eq!(bullet_count, 2);
+    }
+
+    #[test]
+    fn test_scheme_in_codeblock() {
+        let input = r#"```scheme
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+```
+"#;
+        let ast = Parser::new(input).parse().unwrap();
+        assert_eq!(ast.len(), 1);
+        if let AST::CodeBlock { language, code } = &ast[0] {
+            assert_eq!(language, &Some("scheme".to_string()));
+            assert!(code.contains("factorial"));
+        } else {
+            panic!("Expected CodeBlock, got {:?}", ast[0]);
+        }
     }
 }
