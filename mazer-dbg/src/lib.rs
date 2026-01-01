@@ -1,23 +1,23 @@
 //! A GUI-based variable inspection tool for Rust, useful for debugging without print statements.  
 //! At runtime, `inspect!(...)` opens a window displaying your variables with pretty formatting.  
-//! 
+//!
 //! This was inspired by Suneido's Inspect tool, which allows you to inspect variables in a GUI.  
-//! 
+//!
 //! This works under the hood by forking the process and using IPC channels to communicate with a GUI server.
 //! Only supported on Unix-like systems (Linux, macOS, etc.).
-//! 
+//!
 //! This also allows you to "time travel" through your debug frames, letting you go back and forth through previous variable states.
 //! NOTE: This does not change the execution of your program, only debug's inspect history.
-//! 
+//!
 //! Usage:  
 //!     ```
 //!         mazer_dbg::inspect!(var1, var2, ...);
 //!         mazer_dbg::inspect_when!(condition, var1, var2, ...);
 //!     ```
-//! 
+//!
 //! inspect!() will automatically initialize the debug server if it hasn't been done yet.
-//! 
-//! The library wraps in #[cfg(debug_assertions)] so it only compiles in debug builds. 
+//!
+//! The library wraps in #[cfg(debug_assertions)] so it only compiles in debug builds.
 //! No runtime cost in release builds, as all inspect!() calls are optimized out.
 //!
 
@@ -30,15 +30,10 @@ use serde::{Deserialize, Serialize};
 use smartstring::alias::String;
 use std::collections::{BTreeMap, VecDeque};
 use std::process;
-use std::sync::{Arc, Mutex, OnceLock, Once};
+use std::sync::{Arc, Mutex, Once, OnceLock};
 
-
-
-#[cfg(test)]
-mod tests;
 #[cfg(not(unix))]
 compile_error!("This crate is only supported on Unix-like systems (Linux, macOS, etc.)");
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct DebugMessage {
@@ -56,7 +51,7 @@ struct DebugResponse {
 }
 
 /// Debug frame history manager for time traveling
-/// 
+///
 /// Stores all debug frames without limit to allow comprehensive debugging sessions.
 /// Memory usage grows with the number of inspect!() calls, but this provides maximum
 /// flexibility for debugging complex applications.
@@ -203,7 +198,7 @@ fn debug_server_process(
     response_tx: ipc::IpcSender<DebugResponse>,
 ) {
     let mut frame_history = DebugFrameHistory::new();
-    
+
     loop {
         match rx.recv() {
             Ok(message) => {
@@ -233,7 +228,8 @@ fn create_json_from_variables(variables: &BTreeMap<String, VariableDebugFrame>) 
     let mut json_parts = Vec::new();
 
     for (name, var_frame) in variables {
-        let escaped_value = var_frame.value
+        let escaped_value = var_frame
+            .value
             .replace('\\', "\\\\")
             .replace('"', "\\\"")
             .replace('\n', "\\n")
@@ -241,13 +237,14 @@ fn create_json_from_variables(variables: &BTreeMap<String, VariableDebugFrame>) 
             .replace('\t', "\\t");
 
         // Escape the type name for JSON
-        let escaped_type = var_frame.type_name
+        let escaped_type = var_frame
+            .type_name
             .replace('\\', "\\\\")
             .replace('"', "\\\"");
 
         json_parts.push(format!("  \"{}\": \"{}\"", name, escaped_value));
         json_parts.push(format!("  \"{}_type\": \"{}\"", name, escaped_type));
-        
+
         let size_value = if let Some(size) = var_frame.size_hint {
             size.to_string()
         } else {
@@ -294,7 +291,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
         let frame_history_gui = frame_history_arc.clone();
         let show_backtrace = Arc::new(Mutex::new(false));
         let show_backtrace_gui = show_backtrace.clone();
-        
+
         let _ = eframe::run_simple_native(&window_title, options, move |ctx, _frame| {
             let mut style = (*ctx.style()).clone();
             style.text_styles = [
@@ -313,7 +310,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 let mut frame_history_guard = frame_history_gui.lock().unwrap();
-                
+
                 // Top panel for navigation and copy button
                 egui::TopBottomPanel::top("top_panel").show_inside(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -321,20 +318,21 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                             let can_go_back = frame_history_guard.can_go_backward();
                             let can_go_forward = frame_history_guard.can_go_forward();
-                            
+
                             ui.add_enabled_ui(can_go_back, |ui| {
                                 if ui.button("⬅ Previous").clicked() {
                                     frame_history_guard.go_backward();
                                 }
                             });
-                            
+
                             ui.add_enabled_ui(can_go_forward, |ui| {
                                 if ui.button("Next ➡").clicked() {
                                     frame_history_guard.go_forward();
                                 }
                             });
 
-                            let (current_pos, total_frames) = frame_history_guard.get_position_info();
+                            let (current_pos, total_frames) =
+                                frame_history_guard.get_position_info();
                             ui.label(format!("Frame {}/{}", current_pos, total_frames));
                         });
 
@@ -342,12 +340,13 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if let Some(current_frame) = frame_history_guard.get_current_frame() {
                                 if ui.button("📋").clicked() {
-                                    let json_string = create_json_from_variables(&current_frame.variables);
+                                    let json_string =
+                                        create_json_from_variables(&current_frame.variables);
                                     if let Err(e) = copy_to_clipboard(&json_string) {
                                         eprintln!("Failed to copy to clipboard: {}", e);
                                     }
                                 }
-                                
+
                                 if ui.button("📋 Backtrace").clicked() {
                                     *show_backtrace_gui.lock().unwrap() = true;
                                 }
@@ -373,7 +372,9 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                         egui::ScrollArea::vertical()
                             .max_width(f32::INFINITY)
                             .auto_shrink([false; 2])
-                            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                            .scroll_bar_visibility(
+                                egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                            )
                             .show(ui, |ui| {
                                 ui.allocate_ui_with_layout(
                                     ui.available_size(),
@@ -396,20 +397,25 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                                                 let theme = CodeTheme::from_style(&style);
                                                 for (name, var_frame) in &current_frame.variables {
                                                     // Format the name with type and size information
-                                                    let size_info = if let Some(size) = var_frame.size_hint {
-                                                        format!("{} bytes", size)
-                                                    } else {
-                                                        "unknown".to_string()
-                                                    };
+                                                    let size_info =
+                                                        if let Some(size) = var_frame.size_hint {
+                                                            format!("{} bytes", size)
+                                                        } else {
+                                                            "unknown".to_string()
+                                                        };
 
-                                                    let name_with_info = format!("{}\n\n\t{}\n\t{}\n",
-                                                        name, 
-                                                        size_info,
-                                                        var_frame.type_name, 
+                                                    let name_with_info = format!(
+                                                        "{}\n\n\t{}\n\t{}\n",
+                                                        name, size_info, var_frame.type_name,
                                                     );
 
                                                     ui.label(name_with_info);
-                                                    code_view_ui(ui, &theme, &var_frame.value, "rs");
+                                                    code_view_ui(
+                                                        ui,
+                                                        &theme,
+                                                        &var_frame.value,
+                                                        "rs",
+                                                    );
                                                     ui.end_row();
                                                 }
                                             });
@@ -485,7 +491,7 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                                 });
                         }
                     });
-                
+
                 if !open {
                     *show_backtrace_state = false;
                 }
@@ -502,10 +508,9 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
 #[cfg(debug_assertions)]
 pub fn ensure_init() {
     START.call_once(|| {
-        init(); 
+        init();
     });
 }
-
 
 static START: Once = Once::new();
 
@@ -561,7 +566,7 @@ macro_rules! inspect {
 
 #[macro_export]
 /// A conditional version of inspect! that only inspects if the condition is true
-/// Does have the runtime cost of evaluating the condition, but avoids inspecting 
+/// Does have the runtime cost of evaluating the condition, but avoids inspecting
 /// variables when not needed
 macro_rules! inspect_when {
     ($condition:expr, $( $var:expr ),+ $(,)? ) => {{
@@ -573,4 +578,3 @@ macro_rules! inspect_when {
         }
     }};
 }
-

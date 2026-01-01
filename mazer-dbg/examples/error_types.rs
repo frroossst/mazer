@@ -6,7 +6,7 @@ fn divide(a: f64, b: f64) -> Result<f64, String> {
         inspect!(a, b, error);
         return Err(error.to_string());
     }
-    
+
     let result = a / b;
     inspect!(a, b, result);
     Ok(result)

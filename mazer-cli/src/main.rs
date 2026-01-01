@@ -1,3 +1,6 @@
+use std::env;
+
 fn main() {
-    println!("Hello, world!");
+    let mut args = env::args();
+    let _program = args.next();
 }

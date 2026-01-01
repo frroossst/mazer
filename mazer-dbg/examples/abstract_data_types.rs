@@ -14,17 +14,22 @@ struct Database {
     connections: u32,
 }
 
-
 fn main() {
-
     let db = Database {
         users: vec![
-            User { id: 1, name: "Alice".to_string(), active: true },
-            User { id: 2, name: "Bob".to_string(), active: false },
+            User {
+                id: 1,
+                name: "Alice".to_string(),
+                active: true,
+            },
+            User {
+                id: 2,
+                name: "Bob".to_string(),
+                active: false,
+            },
         ],
         connections: 5,
     };
-    
+
     inspect!(db);
 }
-

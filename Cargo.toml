@@ -3,6 +3,7 @@ cargo-features = ["codegen-backend"]
 members = [
     "mazer-cli",
     "mazer-dbg",
+    "mazer-parser",
 ]
 
 resolver = "3"

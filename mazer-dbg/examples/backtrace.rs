@@ -13,7 +13,6 @@ fn fibonacci(n: u32) -> u32 {
 }
 
 fn main() {
-
     let n = 10;
     let r = fibonacci(n);
 

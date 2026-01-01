@@ -1,10 +1,6 @@
 use mazer_dbg::inspect;
 
-
-
-
 fn main() {
-
     let mut ll = std::collections::LinkedList::new();
     ll.push_back("1");
     ll.push_front("2");
@@ -34,5 +30,4 @@ fn main() {
     bt.insert("e", 5);
 
     inspect!(ll, vec, map, set, bt);
-
 }

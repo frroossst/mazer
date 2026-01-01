@@ -7,7 +7,7 @@ fn main() {
     inspect!(x, name);
 
     // Second debug point
-    x += 10; 
+    x += 10;
     let y = vec![1, 2, 3, 4, 5];
     let status = "Second checkpoint";
     inspect!(x, y, status);
@@ -15,10 +15,7 @@ fn main() {
     // Third debug point
     x += 5;
     let z = format!("Hello from frame {}", 3);
-    let data = std::collections::HashMap::from([
-        ("key1", "value1"),
-        ("key2", "value2"),
-    ]);
+    let data = std::collections::HashMap::from([("key1", "value1"), ("key2", "value2")]);
     inspect!(x, y, z, data);
 
     // Fourth debug point
