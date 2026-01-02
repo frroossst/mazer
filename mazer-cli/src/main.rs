@@ -1,5 +1,6 @@
 use std::env;
 
+use mazer_html::document::Document;
 use mazer_parser::Parser;
 
 struct Args<'a> {
@@ -30,6 +31,15 @@ fn main() {
     let p = Parser::new(&content);
     let r = p.parse().expect("failed to parse");
 
-    dbg!(r);
+    dbg!(&r);
+
+    let mut d = Document::new(r);
+    d.build();
+    let o = d.output();
+
+    dbg!(&o);
+
+    // write to /tmp/output.html
+    std::fs::write("/tmp/output.html", o).expect("Failed to write output");
 
 }

@@ -34,7 +34,7 @@ pub type Result<T> = std::result::Result<T, ParseError>;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AST {
     Header { level: u8, text: String },
-    BulletPoint { text: String },
+    UnorderedList { items: Vec<String> },
     CheckboxUnchecked { text: String },
     CheckboxChecked { text: String },
     BlockQuote { content: String },
@@ -47,8 +47,8 @@ pub enum AST {
     Underline { text: String },
     Strikethrough { text: String },
     PageSeparator,
-    EvalScheme { code: String },
-    ShowScheme { code: String },
+    EvalBlock { code: String },
+    ShowBlock { code: String },
     Text { content: String },
     Paragraph { children: Vec<AST> },
 }
@@ -397,6 +397,10 @@ impl TokenParser {
 
         while let Some(token) = self.peek(0) {
             match token {
+                // Stop parsing inline elements when we hit block-level tokens
+                Token::CheckboxUnchecked | Token::CheckboxChecked | Token::BlockQuote 
+                | Token::BulletPoint | Token::Header(_) | Token::TripleBacktick 
+                | Token::TripleDash => break,
                 Token::Newline if until_newline => break,
                 Token::Newline => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -666,9 +670,9 @@ impl TokenParser {
 
                             flush_text(&mut text_buffer, &mut elements);
                             if is_eval {
-                                elements.push(AST::EvalScheme { code: scheme_code });
+                                elements.push(AST::EvalBlock { code: scheme_code });
                             } else {
-                                elements.push(AST::ShowScheme { code: scheme_code });
+                                elements.push(AST::ShowBlock { code: scheme_code });
                             }
                             continue;
                         }
@@ -719,17 +723,27 @@ impl TokenParser {
                     ast_nodes.push(AST::Header { level: level.clamp(1, 6) , text });
                 }
                 Some(Token::BulletPoint) => {
-                    self.advance();
-                    let inline = self.parse_inline_elements(true);
-                    let text = inline
-                        .into_iter()
-                        .map(|node| match node {
-                            AST::Text { content } => content,
-                            AST::InlineCode { code } => format!("`{}`", code),
-                            _ => String::new(),
-                        })
-                        .collect::<String>();
-                    ast_nodes.push(AST::BulletPoint { text });
+                    // Collect all consecutive bullet points into a single UnorderedList
+                    let mut items = Vec::new();
+
+                    while matches!(self.peek(0), Some(Token::BulletPoint)) {
+                        self.advance();
+                        let inline = self.parse_inline_elements(true);
+                        let text = inline
+                            .into_iter()
+                            .map(|node| match node {
+                                AST::Text { content } => content,
+                                AST::InlineCode { code } => format!("`{}`", code),
+                                _ => String::new(),
+                            })
+                            .collect::<String>();
+                        items.push(text);
+
+                        // Skip newlines between bullet points
+                        self.skip_newlines();
+                    }
+
+                    ast_nodes.push(AST::UnorderedList { items });
                 }
                 Some(Token::CheckboxUnchecked) => {
                     self.advance();
@@ -765,17 +779,14 @@ impl TokenParser {
                         self.advance();
                     }
 
-                    eprintln!("DEBUG: Starting code block parsing at pos {}", self.pos);
                     let mut code = String::new();
                     let mut iterations = 0;
                     while let Some(token) = self.peek(0) {
                         iterations += 1;
                         if iterations % 100 == 0 {
-                            eprintln!("DEBUG: Iteration {}, pos {}, token: {:?}", iterations, self.pos, token);
                         }
                         match token {
                             Token::TripleBacktick => {
-                                eprintln!("DEBUG: Found closing backticks at pos {}", self.pos);
                                 self.advance();
                                 break;
                             }
@@ -933,8 +944,14 @@ mod tests {
     fn test_bullet_points() {
         let input = "- Item 1\n- Item 2";
         let ast = Parser::new(input).parse().unwrap();
-        assert_eq!(ast.len(), 2);
-        assert!(matches!(ast[0], AST::BulletPoint { .. }));
+        assert_eq!(ast.len(), 1);
+        if let AST::UnorderedList { items } = &ast[0] {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], "Item 1");
+            assert_eq!(items[1], "Item 2");
+        } else {
+            panic!("Expected UnorderedList");
+        }
     }
 
     #[test]
@@ -1010,8 +1027,8 @@ mod tests {
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
             AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::EvalScheme { .. })),
-            AST::EvalScheme { .. } => true,
+                children.iter().any(|c| matches!(c, AST::EvalBlock { .. })),
+            AST::EvalBlock { .. } => true,
             _ => false,
         }));
     }
@@ -1022,8 +1039,8 @@ mod tests {
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
             AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::ShowScheme { .. })),
-            AST::ShowScheme { .. } => true,
+                children.iter().any(|c| matches!(c, AST::ShowBlock { .. })),
+            AST::ShowBlock { .. } => true,
             _ => false,
         }));
     }
@@ -1043,9 +1060,9 @@ mod tests {
         let ast = Parser::new(input).parse().unwrap();
         assert!(
             ast.iter()
-                .any(|node| matches!(node, AST::EvalScheme { .. }))
+                .any(|node| matches!(node, AST::EvalBlock { .. }))
         );
-        if let AST::EvalScheme { code } = &ast[0] {
+        if let AST::EvalBlock { code } = &ast[0] {
             assert!(code.contains("(+ 1 1)"));
         }
     }
@@ -1083,10 +1100,11 @@ mod tests {
         let input = "- Item with emoji 📝";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::BulletPoint { text } = &ast[0] {
-            assert!(text.contains("📝"));
+        if let AST::UnorderedList { items } = &ast[0] {
+            assert_eq!(items.len(), 1);
+            assert!(items[0].contains("📝"));
         } else {
-            panic!("Expected AST::BulletPoint");
+            panic!("Expected AST::UnorderedList");
         }
     }
 
@@ -1155,9 +1173,14 @@ mod tests {
             assert!(text.contains("Celebration"));
         }
 
-        // Check bullet points
-        let bullet_count = ast.iter().filter(|node| matches!(node, AST::BulletPoint { .. })).count();
-        assert_eq!(bullet_count, 2);
+        // Check unordered list
+        let list_count = ast.iter().filter(|node| matches!(node, AST::UnorderedList { .. })).count();
+        assert_eq!(list_count, 1);
+
+        // Verify the list has 2 items
+        if let Some(AST::UnorderedList { items }) = ast.iter().find(|node| matches!(node, AST::UnorderedList { .. })) {
+            assert_eq!(items.len(), 2);
+        }
     }
 
     #[test]

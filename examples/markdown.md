@@ -4,6 +4,8 @@
 
 ### Baz
 
+#### Qux
+
 - Item 1
 - Item 2
 - Item 3
@@ -26,6 +28,12 @@ fn main() {
       (* n (factorial (- n 1)))))
 ```
 
+> This is a blockquote.
+
+Check this out [google!](https://www.google.com)
+
+I dont want to tell you my ||secret||.
+
 I like to write `code` snippets.
 
 ---
@@ -42,5 +50,13 @@ I like to write `code` snippets.
 Check this out [google!](https://www.google.com)
 
 I dont want to tell you my ||secret||.
+
+# New header
+
+I wanna write something (and provide some context).
+
+I like math (show (+ 1 1)) equals to (eval (+ 1 1)).
+
+- Item A
 
 
