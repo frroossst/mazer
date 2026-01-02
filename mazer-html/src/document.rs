@@ -1,4 +1,5 @@
-use mazer_parser::AST;
+use mazer_lisp::parser::Parser;
+use mazer_parser::MdAst;
 
 
 
@@ -12,12 +13,12 @@ enum FontKind {
 pub struct Document {
     head: String,
     body: Vec<String>,
-    nodes: Vec<AST>,
+    nodes: Vec<MdAst>,
 }
 
 impl Document {
 
-    pub fn new(nodes: Vec<AST>) -> Self {
+    pub fn new(nodes: Vec<MdAst>) -> Self {
 
         let head = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2232%22 font-size=%2232%22>🍁</text></svg>\"><script src=\"https://cdn.jsdelivr.net/npm/@arborium/arborium/dist/arborium.iife.js\" data-theme=\"github-light\" data-selector=\"pre code\"></script></head>";
 
@@ -50,62 +51,65 @@ impl Document {
         self.body.push(String::from(content));
     }
 
-    fn append_node(&mut self, node: AST) {
+    fn append_node(&mut self, node: MdAst) {
         match node {
-            AST::Header { level, text } => {
+            MdAst::Header { level, text } => {
                 self.append_header(level, text);
             },
-            AST::UnorderedList { items } => {
+            MdAst::UnorderedList { items } => {
                 self.append_unordered_list(items);
             },
-            AST::CheckboxUnchecked { text } => {
+            MdAst::CheckboxUnchecked { text } => {
                 self.append_checkbox(text, false);
             },
-            AST::CheckboxChecked { text } => {
+            MdAst::CheckboxChecked { text } => {
                 self.append_checkbox(text, true);
             },
-            AST::BlockQuote { content } => {
+            MdAst::BlockQuote { content } => {
                 self.append_blockquote(content);
             },
-            AST::Spoiler { content } => {
+            MdAst::Spoiler { content } => {
                 self.append_spoiler(content);
             },
-            AST::Link { text, url } => {
+            MdAst::Link { text, url } => {
                 self.append_link(text, url);
             },
-            AST::CodeBlock { code, language } => {
+            MdAst::CodeBlock { code, language } => {
                 self.append_codeblock(code, language);
             },
-            AST::InlineCode { code } => {
+            MdAst::InlineCode { code } => {
                 self.append_inline_code(code);
             },
-            AST::Bold { text } => {
+            MdAst::Bold { text } => {
                 self.append_text(text, FontKind::Bold);
             },
-            AST::Italic { text } => {
+            MdAst::Italic { text } => {
                 self.append_text(text, FontKind::Italic);
             },
-            AST::Underline { text } => {
+            MdAst::Underline { text } => {
                 self.append_text(text, FontKind::Underline);
             },
-            AST::Strikethrough { text } => {
+            MdAst::Strikethrough { text } => {
                 self.append_text(text, FontKind::Strikethrough);
             },
-            AST::PageSeparator => {
+            MdAst::PageSeparator => {
                 self.append_page_separator();
             },
-            AST::EvalBlock { code } => {
+            MdAst::EvalBlock { code } => {
+                dbg!(&code);
+                let p = Parser::new(&code).parse().map_err(|e| e.to_string()).unwrap();
+                dbg!(&p);
+                todo!();
+                self.append(&code);
+            },
+            MdAst::ShowBlock { code } => {
                 dbg!(&code);
                 self.append(&code);
             },
-            AST::ShowBlock { code } => {
-                dbg!(&code);
-                self.append(&code);
-            },
-            AST::Text { content } => {
+            MdAst::Text { content } => {
                 self.append(&content);
             },
-            AST::Paragraph { children } => {
+            MdAst::Paragraph { children } => {
                 for c in children {
                     self.append_node(c);
                 }

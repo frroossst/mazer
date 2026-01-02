@@ -4,6 +4,6 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
-bumpalo = "3.19.1"
 mazer-parser = { path = "../mazer-parser" }
+mazer-lisp = { path = "../mazer-lisp" }
 

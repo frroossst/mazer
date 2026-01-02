@@ -45,17 +45,25 @@ I like to write `code` snippets.
 
 ---
 
-> This is a blockquote.
+> This is a blockquote ALSO
 
 Check this out [google!](https://www.google.com)
 
-I dont want to tell you my ||secret||.
+I dont want to tell you my ||secret||. Aint no way
 
 # New header
 
 I wanna write something (and provide some context).
 
-I like math (show (+ 1 1)) equals to (eval (+ 1 1)).
+I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
+
+(eval
+    (+ 1 1)
+)
+
+(show
+    (+ 1 1)
+)
 
 - Item A
 

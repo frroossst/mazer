@@ -32,7 +32,7 @@ impl std::error::Error for ParseError {}
 pub type Result<T> = std::result::Result<T, ParseError>;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AST {
+pub enum MdAst {
     Header { level: u8, text: String },
     UnorderedList { items: Vec<String> },
     CheckboxUnchecked { text: String },
@@ -50,7 +50,7 @@ pub enum AST {
     EvalBlock { code: String },
     ShowBlock { code: String },
     Text { content: String },
-    Paragraph { children: Vec<AST> },
+    Paragraph { children: Vec<MdAst> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -383,13 +383,13 @@ impl TokenParser {
         text
     }
 
-    fn parse_inline_elements(&mut self, until_newline: bool) -> Vec<AST> {
+    fn parse_inline_elements(&mut self, until_newline: bool) -> Vec<MdAst> {
         let mut elements = Vec::new();
         let mut text_buffer = String::new();
 
-        let flush_text = |text_buffer: &mut String, elements: &mut Vec<AST>| {
+        let flush_text = |text_buffer: &mut String, elements: &mut Vec<MdAst>| {
             if !text_buffer.is_empty() {
-                elements.push(AST::Text {
+                elements.push(MdAst::Text {
                     content: std::mem::take(text_buffer),
                 });
             }
@@ -434,7 +434,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::InlineCode { code });
+                    elements.push(MdAst::InlineCode { code });
                 }
                 Token::DoublePipe => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -459,7 +459,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::Spoiler { content });
+                    elements.push(MdAst::Spoiler { content });
                 }
                 Token::DoubleStar => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -484,7 +484,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::Bold { text });
+                    elements.push(MdAst::Bold { text });
                 }
                 Token::SingleStar => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -509,7 +509,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::Italic { text });
+                    elements.push(MdAst::Italic { text });
                 }
                 Token::Underscore => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -534,7 +534,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::Underline { text });
+                    elements.push(MdAst::Underline { text });
                 }
                 Token::Tilde => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -559,7 +559,7 @@ impl TokenParser {
                             }
                         }
                     }
-                    elements.push(AST::Strikethrough { text });
+                    elements.push(MdAst::Strikethrough { text });
                 }
                 Token::LeftBracket => {
                     flush_text(&mut text_buffer, &mut elements);
@@ -607,7 +607,7 @@ impl TokenParser {
                                 }
                             }
                         }
-                        elements.push(AST::Link {
+                        elements.push(MdAst::Link {
                             text: link_text,
                             url,
                         });
@@ -670,9 +670,9 @@ impl TokenParser {
 
                             flush_text(&mut text_buffer, &mut elements);
                             if is_eval {
-                                elements.push(AST::EvalBlock { code: scheme_code });
+                                elements.push(MdAst::EvalBlock { code: scheme_code });
                             } else {
-                                elements.push(AST::ShowBlock { code: scheme_code });
+                                elements.push(MdAst::ShowBlock { code: scheme_code });
                             }
                             continue;
                         }
@@ -704,7 +704,7 @@ impl TokenParser {
         elements
     }
 
-    fn parse(&mut self) -> Vec<AST> {
+    fn parse(&mut self) -> Vec<MdAst> {
         let mut ast_nodes = Vec::new();
 
         while self.pos < self.tokens.len() {
@@ -720,7 +720,7 @@ impl TokenParser {
                     self.advance();
                     let text = self.collect_line_text();
 
-                    ast_nodes.push(AST::Header { level: level.clamp(1, 6) , text });
+                    ast_nodes.push(MdAst::Header { level: level.clamp(1, 6) , text });
                 }
                 Some(Token::BulletPoint) => {
                     // Collect all consecutive bullet points into a single UnorderedList
@@ -732,8 +732,8 @@ impl TokenParser {
                         let text = inline
                             .into_iter()
                             .map(|node| match node {
-                                AST::Text { content } => content,
-                                AST::InlineCode { code } => format!("`{}`", code),
+                                MdAst::Text { content } => content,
+                                MdAst::InlineCode { code } => format!("`{}`", code),
                                 _ => String::new(),
                             })
                             .collect::<String>();
@@ -743,26 +743,26 @@ impl TokenParser {
                         self.skip_newlines();
                     }
 
-                    ast_nodes.push(AST::UnorderedList { items });
+                    ast_nodes.push(MdAst::UnorderedList { items });
                 }
                 Some(Token::CheckboxUnchecked) => {
                     self.advance();
                     let text = self.collect_line_text();
-                    ast_nodes.push(AST::CheckboxUnchecked { text });
+                    ast_nodes.push(MdAst::CheckboxUnchecked { text });
                 }
                 Some(Token::CheckboxChecked) => {
                     self.advance();
                     let text = self.collect_line_text();
-                    ast_nodes.push(AST::CheckboxChecked { text });
+                    ast_nodes.push(MdAst::CheckboxChecked { text });
                 }
                 Some(Token::BlockQuote) => {
                     self.advance();
                     let content = self.collect_line_text();
-                    ast_nodes.push(AST::BlockQuote { content });
+                    ast_nodes.push(MdAst::BlockQuote { content });
                 }
                 Some(Token::TripleDash) => {
                     self.advance();
-                    ast_nodes.push(AST::PageSeparator);
+                    ast_nodes.push(MdAst::PageSeparator);
                 }
                 Some(Token::TripleBacktick) => {
                     self.advance();
@@ -848,7 +848,7 @@ impl TokenParser {
                         }
                     }
 
-                    ast_nodes.push(AST::CodeBlock { language, code });
+                    ast_nodes.push(MdAst::CodeBlock { language, code });
                 }
                 _ => {
                     let start_pos = self.pos;
@@ -857,7 +857,7 @@ impl TokenParser {
                         if inline.len() == 1 {
                             ast_nodes.push(inline.into_iter().next().unwrap());
                         } else {
-                            ast_nodes.push(AST::Paragraph { children: inline });
+                            ast_nodes.push(MdAst::Paragraph { children: inline });
                         }
                     }
                     if self.pos == start_pos {
@@ -880,7 +880,7 @@ impl<'a> Parser<'a> {
         Self { input }
     }
 
-    pub fn parse(&self) -> Result<Vec<AST>> {
+    pub fn parse(&self) -> Result<Vec<MdAst>> {
         if self.input.is_empty() {
             return Err(ParseError::EmptyInput);
         }
@@ -895,13 +895,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_sequential(&self) -> Result<Vec<AST>> {
+    fn parse_sequential(&self) -> Result<Vec<MdAst>> {
         let mut tokenizer = Tokenizer::new(self.input);
         let tokens = tokenizer.tokenize();
         Ok(Parser::parse_tokens(tokens))
     }
 
-    fn parse_parallel(&self) -> Result<Vec<AST>> {
+    fn parse_parallel(&self) -> Result<Vec<MdAst>> {
         let lines: Vec<&str> = self.input.lines().collect();
         let chunk_size = (lines.len() / rayon::current_num_threads()).max(50);
         let chunks: Vec<_> = lines
@@ -920,7 +920,7 @@ impl<'a> Parser<'a> {
             .collect())
     }
 
-    fn parse_tokens(tokens: Vec<Token>) -> Vec<AST> {
+    fn parse_tokens(tokens: Vec<Token>) -> Vec<MdAst> {
         let mut parser = TokenParser::new(tokens);
         parser.parse()
     }
@@ -935,9 +935,9 @@ mod tests {
         let input = "# Header 1\n## Header 2\n### Header 3";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 3);
-        assert!(matches!(ast[0], AST::Header { level: 1, .. }));
-        assert!(matches!(ast[1], AST::Header { level: 2, .. }));
-        assert!(matches!(ast[2], AST::Header { level: 3, .. }));
+        assert!(matches!(ast[0], MdAst::Header { level: 1, .. }));
+        assert!(matches!(ast[1], MdAst::Header { level: 2, .. }));
+        assert!(matches!(ast[2], MdAst::Header { level: 3, .. }));
     }
 
     #[test]
@@ -945,7 +945,7 @@ mod tests {
         let input = "- Item 1\n- Item 2";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::UnorderedList { items } = &ast[0] {
+        if let MdAst::UnorderedList { items } = &ast[0] {
             assert_eq!(items.len(), 2);
             assert_eq!(items[0], "Item 1");
             assert_eq!(items[1], "Item 2");
@@ -959,8 +959,8 @@ mod tests {
         let input = "-[ ] Unchecked\n-[x] Checked";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 2);
-        assert!(matches!(ast[0], AST::CheckboxUnchecked { .. }));
-        assert!(matches!(ast[1], AST::CheckboxChecked { .. }));
+        assert!(matches!(ast[0], MdAst::CheckboxUnchecked { .. }));
+        assert!(matches!(ast[1], MdAst::CheckboxChecked { .. }));
     }
 
     #[test]
@@ -968,9 +968,9 @@ mod tests {
         let input = "This is ||spoiled content|| here";
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
-            AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::Spoiler { .. })),
-            AST::Spoiler { .. } => true,
+            MdAst::Paragraph { children } =>
+                children.iter().any(|c| matches!(c, MdAst::Spoiler { .. })),
+            MdAst::Spoiler { .. } => true,
             _ => false,
         }));
     }
@@ -979,15 +979,15 @@ mod tests {
     fn test_link() {
         let input = "[Click here](https://example.com)";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(ast.iter().any(|node| matches!(node, AST::Link { .. })));
+        assert!(ast.iter().any(|node| matches!(node, MdAst::Link { .. })));
     }
 
     #[test]
     fn test_code_block() {
         let input = "```rust\nfn main() {}\n```";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(matches!(ast[0], AST::CodeBlock { .. }));
-        if let AST::CodeBlock { language, .. } = &ast[0] {
+        assert!(matches!(ast[0], MdAst::CodeBlock { .. }));
+        if let MdAst::CodeBlock { language, .. } = &ast[0] {
             assert_eq!(language, &Some("rust".to_string()));
         }
     }
@@ -996,8 +996,8 @@ mod tests {
     fn test_code_block_no_language() {
         let input = "```\nsome code\n```";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(matches!(ast[0], AST::CodeBlock { .. }));
-        if let AST::CodeBlock { language, code } = &ast[0] {
+        assert!(matches!(ast[0], MdAst::CodeBlock { .. }));
+        if let MdAst::CodeBlock { language, code } = &ast[0] {
             assert_eq!(language, &None);
             assert_eq!(code, "some code\n");
         }
@@ -1008,8 +1008,8 @@ mod tests {
         let input = "This is `inline code` here";
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
-            AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::InlineCode { .. })),
+            MdAst::Paragraph { children } =>
+                children.iter().any(|c| matches!(c, MdAst::InlineCode { .. })),
             _ => false,
         }));
     }
@@ -1018,7 +1018,7 @@ mod tests {
     fn test_page_separator() {
         let input = "---";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(matches!(ast[0], AST::PageSeparator));
+        assert!(matches!(ast[0], MdAst::PageSeparator));
     }
 
     #[test]
@@ -1026,9 +1026,9 @@ mod tests {
         let input = "Result: (eval (+ 1 1))";
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
-            AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::EvalBlock { .. })),
-            AST::EvalBlock { .. } => true,
+            MdAst::Paragraph { children } =>
+                children.iter().any(|c| matches!(c, MdAst::EvalBlock { .. })),
+            MdAst::EvalBlock { .. } => true,
             _ => false,
         }));
     }
@@ -1038,9 +1038,9 @@ mod tests {
         let input = "(show (matrix (1 1 1)))";
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
-            AST::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, AST::ShowBlock { .. })),
-            AST::ShowBlock { .. } => true,
+            MdAst::Paragraph { children } =>
+                children.iter().any(|c| matches!(c, MdAst::ShowBlock { .. })),
+            MdAst::ShowBlock { .. } => true,
             _ => false,
         }));
     }
@@ -1049,7 +1049,7 @@ mod tests {
     fn test_normal_parentheses() {
         let input = "This is a (Sentence).";
         let ast = Parser::new(input).parse().unwrap();
-        if let AST::Text { content } = &ast[0] {
+        if let MdAst::Text { content } = &ast[0] {
             assert!(content.contains("(Sentence)"));
         }
     }
@@ -1060,9 +1060,9 @@ mod tests {
         let ast = Parser::new(input).parse().unwrap();
         assert!(
             ast.iter()
-                .any(|node| matches!(node, AST::EvalBlock { .. }))
+                .any(|node| matches!(node, MdAst::EvalBlock { .. }))
         );
-        if let AST::EvalBlock { code } = &ast[0] {
+        if let MdAst::EvalBlock { code } = &ast[0] {
             assert!(code.contains("(+ 1 1)"));
         }
     }
@@ -1072,7 +1072,7 @@ mod tests {
         let input = "Hello 👋 World 🌍";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::Text { content } = &ast[0] {
+        if let MdAst::Text { content } = &ast[0] {
             assert!(content.contains("👋"));
             assert!(content.contains("🌍"));
             assert_eq!(content, "Hello 👋 World 🌍");
@@ -1086,7 +1086,7 @@ mod tests {
         let input = "# Header with emoji 🚀";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::Header { level, text } = &ast[0] {
+        if let MdAst::Header { level, text } = &ast[0] {
             assert_eq!(*level, 1);
             assert!(text.contains("🚀"));
             assert_eq!(text, "Header with emoji 🚀");
@@ -1100,7 +1100,7 @@ mod tests {
         let input = "- Item with emoji 📝";
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::UnorderedList { items } = &ast[0] {
+        if let MdAst::UnorderedList { items } = &ast[0] {
             assert_eq!(items.len(), 1);
             assert!(items[0].contains("📝"));
         } else {
@@ -1113,9 +1113,9 @@ mod tests {
         let input = "**Bold text 💪**";
         let ast = Parser::new(input).parse().unwrap();
         assert!(ast.iter().any(|node| match node {
-            AST::Bold { text } => text.contains("💪"),
-            AST::Paragraph { children } => children.iter().any(|c| match c {
-                AST::Bold { text } => text.contains("💪"),
+            MdAst::Bold { text } => text.contains("💪"),
+            MdAst::Paragraph { children } => children.iter().any(|c| match c {
+                MdAst::Bold { text } => text.contains("💪"),
                 _ => false,
             }),
             _ => false,
@@ -1126,7 +1126,7 @@ mod tests {
     fn test_multibyte_utf8_characters() {
         let input = "こんにちは世界 مرحبا بالعالم Привет мир";
         let ast = Parser::new(input).parse().unwrap();
-        if let AST::Text { content } = &ast[0] {
+        if let MdAst::Text { content } = &ast[0] {
             assert!(content.contains("こんにちは世界"));
             assert!(content.contains("مرحبا بالعالم"));
             assert!(content.contains("Привет мир"));
@@ -1140,7 +1140,7 @@ mod tests {
         // Skin tone modifiers are combining characters that should be treated as single graphemes
         let input = "👍🏽 thumbs up";
         let ast = Parser::new(input).parse().unwrap();
-        if let AST::Text { content } = &ast[0] {
+        if let MdAst::Text { content } = &ast[0] {
             assert!(content.contains("👍🏽"));
             assert_eq!(content, "👍🏽 thumbs up");
         } else {
@@ -1153,7 +1153,7 @@ mod tests {
         // Family emoji is a complex sequence: 👨‍👩‍👧‍👦
         let input = "Family: 👨‍👩‍👧‍👦";
         let ast = Parser::new(input).parse().unwrap();
-        if let AST::Text { content } = &ast[0] {
+        if let MdAst::Text { content } = &ast[0] {
             assert!(content.contains("👨‍👩‍👧‍👦"));
         } else {
             panic!("Expected AST::Text");
@@ -1167,18 +1167,18 @@ mod tests {
         assert!(ast.len() >= 2);
 
         // Check header
-        if let AST::Header { text, .. } = &ast[0] {
+        if let MdAst::Header { text, .. } = &ast[0] {
             assert!(text.contains("🎉"));
             assert!(text.contains("🎊"));
             assert!(text.contains("Celebration"));
         }
 
         // Check unordered list
-        let list_count = ast.iter().filter(|node| matches!(node, AST::UnorderedList { .. })).count();
+        let list_count = ast.iter().filter(|node| matches!(node, MdAst::UnorderedList { .. })).count();
         assert_eq!(list_count, 1);
 
         // Verify the list has 2 items
-        if let Some(AST::UnorderedList { items }) = ast.iter().find(|node| matches!(node, AST::UnorderedList { .. })) {
+        if let Some(MdAst::UnorderedList { items }) = ast.iter().find(|node| matches!(node, MdAst::UnorderedList { .. })) {
             assert_eq!(items.len(), 2);
         }
     }
@@ -1194,7 +1194,7 @@ mod tests {
 "#;
         let ast = Parser::new(input).parse().unwrap();
         assert_eq!(ast.len(), 1);
-        if let AST::CodeBlock { language, code } = &ast[0] {
+        if let MdAst::CodeBlock { language, code } = &ast[0] {
             assert_eq!(language, &Some("scheme".to_string()));
             assert!(code.contains("factorial"));
         } else {
