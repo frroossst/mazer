@@ -1,5 +1,3 @@
-use core::fmt;
-
 use fastnum::D512;
 
 

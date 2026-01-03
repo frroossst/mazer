@@ -27,6 +27,7 @@ impl Interpreter {
     }
 
     pub fn eval(&self, ast: &LispAST) -> LispAST {
+        dbg!(ast);
         todo!()
     }
 }
