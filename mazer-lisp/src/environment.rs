@@ -28,5 +28,10 @@ impl Environment {
         }
 
     }
+
+    #[inline]
+    pub fn bindings(&self) -> &HashMap<String, Vec<LispAST>> {
+        &self.bindings
+    }
 }
 
