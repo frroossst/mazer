@@ -1,7 +1,7 @@
 use fastnum::D512;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum LispAST {
     Symbol(String),
     Number(D512),

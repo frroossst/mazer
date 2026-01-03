@@ -1,7 +1,12 @@
-use mazer_lisp::parser::Parser;
+use mazer_lisp::{ast::LispAST, parser::Parser};
 use mazer_parser::MdAst;
 
 
+#[derive(Debug, Clone)]
+pub enum LispFragments {
+    Eval(LispAST),
+    Show(LispAST),
+}
 
 enum FontKind {
     Bold,
@@ -14,6 +19,7 @@ pub struct Document {
     head: String,
     body: Vec<String>,
     nodes: Vec<MdAst>,
+    frags: Vec<LispFragments>,
 }
 
 impl Document {
@@ -26,6 +32,7 @@ impl Document {
             head: String::from(head),
             body: Vec::new(),
             nodes,
+            frags: Vec::with_capacity(256),
         }
     }
 
@@ -96,14 +103,17 @@ impl Document {
                 self.append_page_separator();
             },
             MdAst::EvalBlock { code } => {
-                dbg!(&code);
-                let p = Parser::new(&code).parse().map_err(|e| e.to_string()).unwrap();
-                dbg!(&p);
-                todo!();
+                self.frags.push(LispFragments::Eval({
+                    let p  = Parser::new(&code).parse().map_err(|e| e.to_string()).expect("Failed to parse lisp code");
+                    p
+                }));
                 self.append(&code);
             },
             MdAst::ShowBlock { code } => {
-                dbg!(&code);
+                self.frags.push(LispFragments::Show({
+                    let p  = Parser::new(&code).parse().map_err(|e| e.to_string()).expect("Failed to parse lisp code");
+                    p
+                }));
                 self.append(&code);
             },
             MdAst::Text { content } => {
@@ -191,6 +201,10 @@ impl Document {
     #[inline]
     fn append_page_separator(&mut self) {
         self.append("<hr/>");
+    }
+
+    pub fn lisp_fragments(&self) -> Vec<LispFragments> {
+        self.frags.clone()
     }
 
 }

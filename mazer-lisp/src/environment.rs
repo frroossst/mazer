@@ -20,10 +20,7 @@ impl Default for Environment {
 impl Environment {
 
     pub fn with_stdlib() -> Self {
-        let i = vec![
-
-
-        ].into_iter();
+        let i = vec![].into_iter();
 
         Self {
             bindings: i.collect(),

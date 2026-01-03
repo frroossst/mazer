@@ -1,6 +1,7 @@
 use std::env;
 
 use mazer_html::document::Document;
+use mazer_lisp::environment::Environment;
 use mazer_parser::Parser;
 
 struct Args<'a> {
@@ -35,6 +36,12 @@ fn main() {
 
     let mut d = Document::new(r);
     d.build();
+
+    let ctx = Environment::with_stdlib();
+    let frg = d.lisp_fragments();
+
+    dbg!(frg);
+
     let o = d.output();
 
     dbg!(&o);

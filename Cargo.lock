@@ -1863,6 +1863,7 @@ name = "mazer-cli"
 version = "0.0.0"
 dependencies = [
  "mazer-html",
+ "mazer-lisp",
  "mazer-parser",
 ]
 
