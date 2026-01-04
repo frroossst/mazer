@@ -4,8 +4,9 @@ pub enum LispAST {
     Symbol(String),
     Number(fastnum::D512),
     Bool(bool),
+    String(String),
     List(Vec<LispAST>),
     Application { name: String, args: Vec<LispAST> },
-    NativeFunc(fn(&[LispAST]) -> Result<LispAST, String>),
     UserFunc { params: Vec<String>, body: Box<LispAST> },
+    NativeFunc(fn(&[LispAST]) -> Result<LispAST, String>),
 }

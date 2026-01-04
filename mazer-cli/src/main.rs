@@ -27,8 +27,6 @@ fn main() {
     let mut d = Document::new(r);
     d.build();
 
-    dbg!(d.body());
-
     let ctx = Environment::new().with_native().with_prelude();
     let frg = d.fragments();
     let mut interp = Interpreter::new(frg, ctx);

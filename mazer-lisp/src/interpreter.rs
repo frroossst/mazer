@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use mazer_types::LispAST;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::environment::Environment;
 
@@ -32,7 +33,7 @@ impl Interpreter {
     pub fn eval(&mut self, expr: LispAST) -> Result<LispAST, String> {
         match expr {
             LispAST::Error(e) => Err(e),
-            LispAST::Number(_) | LispAST::Bool(_) | LispAST::NativeFunc(_) | LispAST::UserFunc { .. } => Ok(expr),
+            LispAST::Number(_) | LispAST::Bool(_) | LispAST::String(_) | LispAST::NativeFunc(_) | LispAST::UserFunc { .. } => Ok(expr),
             
             LispAST::Symbol(ref s) => {
                 self.env.get(s)
@@ -49,8 +50,10 @@ impl Interpreter {
                         "define" => return self.eval_define(&exprs[1..]),
                         "defunc" => return self.eval_defunc(&exprs[1..]),
                         "if" => return self.eval_if(&exprs[1..]),
+                        "begin" => return self.eval_begin(&exprs[1..]),
                         "quote" => return exprs.get(1).cloned()
                             .ok_or_else(|| "quote requires 1 argument".to_string()),
+                        "string" => return self.eval_string(&exprs[1..]),
                         _ => {}
                     }
                 }
@@ -172,5 +175,66 @@ impl Interpreter {
             LispAST::Bool(false) => self.eval(args[2].clone()),
             _ => Err("if condition must be boolean".to_string()),
         }
+    }
+    
+    fn eval_begin(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+        if args.is_empty() {
+            return Err("begin requires at least 1 expression".to_string());
+        }
+        let mut result = LispAST::Bool(false);
+        for expr in args {
+            result = self.eval(expr.clone())?;
+        }
+        Ok(result)
+    }
+    
+    fn eval_string(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+        if args.len() != 1 {
+            return Err("string requires exactly 1 argument".to_string());
+        }
+        
+        // Evaluate the argument (e.g., to handle (quote ...) or other expressions)
+        // but if it's a simple symbol, don't fail on unbound
+        let value = match &args[0] {
+            LispAST::Symbol(_) | LispAST::Number(_) | LispAST::Bool(_) | LispAST::String(_) => {
+                // Simple literals - don't evaluate
+                args[0].clone()
+            }
+            _ => {
+                // Complex expressions like (quote ...) - evaluate them
+                self.eval(args[0].clone())?
+            }
+        };
+        
+        let string_repr = match &value {
+            LispAST::String(s) => s.clone(),
+            LispAST::Symbol(s) => s.clone(),
+            LispAST::Number(n) => n.to_string(),
+            LispAST::Bool(b) => b.to_string(),
+            LispAST::List(items) => {
+                // Convert list to string representation using graphemes
+                let parts: Vec<String> = items.iter()
+                    .map(|item| match item {
+                        LispAST::String(s) => s.clone(),
+                        LispAST::Symbol(s) => s.clone(),
+                        LispAST::Number(n) => n.to_string(),
+                        LispAST::Bool(b) => b.to_string(),
+                        _ => format!("{:?}", item),
+                    })
+                    .collect();
+                parts.join("")
+            }
+            _ => format!("{:?}", value),
+        };
+        
+        // Validate UTF-8 by collecting graphemes
+        let graphemes: Vec<&str> = string_repr.graphemes(true).collect();
+        let validated = graphemes.join("");
+        
+        Ok(LispAST::String(validated))
+    }
+    
+    pub fn env(&self) -> &Environment {
+        &self.env
     }
 }

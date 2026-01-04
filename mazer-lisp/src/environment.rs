@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use mazer_stdlib::{Native, Prelude};
 use mazer_types::LispAST;
 
-use crate::parser::Parser;
+use crate::{interpreter::Interpreter, parser::Parser};
 
 type EnvMap = HashMap<String, LispAST>;
 
@@ -20,10 +20,12 @@ impl Environment {
     pub fn with_prelude(&mut self) -> Self {
         let prelude = Prelude::new();
 
-        for (k, v) in prelude {
+        for (_k, v) in prelude {
             let mut parser = Parser::new(&v);
             let ast = parser.parse().expect("Failed to parse prelude function");
-            self.bindings.insert(k, ast);
+            let mut interp = Interpreter::new(std::collections::HashMap::new(), Self { bindings: self.bindings.clone() });
+            interp.eval(ast).expect("Failed to evaluate prelude function");
+            self.bindings = interp.env().bindings.clone();
         }
 
         Self { bindings: self.bindings.clone() }
@@ -36,6 +38,7 @@ impl Environment {
         env.insert("+".into(), mazer_types::LispAST::NativeFunc(Native::add));
         env.insert("-".into(), mazer_types::LispAST::NativeFunc(Native::sub));
 
+        env.insert("reflect".into(), mazer_types::LispAST::NativeFunc(Native::reflect));
         env.insert("print".into(), mazer_types::LispAST::NativeFunc(Native::print));
         env.insert("debug".into(), mazer_types::LispAST::NativeFunc(Native::debug));
 

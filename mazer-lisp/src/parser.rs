@@ -87,6 +87,26 @@ impl Parser {
     }
     
     pub fn parse(&mut self) -> Result<LispAST, String> {
+        let mut exprs = Vec::new();
+        
+        while self.pos < self.tokens.len() {
+            exprs.push(self.parse_one()?);
+        }
+        
+        if exprs.is_empty() {
+            return Err("No expressions to parse".to_string());
+        }
+        
+        if exprs.len() == 1 {
+            Ok(exprs.into_iter().next().unwrap())
+        } else {
+            let mut begin_list = vec![LispAST::Symbol("begin".to_string())];
+            begin_list.extend(exprs);
+            Ok(LispAST::List(begin_list))
+        }
+    }
+    
+    fn parse_one(&mut self) -> Result<LispAST, String> {
         match self.advance() {
             Some(LispToken::Number(n)) => Ok(LispAST::Number(*n)),
             Some(LispToken::Symbol(s)) => {
@@ -99,7 +119,7 @@ impl Parser {
             Some(LispToken::OpenParen) => {
                 let mut list = Vec::new();
                 while !matches!(self.peek(), Some(LispToken::CloseParen) | None) {
-                    list.push(self.parse()?);
+                    list.push(self.parse_one()?);
                 }
                 self.advance(); // consume CloseParen
                 Ok(LispAST::List(list))

@@ -58,27 +58,34 @@ I wanna write something (and provide some context).
 I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
 
 (eval
-    (defunc add (x y)
-        (+ x y)
-    )
-    (debug (add 5 3))
+    (debug (reflect +))
 )
 
 (eval
-    (if false
-        (debug false)
-        (debug true)
+    (begin
+        (define s (string hello))
+        (print s)
     )
 )
 
 (eval
-    (define x false)
-    (debug (not x))
+    (print (string 42))
 )
 
 (eval
-    (debug (not true))
-    (debug (not false))
+    (print (string true))
+)
+
+(eval
+    (print (string (quote (H e l l o))))
+)
+
+(eval
+    (print (reflect (string world)))
+)
+
+(eval
+    (print (string 👋🌍))
 )
 
 - Item A
