@@ -39,12 +39,12 @@ impl Tokenizer {
                 }
                 c if c.is_numeric() || c == '-' => {
                     let start = i;
-                    while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-') {
+                    while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-' || chars[i] == 'e' || chars[i] == 'E') {
                         i += 1;
-                        let num_str: String = chars[start..i].iter().collect();
-                        let number = D512::from_str(&num_str, Context::default()).map_err(|e| e.to_string()).expect("Failed to parse number");
-                        tokens.push(LispToken::Number(number));
                     }
+                    let num_str: String = chars[start..i].iter().collect();
+                    let number = D512::from_str(&num_str, Context::default()).map_err(|e| e.to_string()).expect("Failed to parse number");
+                    tokens.push(LispToken::Number(number));
                 }
                 _ => {
                     let start = i;

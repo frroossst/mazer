@@ -1,38 +1,38 @@
 use std::collections::HashMap;
-use mazer_stdlib::Native;
 use mazer_types::LispAST;
 
+type EnvMap = HashMap<String, LispAST>;
 
-#[derive(Default)]
 pub struct Environment {
-    // variable bindings that are defined using `define`
-    bindings: HashMap<String, Vec<LispAST>>,
-
-    // user defined functions
-    // name, (params, body)
-    functions: HashMap<String, (Vec<String>, Vec<LispAST>)>,
-
-    // native functions provided by the host environment
-    native_functions: HashMap<String, fn(Vec<LispAST>) -> LispAST>,
-
-    // optional parent environment for nested scopes (not currenlt supported)
-    parent: Option<Box<Environment>>,
+    bindings: EnvMap,
 }
-
 
 impl Environment {
-
-    fn register_native_function(&mut self, name: &str, func: fn(Vec<LispAST>) -> LispAST) {
-        self.native_functions.insert(name.to_string(), func);
+    pub fn new() -> Self {
+        Self {
+            bindings: HashMap::new(),
+        }
     }
-
+    
     pub fn with_stdlib() -> Self {
-        let mut env = Environment::default();
-
-        env.register_native_function("add", Native::add);
-
-        Self::default()
+        let mut env = Self::new();
+        
+        env.insert("+", LispAST::NativeFunc(mazer_stdlib::Native::add));
+        env.insert("-", LispAST::NativeFunc(mazer_stdlib::Native::sub));
+        // TODO: add more stdlib functions here
+        
+        env
     }
-
+    
+    pub fn insert(&mut self, name: &str, value: LispAST) {
+        self.bindings.insert(name.to_string(), value);
+    }
+    
+    pub fn get(&self, name: &str) -> Option<&LispAST> {
+        self.bindings.get(name)
+    }
+    
+    pub fn set(&mut self, name: String, value: LispAST) {
+        self.bindings.insert(name, value);
+    }
 }
-
