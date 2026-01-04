@@ -1,5 +1,8 @@
 use std::collections::HashMap;
+use mazer_stdlib::{Native, Prelude};
 use mazer_types::LispAST;
+
+use crate::parser::Parser;
 
 type EnvMap = HashMap<String, LispAST>;
 
@@ -13,15 +16,39 @@ impl Environment {
             bindings: HashMap::new(),
         }
     }
+
+    pub fn with_prelude(&mut self) -> Self {
+        let prelude = Prelude::new();
+
+        for (k, v) in prelude {
+            let mut parser = Parser::new(&v);
+            let ast = parser.parse().expect("Failed to parse prelude function");
+            self.bindings.insert(k, ast);
+        }
+
+        Self { bindings: self.bindings.clone() }
+    }
     
-    pub fn with_stdlib() -> Self {
-        let mut env = Self::new();
+    pub fn with_native(&mut self) -> Self {
+        let mut env = EnvMap::new();
         
-        env.insert("+", LispAST::NativeFunc(mazer_stdlib::Native::add));
-        env.insert("-", LispAST::NativeFunc(mazer_stdlib::Native::sub));
         // TODO: add more stdlib functions here
+        env.insert("+".into(), mazer_types::LispAST::NativeFunc(Native::add));
+        env.insert("-".into(), mazer_types::LispAST::NativeFunc(Native::sub));
+
+        env.insert("print".into(), mazer_types::LispAST::NativeFunc(Native::print));
+        env.insert("debug".into(), mazer_types::LispAST::NativeFunc(Native::debug));
+
+        self.extend(&env);
+
+        Self { bindings: env }
         
-        env
+    }
+
+    pub fn extend(&mut self, other: &EnvMap) {
+        for (k, v) in other {
+            self.bindings.insert(k.clone(), v.clone());
+        }
     }
     
     pub fn insert(&mut self, name: &str, value: LispAST) {

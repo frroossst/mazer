@@ -5,7 +5,7 @@ use mazer_lisp::{environment::Environment, interpreter::Interpreter};
 use mazer_parser::Parser;
 
 #[derive(Default)]
-struct Args<'a> {
+struct _Args<'a> {
     verbose: bool,
     filename: Option<&'a str>,
     serve: bool,
@@ -29,12 +29,12 @@ fn main() {
 
     dbg!(d.body());
 
-    let ctx = Environment::with_stdlib();
+    let ctx = Environment::new().with_native().with_prelude();
     let frg = d.fragments();
     let mut interp = Interpreter::new(frg, ctx);
     interp.run().expect("inter no pret");
     let rst = interp.results();
-    d.inject(rst);
+    d.inject(&rst);
     let o = d.output();
 
     // write to /tmp/output.html

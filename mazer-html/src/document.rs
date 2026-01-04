@@ -66,7 +66,7 @@ impl Document {
             .collect()
     } 
 
-    pub fn inject(&mut self, results: HashMap<String, LispAST>) {
+    pub fn inject(&mut self, results: &HashMap<String, LispAST>) {
         for content in &mut self.body {
             if let DocAst::Eval(e) = content {
                 let key = format!("{:?}", e);

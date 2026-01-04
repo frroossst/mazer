@@ -89,7 +89,13 @@ impl Parser {
     pub fn parse(&mut self) -> Result<LispAST, String> {
         match self.advance() {
             Some(LispToken::Number(n)) => Ok(LispAST::Number(*n)),
-            Some(LispToken::Symbol(s)) => Ok(LispAST::Symbol(s.clone())),
+            Some(LispToken::Symbol(s)) => {
+                match s.as_str() {
+                    "true" => Ok(LispAST::Bool(true)),
+                    "false" => Ok(LispAST::Bool(false)),
+                    _ => Ok(LispAST::Symbol(s.clone())),
+                }
+            }
             Some(LispToken::OpenParen) => {
                 let mut list = Vec::new();
                 while !matches!(self.peek(), Some(LispToken::CloseParen) | None) {

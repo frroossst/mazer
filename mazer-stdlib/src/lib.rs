@@ -1,5 +1,35 @@
+use std::collections::HashMap;
+
 use fastnum::D512;
 use mazer_types::LispAST;
+
+// prlude functions are functions that are valid lisp code that is parsed 
+// and added to the environment at startup
+pub struct Prelude;
+
+impl Prelude {
+
+    pub fn new() -> HashMap<String, &'static str> {
+        let mut prelude = HashMap::new();
+        
+        prelude.insert("not".into(), Self::not());
+        
+        prelude
+    }
+
+    fn not() -> &'static str {
+        r#"
+            (defunc not (x)
+                (if x
+                    false
+                    true)
+                )
+            )
+        "#
+    }
+    
+}
+
 
 fn check_if_all_args_numbers(args: &[LispAST]) -> bool {
     args.iter().all(|a| matches!(a, LispAST::Number(_)))
@@ -8,6 +38,28 @@ fn check_if_all_args_numbers(args: &[LispAST]) -> bool {
 pub struct Native;
 
 impl Native {
+
+    pub fn print(args: &[LispAST]) -> Result<LispAST, String> {
+        for arg in args {
+            match arg {
+                LispAST::Number(n) => eprint!("{}", n),
+                LispAST::Bool(b) => eprint!("{}", b),
+                LispAST::Symbol(s) => eprint!("{}", s),
+                LispAST::List(_) => eprint!("{:?}", arg),
+                _ => eprint!("{:?}", arg),
+            }
+        }
+        eprintln!();
+        Ok(LispAST::Bool(true))
+    }
+
+    pub fn debug(args: &[LispAST]) -> Result<LispAST, String> {
+        for arg in args {
+            eprintln!("{:?}", arg);
+        }
+        Ok(LispAST::Bool(true))
+    }
+
     pub fn add(args: &[LispAST]) -> Result<LispAST, String> {
         if !check_if_all_args_numbers(args) {
             return Err("All arguments to add must be numbers".to_string());

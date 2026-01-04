@@ -7,4 +7,5 @@ pub enum LispAST {
     List(Vec<LispAST>),
     Application { name: String, args: Vec<LispAST> },
     NativeFunc(fn(&[LispAST]) -> Result<LispAST, String>),
+    UserFunc { params: Vec<String>, body: Box<LispAST> },
 }

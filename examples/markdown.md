@@ -58,13 +58,27 @@ I wanna write something (and provide some context).
 I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
 
 (eval
-    (define x -3.1561)
-    (define y 42e69)
-    (+ y x)
+    (defunc add (x y)
+        (+ x y)
+    )
+    (debug (add 5 3))
 )
 
-(show
-    (+ 1 1)
+(eval
+    (if false
+        (debug false)
+        (debug true)
+    )
+)
+
+(eval
+    (define x false)
+    (debug (not x))
+)
+
+(eval
+    (debug (not true))
+    (debug (not false))
 )
 
 - Item A

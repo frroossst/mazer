@@ -14,8 +14,8 @@ impl Interpreter {
         Self { fragments, env }
     }
 
-    pub fn results(&self) -> HashMap<String, LispAST> {
-        self.fragments.clone()
+    pub fn results(&self) -> &HashMap<String, LispAST> {
+        &self.fragments
     }
     
     pub fn run(&mut self) -> Result<LispAST, String> {
@@ -23,7 +23,7 @@ impl Interpreter {
         
         for (_name, fragment) in self.fragments.clone() {
             result = self.eval(fragment)?;
-            dbg!(&result);
+            // dbg!(&result);
         }
         
         Ok(result)
@@ -32,7 +32,7 @@ impl Interpreter {
     pub fn eval(&mut self, expr: LispAST) -> Result<LispAST, String> {
         match expr {
             LispAST::Error(e) => Err(e),
-            LispAST::Number(_) | LispAST::Bool(_) | LispAST::NativeFunc(_) => Ok(expr),
+            LispAST::Number(_) | LispAST::Bool(_) | LispAST::NativeFunc(_) | LispAST::UserFunc { .. } => Ok(expr),
             
             LispAST::Symbol(ref s) => {
                 self.env.get(s)
@@ -47,7 +47,7 @@ impl Interpreter {
                 if let LispAST::Symbol(ref s) = exprs[0] {
                     match s.as_str() {
                         "define" => return self.eval_define(&exprs[1..]),
-                        "lambda" => return self.eval_lambda(&exprs[1..]),
+                        "defunc" => return self.eval_defunc(&exprs[1..]),
                         "if" => return self.eval_if(&exprs[1..]),
                         "quote" => return exprs.get(1).cloned()
                             .ok_or_else(|| "quote requires 1 argument".to_string()),
@@ -85,6 +85,30 @@ impl Interpreter {
     fn apply(&mut self, func: LispAST, args: Vec<LispAST>) -> Result<LispAST, String> {
         match func {
             LispAST::NativeFunc(f) => f(&args),
+            LispAST::UserFunc { params, body } => {
+                if params.len() != args.len() {
+                    return Err(format!("Expected {} arguments, got {}", params.len(), args.len()));
+                }
+                
+                // Create a new scope with parameters bound to arguments
+                let mut saved_bindings = std::collections::HashMap::new();
+                for (param, arg) in params.iter().zip(args.iter()) {
+                    if let Some(existing) = self.env.get(param) {
+                        saved_bindings.insert(param.clone(), existing.clone());
+                    }
+                    self.env.set(param.clone(), arg.clone());
+                }
+                
+                // Evaluate the function body
+                let result = self.eval((*body).clone());
+                
+                // Restore the original bindings
+                for (param, original) in &saved_bindings {
+                    self.env.set(param.clone(), original.clone());
+                }
+                
+                result
+            }
             _ => Err(format!("Not a function: {:?}", func)),
         }
     }
@@ -104,8 +128,37 @@ impl Interpreter {
         Ok(value)
     }
     
-    fn eval_lambda(&mut self, _args: &[LispAST]) -> Result<LispAST, String> {
-        Err("lambda not yet implemented".to_string())
+    fn eval_defunc(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+        if args.len() != 3 {
+            return Err("defunc requires 3 arguments: name, (params...), body".to_string());
+        }
+        
+        let name = match &args[0] {
+            LispAST::Symbol(s) => s.clone(),
+            _ => return Err("defunc requires symbol as first argument".to_string()),
+        };
+        
+        let params = match &args[1] {
+            LispAST::List(param_list) => {
+                param_list.iter().map(|p| {
+                    match p {
+                        LispAST::Symbol(s) => Ok(s.clone()),
+                        _ => Err("Parameters must be symbols".to_string()),
+                    }
+                }).collect::<Result<Vec<_>, _>>()?
+            }
+            _ => return Err("defunc requires parameter list as second argument".to_string()),
+        };
+        
+        let body = args[2].clone();
+        
+        let user_func = LispAST::UserFunc {
+            params,
+            body: Box::new(body),
+        };
+        
+        self.env.set(name, user_func.clone());
+        Ok(user_func)
     }
     
     fn eval_if(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
