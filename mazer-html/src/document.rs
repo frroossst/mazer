@@ -1,7 +1,9 @@
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 
-use mazer_lisp::{ast::LispAST, parser::Parser};
+use mazer_lisp::parser::Parser;
 use mazer_parser::MdAst;
+use mazer_render::ToMathML;
+use mazer_types::LispAST;
 
 
 
@@ -12,8 +14,8 @@ enum FontKind {
     Strikethrough,
 }
 
-#[derive(Clone)]
-enum DocAst {
+#[derive(Debug, Clone)]
+pub enum DocAst {
     Html(Rc<str>),
     Eval(LispAST),
     Show(LispAST),
@@ -39,6 +41,10 @@ impl Document {
         }
     }
 
+    pub fn body(&self) -> Vec<DocAst> {
+        self.body.clone()
+    }
+
     pub fn build(&mut self) {
         self.append(DocAst::Html("<body>".into()));
         for node in &self.nodes.clone() {
@@ -60,7 +66,7 @@ impl Document {
             .collect()
     } 
 
-    pub fn inject(&mut self, results: &std::collections::HashMap<String, LispAST>) {
+    pub fn inject(&mut self, results: HashMap<String, LispAST>) {
         for content in &mut self.body {
             if let DocAst::Eval(e) = content {
                 let key = format!("{:?}", e);
@@ -85,7 +91,7 @@ impl Document {
                     unreachable!("Interpreter should have processed all Eval blocks before output");
                 },
                 DocAst::Show(s) => {
-                    let s: String = s.into(); 
+                    let s: String = s.to_mathml(); 
                     html.push_str(&s);
                 },
             }
@@ -157,7 +163,12 @@ impl Document {
                 self.append(dast);
             },
             MdAst::Text { content } => {
-                let dast = DocAst::Html(content.into());
+                let dast;
+                if content == "\n" {
+                    dast = DocAst::Html("<br/>".into());
+                } else {
+                    dast = DocAst::Html(content.into());
+                }
                 self.append(dast);
             },
             MdAst::Paragraph { children } => {

@@ -4,22 +4,12 @@ use mazer_html::document::Document;
 use mazer_lisp::{environment::Environment, interpreter::Interpreter};
 use mazer_parser::Parser;
 
+#[derive(Default)]
 struct Args<'a> {
     verbose: bool,
     filename: Option<&'a str>,
     serve: bool,
     help: bool,
-}
-
-impl Default for Args<'_> {
-    fn default() -> Self {
-        Args {
-            verbose: false,
-            filename: None,
-            serve: false,
-            help: true,
-        }
-    }
 }
 
 fn main() {
@@ -36,6 +26,9 @@ fn main() {
     let r = p.parse().expect("failed to parse");
     let mut d = Document::new(r);
     d.build();
+
+    dbg!(d.body());
+
     let ctx = Environment::with_stdlib();
     let frg = d.fragments();
     let mut interp = Interpreter::new(frg, ctx);
@@ -43,8 +36,6 @@ fn main() {
     let rst = interp.results();
     d.inject(rst);
     let o = d.output();
-
-
 
     // write to /tmp/output.html
     std::fs::write("/tmp/output.html", o).expect("Failed to write output");

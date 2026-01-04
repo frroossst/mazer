@@ -1,6 +1,9 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::HashMap;
 
-use crate::{ast::LispAST, environment::Environment};
+use mazer_types::LispAST;
+
+use crate::environment::Environment;
+
 
 
 // converts Eval blocks into Show(s)
@@ -14,8 +17,8 @@ impl Interpreter {
         Self { fragments, env }
     }
 
-    pub fn results(&self) -> &HashMap<String, LispAST> {
-        &self.fragments
+    pub fn results(&self) -> HashMap<String, LispAST> {
+        self.fragments.clone()
     }
 
     pub fn run(&mut self) {
@@ -28,6 +31,6 @@ impl Interpreter {
 
     pub fn eval(&self, ast: &LispAST) -> LispAST {
         dbg!(ast);
-        todo!()
+        LispAST::Error("todo!".to_string())
     }
 }

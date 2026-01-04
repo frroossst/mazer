@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-
-use crate::ast::LispAST;
+use mazer_stdlib::Native;
+use mazer_types::LispAST;
 
 
 #[derive(Default)]
@@ -22,15 +22,16 @@ pub struct Environment {
 
 impl Environment {
 
+    fn register_native_function(&mut self, name: &str, func: fn(Vec<LispAST>) -> LispAST) {
+        self.native_functions.insert(name.to_string(), func);
+    }
+
     pub fn with_stdlib() -> Self {
         let mut env = Environment::default();
 
+        env.register_native_function("add", Native::add);
 
-
-
-
-
-
+        Self::default()
     }
 
 }

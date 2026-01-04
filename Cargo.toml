@@ -7,6 +7,8 @@ members = [
     "mazer-lisp",
     "mazer-html",
     "mazer-render",
+    "mazer-stdlib",
+    "mazer-types",
 ]
 
 resolver = "3"

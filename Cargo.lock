@@ -1888,6 +1888,8 @@ version = "0.0.0"
 dependencies = [
  "mazer-lisp",
  "mazer-parser",
+ "mazer-render",
+ "mazer-types",
 ]
 
 [[package]]
@@ -1895,6 +1897,8 @@ name = "mazer-lisp"
 version = "0.0.0"
 dependencies = [
  "fastnum",
+ "mazer-stdlib",
+ "mazer-types",
 ]
 
 [[package]]
@@ -1908,6 +1912,24 @@ dependencies = [
 [[package]]
 name = "mazer-render"
 version = "0.0.0"
+dependencies = [
+ "mazer-types",
+]
+
+[[package]]
+name = "mazer-stdlib"
+version = "0.0.0"
+dependencies = [
+ "fastnum",
+ "mazer-types",
+]
+
+[[package]]
+name = "mazer-types"
+version = "0.0.0"
+dependencies = [
+ "fastnum",
+]
 
 [[package]]
 name = "memchr"

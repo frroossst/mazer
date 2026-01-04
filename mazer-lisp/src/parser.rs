@@ -1,6 +1,6 @@
 use fastnum::{D512, decimal::Context};
+use mazer_types::LispAST;
 
-use crate::ast::LispAST;
 
 pub enum LispToken {
     Symbol(String),

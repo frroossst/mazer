@@ -4,4 +4,6 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
+mazer-stdlib = { path = "../mazer-stdlib" }
+mazer-types = { path = "../mazer-types" }
 fastnum = "0.7.4"

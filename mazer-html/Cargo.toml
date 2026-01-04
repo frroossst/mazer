@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 mazer-parser = { path = "../mazer-parser" }
 mazer-lisp = { path = "../mazer-lisp" }
+mazer-types = { path = "../mazer-types" }
+mazer-render = { path = "../mazer-render" }
 

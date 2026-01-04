@@ -1,0 +1,8 @@
+[package]
+name = "mazer-stdlib"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+fastnum = "0.7.4"
+mazer-types = { path = "../mazer-types" }
