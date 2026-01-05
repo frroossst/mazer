@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use mazer_stdlib::{Native, Prelude};
 use mazer_types::LispAST;
 
 use crate::{interpreter::Interpreter, parser::Parser};
 
-type EnvMap = HashMap<String, LispAST>;
+type EnvMap = BTreeMap<String, LispAST>;
 
 pub struct Environment {
     bindings: EnvMap,
@@ -13,7 +13,7 @@ pub struct Environment {
 impl Environment {
     pub fn new() -> Self {
         Self {
-            bindings: HashMap::new(),
+            bindings: BTreeMap::new(),
         }
     }
 
@@ -23,7 +23,7 @@ impl Environment {
         for (_k, v) in prelude {
             let mut parser = Parser::new(&v);
             let ast = parser.parse().expect("Failed to parse prelude function");
-            let mut interp = Interpreter::new(std::collections::HashMap::new(), Self { bindings: self.bindings.clone() });
+            let mut interp = Interpreter::new(BTreeMap::new(), Self { bindings: self.bindings.clone() });
             interp.eval(ast).expect("Failed to evaluate prelude function");
             self.bindings = interp.env().bindings.clone();
         }

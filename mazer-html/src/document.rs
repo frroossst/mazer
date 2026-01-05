@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::BTreeMap, rc::Rc};
 
 use mazer_lisp::parser::Parser;
 use mazer_parser::MdAst;
@@ -53,7 +53,7 @@ impl Document {
         self.append(DocAst::Html("</body>".into()));
     }
 
-    pub fn fragments(&self) -> std::collections::HashMap<String, LispAST> {
+    pub fn fragments(&self) -> BTreeMap<String, LispAST> {
         self.body
             .iter()
             .filter_map(|content| match content {
@@ -66,7 +66,7 @@ impl Document {
             .collect()
     } 
 
-    pub fn inject(&mut self, results: &HashMap<String, LispAST>) {
+    pub fn inject(&mut self, results: &BTreeMap<String, LispAST>) {
         for content in &mut self.body {
             if let DocAst::Eval(e) = content {
                 let key = format!("{:?}", e);

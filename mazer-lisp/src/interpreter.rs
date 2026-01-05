@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use mazer_types::LispAST;
 use unicode_segmentation::UnicodeSegmentation;
@@ -6,16 +6,16 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::environment::Environment;
 
 pub struct Interpreter {
-    fragments: HashMap<String, LispAST>,
+    fragments: BTreeMap<String, LispAST>,
     env: Environment,
 }
 
 impl Interpreter {
-    pub fn new(fragments: HashMap<String, LispAST>, env: Environment) -> Self {
+    pub fn new(fragments: BTreeMap<String, LispAST>, env: Environment) -> Self {
         Self { fragments, env }
     }
 
-    pub fn results(&self) -> &HashMap<String, LispAST> {
+    pub fn results(&self) -> &BTreeMap<String, LispAST> {
         &self.fragments
     }
     
@@ -94,7 +94,7 @@ impl Interpreter {
                 }
                 
                 // Create a new scope with parameters bound to arguments
-                let mut saved_bindings = std::collections::HashMap::new();
+                let mut saved_bindings = BTreeMap::new();
                 for (param, arg) in params.iter().zip(args.iter()) {
                     if let Some(existing) = self.env.get(param) {
                         saved_bindings.insert(param.clone(), existing.clone());

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
+use std::collections::hash_map::IntoIter;
 
 static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| HashMap::from([
         // greek symbols
@@ -92,7 +93,7 @@ impl Atog {
 
 impl IntoIterator for Atog {
     type Item = (&'static str, &'static str);
-    type IntoIter = std::collections::hash_map::IntoIter<&'static str, &'static str>;
+    type IntoIter = IntoIter<&'static str, &'static str>;
 
     fn into_iter(self) -> Self::IntoIter {
         LETTERS.clone().into_iter()

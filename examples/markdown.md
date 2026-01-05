@@ -88,6 +88,11 @@ I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
     (print (string 👋🌍))
 )
 
+(eval
+        (define x true)
+        (print (not x))
+)
+
 - Item A
 
 
