@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::{Write, stderr}};
 
 use fastnum::D512;
 use mazer_types::LispAST;
@@ -106,6 +106,9 @@ impl Native {
             }
         }
         eprintln!();
+
+        stderr().flush().ok();
+
         Ok(LispAST::Bool(true))
     }
 
@@ -113,6 +116,8 @@ impl Native {
         for arg in args {
             eprintln!("{:?}", arg);
         }
+        stderr().flush().ok();
+
         Ok(LispAST::Bool(true))
     }
 

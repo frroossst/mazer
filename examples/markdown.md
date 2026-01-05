@@ -57,6 +57,7 @@ I wanna write something (and provide some context).
 
 I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
 
+```scheme
 (eval
     (print (reflect +))
 )
@@ -87,10 +88,15 @@ I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
 (eval
     (print (string 👋🌍))
 )
+```
+
 
 (eval
-        (define x true)
-        (print (not x))
+    (begin
+        (define x 420)
+        (define y -69)
+        (print (+ x y))
+    )
 )
 
 - Item A

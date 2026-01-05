@@ -32,7 +32,6 @@ fn main() {
     let mut interp = Interpreter::new(frg, ctx);
     interp.run().expect("inter no pret");
     let rst = interp.results();
-    // dbg!(rst.clone());
     d.inject(&rst);
     let o = d.output();
 
