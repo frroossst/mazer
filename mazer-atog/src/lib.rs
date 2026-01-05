@@ -88,5 +88,13 @@ impl Atog {
     pub fn get(s: &str) -> Option<&str> {
         LETTERS.get(s).copied()
     }
+}
 
+impl IntoIterator for Atog {
+    type Item = (&'static str, &'static str);
+    type IntoIter = std::collections::hash_map::IntoIter<&'static str, &'static str>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        LETTERS.clone().into_iter()
+    }
 }

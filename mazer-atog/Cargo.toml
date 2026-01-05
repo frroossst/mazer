@@ -1,6 +1,9 @@
 [package]
 name = "mazer-atog"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
+license = "MIT"
+authors = ["Adhyan H."]
+description = "lookup table for common mathematical symbols"
 
 [dependencies]
