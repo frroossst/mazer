@@ -58,7 +58,7 @@ I wanna write something (and provide some context).
 I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
 
 (eval
-    (debug (reflect +))
+    (print (reflect +))
 )
 
 (eval

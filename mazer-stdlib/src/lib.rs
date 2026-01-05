@@ -120,6 +120,10 @@ impl Native {
         if !check_if_all_args_numbers(args) {
             return Err("All arguments to add must be numbers".to_string());
         }
+
+        if args.is_empty() {
+            return Err("+ requires at least 1 argument".to_string());
+        }
         
         let sum = args.iter().fold(D512::from(0), |acc, x| {
             if let LispAST::Number(n) = x {
@@ -140,20 +144,14 @@ impl Native {
         if args.is_empty() {
             return Err("- requires at least 1 argument".to_string());
         }
-        
-        let first = if let LispAST::Number(n) = &args[0] {
-            *n
-        } else {
-            return Err("Unreachable".to_string());
-        };
-        
-        if args.len() == 1 {
-            return Ok(LispAST::Number(-first));
-        }
-        
-        let result = args[1..].iter().fold(first, |acc, x| {
+
+        let result = args.iter().fold(D512::from(0), |acc, x| {
             if let LispAST::Number(n) = x {
-                acc - *n
+                if acc == D512::from(0) {
+                    *n
+                } else {
+                    acc - *n
+                }
             } else {
                 acc
             }

@@ -1859,6 +1859,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mazer-atog"
+version = "0.0.0"
+
+[[package]]
 name = "mazer-cli"
 version = "0.0.0"
 dependencies = [
@@ -1914,6 +1918,7 @@ dependencies = [
 name = "mazer-render"
 version = "0.0.0"
 dependencies = [
+ "mazer-atog",
  "mazer-types",
 ]
 

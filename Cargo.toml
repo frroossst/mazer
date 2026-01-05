@@ -9,6 +9,7 @@ members = [
     "mazer-render",
     "mazer-stdlib",
     "mazer-types",
+    "mazer-atog",
 ]
 
 resolver = "3"
