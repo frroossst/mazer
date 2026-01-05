@@ -68,11 +68,22 @@ impl Document {
 
     pub fn inject(&mut self, results: &BTreeMap<String, LispAST>) {
         for content in &mut self.body {
-            if let DocAst::Eval(e) = content {
-                let key = format!("{:?}", e);
-                if let Some(result) = results.get(&key) {
-                    *content = DocAst::Show(result.clone());
-                }
+            match content {
+                DocAst::Eval(e) => {
+                    let key = format!("{:?}", e);
+                    if results.get(&key).is_some() {
+                        // Eval blocks execute for side effects only, don't display
+                        *content = DocAst::Html("".into());
+                    }
+                },
+                DocAst::Show(s) => {
+                    let key = format!("{:?}", s);
+                    if let Some(result) = results.get(&key) {
+                        // Show blocks display their evaluated result
+                        *content = DocAst::Show(result.clone());
+                    }
+                },
+                _ => {},
             }
         }
     }

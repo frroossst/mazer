@@ -95,8 +95,13 @@ I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
     (begin
         (define x 420)
         (define y -69)
-        (print (+ x y))
+        (define z (+ x y))
+        (print  z)
     )
+)
+
+(show 
+    z
 )
 
 - Item A

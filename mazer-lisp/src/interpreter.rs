@@ -22,8 +22,10 @@ impl Interpreter {
     pub fn run(&mut self) -> Result<LispAST, String> {
         let mut result = LispAST::Bool(false);
         
-        for (_name, fragment) in self.fragments.clone() {
+        for (name, fragment) in self.fragments.clone() {
             result = self.eval(fragment)?;
+            // Update the fragments map with the evaluated result
+            self.fragments.insert(name, result.clone());
             // dbg!(&result);
         }
         
