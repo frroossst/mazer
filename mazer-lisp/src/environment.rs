@@ -1,24 +1,20 @@
 use std::collections::BTreeMap;
 use mazer_stdlib::{Native, Prelude};
-use mazer_types::LispAST;
+use mazer_types::{LispAST, Environment};
 
 use crate::{interpreter::Interpreter, parser::Parser};
 
 type EnvMap = BTreeMap<String, LispAST>;
 
-#[derive(Clone)]
-pub struct Environment {
-    bindings: EnvMap,
+// Extension trait for Environment initialization
+// These remain in mazer-lisp since they depend on Parser and Interpreter
+pub trait EnvironmentExt {
+    fn with_prelude(&mut self) -> Self;
+    fn with_native(&mut self) -> Self;
 }
 
-impl Environment {
-    pub fn new() -> Self {
-        Self {
-            bindings: BTreeMap::new(),
-        }
-    }
-
-    pub fn with_prelude(&mut self) -> Self {
+impl EnvironmentExt for Environment {
+    fn with_prelude(&mut self) -> Self {
         let prelude = Prelude::new();
 
         for (_k, v) in prelude {
@@ -32,7 +28,7 @@ impl Environment {
         Self { bindings: self.bindings.clone() }
     }
     
-    pub fn with_native(&mut self) -> Self {
+    fn with_native(&mut self) -> Self {
         let mut env = EnvMap::new();
         
         // TODO: add more stdlib functions here
@@ -47,23 +43,5 @@ impl Environment {
 
         Self { bindings: env }
         
-    }
-
-    pub fn extend(&mut self, other: &EnvMap) {
-        for (k, v) in other {
-            self.bindings.insert(k.clone(), v.clone());
-        }
-    }
-    
-    pub fn insert(&mut self, name: &str, value: LispAST) {
-        self.bindings.insert(name.to_string(), value);
-    }
-    
-    pub fn get(&self, name: &str) -> Option<&LispAST> {
-        self.bindings.get(name)
-    }
-    
-    pub fn set(&mut self, name: String, value: LispAST) {
-        self.bindings.insert(name, value);
     }
 }

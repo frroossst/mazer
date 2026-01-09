@@ -1,7 +1,8 @@
 use std::env;
 
 use mazer_html::document::Document;
-use mazer_lisp::{environment::Environment, interpreter::Interpreter};
+use mazer_lisp::{interpreter::Interpreter, environment::EnvironmentExt};
+use mazer_types::Environment;
 use mazer_parser::Parser;
 
 #[derive(Default)]

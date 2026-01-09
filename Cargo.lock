@@ -1869,6 +1869,7 @@ dependencies = [
  "mazer-html",
  "mazer-lisp",
  "mazer-parser",
+ "mazer-types",
 ]
 
 [[package]]

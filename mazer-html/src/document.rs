@@ -1,10 +1,9 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use mazer_lisp::parser::Parser;
-use mazer_lisp::show::Show;
-use mazer_lisp::environment::Environment;
+use mazer_types::Environment;
 use mazer_parser::MdAst;
-use mazer_render::ToMathML;
+use mazer_render::{ToMathML, format_mathml_with_env};
 use mazer_types::LispAST;
 
 
@@ -95,9 +94,7 @@ impl Document {
     pub fn fmt(&mut self, env: &Environment) {
         for content in &mut self.body {
             if let DocAst::Show(ast) = content {
-                let mut show = Show::new(env.clone());
-                let formatted = show.format(ast.clone())
-                    .unwrap_or_else(|e| format!("<merror><mtext>{}</mtext></merror>", e));
+                let formatted = format_mathml_with_env(ast, Some(env));
                 // Wrap in <math> tags for proper MathML rendering
                 let mathml = format!("<math display=\"inline\">{}</math>", formatted);
                 *content = DocAst::Html(mathml.into());

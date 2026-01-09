@@ -1,3 +1,7 @@
+pub mod environment;
+
+pub use environment::Environment;
+
 #[derive(Debug, Clone, Hash)]
 pub enum LispAST {
     Error(String),

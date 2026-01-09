@@ -3,4 +3,5 @@ pub mod ast;
 pub mod parser;
 pub mod interpreter;
 pub mod wrapper;
-pub mod show;
+
+pub use environment::EnvironmentExt;

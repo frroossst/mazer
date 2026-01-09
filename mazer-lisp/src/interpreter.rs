@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
 
-use mazer_types::LispAST;
+use mazer_types::{LispAST, Environment};
 use unicode_segmentation::UnicodeSegmentation;
-
-use crate::environment::Environment;
 
 pub struct Interpreter {
     fragments: BTreeMap<String, LispAST>,
