@@ -32,7 +32,9 @@ fn main() {
     let mut interp = Interpreter::new(frg, ctx);
     interp.run().expect("inter no pret");
     let rst = interp.results();
-    d.inject(&rst);
+    d.inject(rst);
+    d.fmt(interp.env());
+    
     let o = d.output();
 
     // write to /tmp/output.html

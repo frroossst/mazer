@@ -37,13 +37,38 @@ impl Tokenizer {
                 c if c.is_whitespace() => {
                     i += 1;
                 }
-                c if c.is_numeric() || c == '-' => {
+                // Handle numbers: must start with digit, or minus followed by digit
+                c if c.is_numeric() || (c == '-' && i + 1 < chars.len() && chars[i + 1].is_numeric()) => {
                     let start = i;
-                    while i < chars.len() && (chars[i].is_numeric() || chars[i] == '.' || chars[i] == '-' || chars[i] == 'e' || chars[i] == 'E') {
+                    // Handle optional leading minus
+                    if chars[i] == '-' {
                         i += 1;
                     }
+                    // Parse digits before decimal point
+                    while i < chars.len() && chars[i].is_numeric() {
+                        i += 1;
+                    }
+                    // Handle decimal point and digits after
+                    if i < chars.len() && chars[i] == '.' && i + 1 < chars.len() && chars[i + 1].is_numeric() {
+                        i += 1; // consume '.'
+                        while i < chars.len() && chars[i].is_numeric() {
+                            i += 1;
+                        }
+                    }
+                    // Handle scientific notation
+                    if i < chars.len() && (chars[i] == 'e' || chars[i] == 'E') {
+                        i += 1;
+                        if i < chars.len() && (chars[i] == '+' || chars[i] == '-') {
+                            i += 1;
+                        }
+                        while i < chars.len() && chars[i].is_numeric() {
+                            i += 1;
+                        }
+                    }
                     let num_str: String = chars[start..i].iter().collect();
-                    let number = D512::from_str(&num_str, Context::default()).map_err(|e| e.to_string()).expect("Failed to parse number");
+                    let number = D512::from_str(&num_str, Context::default())
+                        .map_err(|e| e.to_string())
+                        .expect(&format!("Failed to parse number: '{}'", num_str));
                     tokens.push(LispToken::Number(number));
                 }
                 _ => {

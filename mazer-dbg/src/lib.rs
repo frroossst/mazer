@@ -160,8 +160,8 @@ pub fn send_to_debug_server_and_wait(
     column: u32,
     backtrace: String,
 ) {
-    if let (Some(sender), Some(receiver)) = (DEBUG_SENDER.get(), RESPONSE_RECEIVER.get()) {
-        if let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock()) {
+    if let (Some(sender), Some(receiver)) = (DEBUG_SENDER.get(), RESPONSE_RECEIVER.get())
+        && let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock()) {
             let message = DebugMessage {
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -189,7 +189,6 @@ pub fn send_to_debug_server_and_wait(
                 }
             }
         }
-    }
 }
 
 /// The debug server process that receives debug messages and shows GUI
@@ -443,11 +442,10 @@ fn show_debug_gui_with_history(frame_history: &mut DebugFrameHistory) {
                                 ui.strong("Backtrace for:");
                                 ui.label(format!("{}:{}", current_frame.file, current_frame.line));
                                 ui.separator();
-                                if ui.button("📋 Copy").clicked() {
-                                    if let Err(e) = copy_to_clipboard(&current_frame.backtrace) {
+                                if ui.button("📋 Copy").clicked()
+                                    && let Err(e) = copy_to_clipboard(&current_frame.backtrace) {
                                         eprintln!("Failed to copy backtrace to clipboard: {}", e);
                                     }
-                                }
                             });
                             ui.separator();
 

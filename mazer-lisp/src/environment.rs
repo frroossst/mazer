@@ -6,6 +6,7 @@ use crate::{interpreter::Interpreter, parser::Parser};
 
 type EnvMap = BTreeMap<String, LispAST>;
 
+#[derive(Clone)]
 pub struct Environment {
     bindings: EnvMap,
 }

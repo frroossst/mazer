@@ -674,6 +674,12 @@ impl TokenParser {
                             } else {
                                 elements.push(MdAst::ShowBlock { code: scheme_code });
                             }
+                            
+                            // Preserve newline after show/eval block if present
+                            if matches!(self.peek(0), Some(Token::Newline)) {
+                                self.advance();
+                                elements.push(MdAst::Text { content: "\n".to_string() });
+                            }
                             continue;
                         }
                     }
@@ -885,14 +891,9 @@ impl<'a> Parser<'a> {
             return Err(ParseError::EmptyInput);
         }
 
-        let lines: Vec<&str> = self.input.lines().collect();
-
-        // Decide whether to use parallel parsing based on input size
-        if lines.len() < 100 {
-            self.parse_sequential()
-        } else {
-            self.parse_parallel()
-        }
+        // Parallel chunking breaks constructs that can span multiple lines (for example fenced
+        // code blocks), so prefer the sequential parser for correctness.
+        self.parse_sequential()
     }
 
     fn parse_sequential(&self) -> Result<Vec<MdAst>> {
@@ -901,6 +902,7 @@ impl<'a> Parser<'a> {
         Ok(Parser::parse_tokens(tokens))
     }
 
+    #[allow(dead_code)]
     fn parse_parallel(&self) -> Result<Vec<MdAst>> {
         let lines: Vec<&str> = self.input.lines().collect();
         let chunk_size = (lines.len() / rayon::current_num_threads()).max(50);
@@ -1000,6 +1002,20 @@ mod tests {
         if let MdAst::CodeBlock { language, code } = &ast[0] {
             assert_eq!(language, &None);
             assert_eq!(code, "some code\n");
+        }
+    }
+
+    #[test]
+    fn test_eval_inside_code_block_not_parsed() {
+        let input = "```scheme\n(eval (print \"hello\"))\n```";
+        let ast = Parser::new(input).parse().unwrap();
+
+        assert_eq!(ast.len(), 1);
+        assert!(matches!(ast[0], MdAst::CodeBlock { .. }));
+        assert!(!ast.iter().any(|node| matches!(node, MdAst::EvalBlock { .. })));
+
+        if let MdAst::CodeBlock { code, .. } = &ast[0] {
+            assert!(code.contains("(eval (print \"hello\"))"));
         }
     }
 
@@ -1200,5 +1216,30 @@ mod tests {
         } else {
             panic!("Expected CodeBlock, got {:?}", ast[0]);
         }
+    }
+
+    #[test]
+    fn test_example_markdown_has_single_eval_block() {
+        let input = include_str!("../../examples/markdown.md");
+        let ast = Parser::new(input).parse().unwrap();
+
+        fn count_eval(nodes: &[MdAst]) -> usize {
+            let mut total = 0;
+
+            for node in nodes {
+                match node {
+                    MdAst::EvalBlock { .. } => total += 1,
+                    MdAst::Paragraph { children } => total += count_eval(children),
+                    _ => {}
+                }
+            }
+
+            total
+        }
+
+        let eval_blocks = count_eval(&ast);
+
+        // Only the inline (eval (+ 1 1)) should be parsed as an eval block
+        assert_eq!(eval_blocks, 1, "unexpected eval blocks found in markdown example");
     }
 }

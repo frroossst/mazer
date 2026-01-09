@@ -1901,6 +1901,7 @@ name = "mazer-lisp"
 version = "0.0.0"
 dependencies = [
  "fastnum",
+ "mazer-atog",
  "mazer-stdlib",
  "mazer-types",
  "unicode-segmentation",

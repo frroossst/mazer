@@ -7,53 +7,591 @@ pub trait ToMathML {
 
 impl ToMathML for LispAST {
     fn to_mathml(&self) -> String {
-        match self {
-            LispAST::Number(n) => format!("<mn>{}</mn>", n),
-            
-            LispAST::Symbol(s) => {
-                // Check if it's a Greek letter or special symbol
-                if let Some(entity) = Atog::get(s) {
-                    format!("<mi>{}</mi>", entity)
-                } else {
-                    format!("<mi>{}</mi>", s)
-                }
-            }
-            
-            LispAST::String(s) => format!("<mtext>{}</mtext>", s),
-            
-            LispAST::Bool(b) => format!("<mtext>{}</mtext>", b),
-            
-            LispAST::List(exprs) if exprs.is_empty() => {
-                "<mrow><mo>(</mo><mo>)</mo></mrow>".to_string()
-            }
-            
-            LispAST::List(exprs) => {
-                // Try to match mathematical operations
-                if let Some(LispAST::Symbol(op)) = exprs.first() {
-                    match op.as_str() {
-                        "integral" => todo!(),
-                        // Function application like f(x)
-                        _ => format!("{:?}", self),
-                    }
-                } else {
-                    // Generic list rendering
-                    todo!()
-                }
-            }
-            
-            LispAST::Application { name, args } => {
-                    todo!()
-            }
-            
-            LispAST::Error(e) => {
-                format!("<merror><mtext>{}</mtext></merror>", e)
-            }
-            
-            LispAST::UserFunc { .. } | LispAST::NativeFunc(_) => {
-                "<mtext>⟨function⟩</mtext>".to_string()
-            }
+        format_mathml(self)
+    }
+}
+
+/// Main MathML formatting function
+fn format_mathml(expr: &LispAST) -> String {
+    match expr {
+        LispAST::Error(e) => format!("<merror><mtext>{}</mtext></merror>", escape_xml(e)),
+        
+        LispAST::Number(n) => format!("<mn>{}</mn>", n),
+        
+        LispAST::Bool(b) => format!("<mtext>{}</mtext>", b),
+        
+        LispAST::String(s) => format!("<mtext>{}</mtext>", escape_xml(s)),
+        
+        LispAST::Symbol(s) => format_symbol(s),
+        
+        LispAST::List(exprs) if exprs.is_empty() => "<mrow></mrow>".to_string(),
+        
+        LispAST::List(exprs) => format_list(exprs),
+        
+        LispAST::Application { name, args } => {
+            let mut full_list = vec![LispAST::Symbol(name.clone())];
+            full_list.extend(args.clone());
+            format_list(&full_list)
+        }
+        
+        LispAST::NativeFunc(_) | LispAST::UserFunc { .. } => {
+            "<mtext>⟨function⟩</mtext>".to_string()
         }
     }
-       
+}
+
+/// Format a list expression, handling special mathematical forms
+fn format_list(exprs: &[LispAST]) -> String {
+    if exprs.is_empty() {
+        return "<mrow></mrow>".to_string();
+    }
+    
+    // Check for special forms
+    if let LispAST::Symbol(op) = &exprs[0] {
+        let args = &exprs[1..];
+        match op.as_str() {
+            // Arithmetic
+            "+" | "add" => return format_infix_op(args, "+"),
+            "-" | "sub" => return format_subtraction(args),
+            "*" | "mul" => return format_infix_op(args, "×"),
+            "/" | "div" => return format_fraction(args),
+            
+            "pow" | "^" | "expt" => return format_power(args),
+            "frac" => return format_fraction(args),
+            "sqrt" => return format_sqrt(args),
+            "root" => return format_nthroot(args),
+            
+            // Comparisons
+            "=" | "eq" => return format_infix_op(args, "="),
+            "!=" | "neq" => return format_infix_op(args, "≠"),
+            "<" | "lt" => return format_infix_op(args, "<"),
+            ">" | "gt" => return format_infix_op(args, ">"),
+            "<=" | "le" | "leq" => return format_infix_op(args, "≤"),
+            ">=" | "ge" | "geq" => return format_infix_op(args, "≥"),
+            
+            // Calculus
+            "integral" | "int" => return format_integral(args),
+            "sum" => return format_sum(args),
+            "prod" | "product" => return format_product(args),
+            "lim" | "limit" => return format_limit(args),
+            "deriv" | "derivative" => return format_derivative(args),
+            "partial" => return format_partial(args),
+            
+            // Trig functions
+            "sin" | "cos" | "tan" | "cot" | "sec" | "csc" |
+            "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" => {
+                return format_func(op, args);
+            }
+            
+            // Logarithms
+            "ln" => return format_func("ln", args),
+            "log" => return format_log(args),
+            "exp" => return format_exp(args),
+            
+            // Other math functions
+            "abs" => return format_abs(args),
+            "floor" => return format_floor(args),
+            "ceil" => return format_ceil(args),
+            "fact" | "factorial" => return format_factorial(args),
+            "binom" | "choose" => return format_binomial(args),
+            
+            // Matrices
+            "matrix" => return format_matrix(args),
+            "vec" | "vector" => return format_vector(args),
+            "det" => return format_determinant(args),
+            
+            // Sets
+            "set" => return format_set(args),
+            "in" | "elem" => return format_infix_op(args, "∈"),
+            "notin" => return format_infix_op(args, "∉"),
+            "subset" => return format_infix_op(args, "⊆"),
+            "supset" => return format_infix_op(args, "⊇"),
+            "union" => return format_infix_op(args, "∪"),
+            "intersect" => return format_infix_op(args, "∩"),
+            
+            // Logic
+            "and" => return format_infix_op(args, "∧"),
+            "or" => return format_infix_op(args, "∨"),
+            "not" => return format_not(args),
+            "implies" => return format_infix_op(args, "⟹"),
+            "iff" => return format_infix_op(args, "⟺"),
+            "forall" => return format_quantifier("∀", args),
+            "exists" => return format_quantifier("∃", args),
+            
+            // Grouping
+            "paren" => return format_parenthesized(args),
+            "bracket" => return format_bracketed(args),
+            "brace" => return format_braced(args),
+            
+            // Annotations
+            "text" => return format_text(args),
+            "subscript" => return format_subscript(args),
+            "overline" | "bar" => return format_overline(args),
+            "hat" => return format_hat(args),
+            "dot" => return format_dot(args),
+            "ddot" => return format_ddot(args),
+            "vec-arrow" | "arrow" => return format_vec_arrow(args),
+            
+            // Generic function call
+            _ => return format_func_application(op, args),
+        }
+    }
+    
+    // Default: format as space-separated row
+    let parts: Vec<_> = exprs.iter().map(format_mathml).collect();
+    format!("<mrow>{}</mrow>", parts.join(""))
+}
+
+// ===== Arithmetic =====
+
+fn format_infix_op(args: &[LispAST], op: &str) -> String {
+    if args.is_empty() {
+        return "<mrow></mrow>".to_string();
+    }
+    let parts: Vec<_> = args.iter().map(format_mathml).collect();
+    let operator = format!("<mo>{}</mo>", op);
+    format!("<mrow>{}</mrow>", parts.join(&operator))
+}
+
+fn format_subtraction(args: &[LispAST]) -> String {
+    if args.is_empty() {
+        return "<mrow></mrow>".to_string();
+    }
+    if args.len() == 1 {
+        let operand = format_mathml(&args[0]);
+        return format!("<mrow><mo>-</mo>{}</mrow>", operand);
+    }
+    format_infix_op(args, "−")
+}
+
+fn format_power(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>pow requires 2 arguments</mtext></merror>".to_string();
+    }
+    let base = format_mathml(&args[0]);
+    let exponent = format_mathml(&args[1]);
+    
+    let base_wrapped = if needs_parens_for_power(&args[0]) {
+        format!("<mrow><mo>(</mo>{}<mo>)</mo></mrow>", base)
+    } else {
+        base
+    };
+    
+    format!("<msup>{}{}</msup>", base_wrapped, exponent)
+}
+
+fn format_fraction(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>frac requires 2 arguments</mtext></merror>".to_string();
+    }
+    let numerator = format_mathml(&args[0]);
+    let denominator = format_mathml(&args[1]);
+    format!("<mfrac>{}{}</mfrac>", numerator, denominator)
+}
+
+fn format_sqrt(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>sqrt requires 1 argument</mtext></merror>".to_string();
+    }
+    let radicand = format_mathml(&args[0]);
+    format!("<msqrt>{}</msqrt>", radicand)
+}
+
+fn format_nthroot(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>root requires 2 arguments</mtext></merror>".to_string();
+    }
+    let index = format_mathml(&args[0]);
+    let radicand = format_mathml(&args[1]);
+    format!("<mroot>{}{}</mroot>", radicand, index)
+}
+
+// ===== Calculus =====
+
+fn format_integral(args: &[LispAST]) -> String {
+    match args.len() {
+        1 => {
+            let integrand = format_mathml(&args[0]);
+            format!("<mrow><mo>∫</mo>{}</mrow>", integrand)
+        }
+        3 => {
+            let lower = format_mathml(&args[0]);
+            let upper = format_mathml(&args[1]);
+            let integrand = format_mathml(&args[2]);
+            format!("<mrow><msubsup><mo>∫</mo>{}{}</msubsup>{}</mrow>", lower, upper, integrand)
+        }
+        4 => {
+            let lower = format_mathml(&args[0]);
+            let upper = format_mathml(&args[1]);
+            let integrand = format_mathml(&args[2]);
+            let var = format_mathml(&args[3]);
+            format!("<mrow><msubsup><mo>∫</mo>{}{}</msubsup>{}<mo>d</mo>{}</mrow>", lower, upper, integrand, var)
+        }
+        _ => "<merror><mtext>integral requires 1, 3, or 4 arguments</mtext></merror>".to_string()
+    }
+}
+
+fn format_sum(args: &[LispAST]) -> String {
+    match args.len() {
+        1 => {
+            let summand = format_mathml(&args[0]);
+            format!("<mrow><mo>∑</mo>{}</mrow>", summand)
+        }
+        3 => {
+            let lower = format_mathml(&args[0]);
+            let upper = format_mathml(&args[1]);
+            let summand = format_mathml(&args[2]);
+            format!("<mrow><munderover><mo>∑</mo>{}{}</munderover>{}</mrow>", lower, upper, summand)
+        }
+        _ => "<merror><mtext>sum requires 1 or 3 arguments</mtext></merror>".to_string()
+    }
+}
+
+fn format_product(args: &[LispAST]) -> String {
+    match args.len() {
+        1 => {
+            let factor = format_mathml(&args[0]);
+            format!("<mrow><mo>∏</mo>{}</mrow>", factor)
+        }
+        3 => {
+            let lower = format_mathml(&args[0]);
+            let upper = format_mathml(&args[1]);
+            let factor = format_mathml(&args[2]);
+            format!("<mrow><munderover><mo>∏</mo>{}{}</munderover>{}</mrow>", lower, upper, factor)
+        }
+        _ => "<merror><mtext>product requires 1 or 3 arguments</mtext></merror>".to_string()
+    }
+}
+
+fn format_limit(args: &[LispAST]) -> String {
+    if args.len() < 2 {
+        return "<merror><mtext>limit requires at least 2 arguments</mtext></merror>".to_string();
+    }
+    let var = format_mathml(&args[0]);
+    let approach = format_mathml(&args[1]);
+    let limit_base = format!("<munder><mo>lim</mo><mrow>{}<mo>→</mo>{}</mrow></munder>", var, approach);
+    
+    if args.len() >= 3 {
+        let expr = format_mathml(&args[2]);
+        format!("<mrow>{}{}</mrow>", limit_base, expr)
+    } else {
+        limit_base
+    }
+}
+
+fn format_derivative(args: &[LispAST]) -> String {
+    match args.len() {
+        2 => {
+            let expr = format_mathml(&args[0]);
+            let var = format_mathml(&args[1]);
+            format!("<mrow><mfrac><mi>d</mi><mrow><mi>d</mi>{}</mrow></mfrac>{}</mrow>", var, expr)
+        }
+        3 => {
+            let expr = format_mathml(&args[0]);
+            let var = format_mathml(&args[1]);
+            let n = format_mathml(&args[2]);
+            format!("<mrow><mfrac><msup><mi>d</mi>{}</msup><mrow><mi>d</mi><msup>{}{}</msup></mrow></mfrac>{}</mrow>", n, var, n, expr)
+        }
+        _ => "<merror><mtext>derivative requires 2 or 3 arguments</mtext></merror>".to_string()
+    }
+}
+
+fn format_partial(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>partial requires 2 arguments</mtext></merror>".to_string();
+    }
+    let expr = format_mathml(&args[0]);
+    let var = format_mathml(&args[1]);
+    format!("<mrow><mfrac><mo>∂</mo><mrow><mo>∂</mo>{}</mrow></mfrac>{}</mrow>", var, expr)
+}
+
+// ===== Functions =====
+
+fn format_func(name: &str, args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return format!("<merror><mtext>{} requires 1 argument</mtext></merror>", name);
+    }
+    let arg = format_mathml(&args[0]);
+    format!("<mrow><mi>{}</mi><mo>(</mo>{}<mo>)</mo></mrow>", name, arg)
+}
+
+fn format_log(args: &[LispAST]) -> String {
+    match args.len() {
+        1 => {
+            let arg = format_mathml(&args[0]);
+            format!("<mrow><mi>log</mi><mo>(</mo>{}<mo>)</mo></mrow>", arg)
+        }
+        2 => {
+            let base = format_mathml(&args[0]);
+            let arg = format_mathml(&args[1]);
+            format!("<mrow><msub><mi>log</mi>{}</msub><mo>(</mo>{}<mo>)</mo></mrow>", base, arg)
+        }
+        _ => "<merror><mtext>log requires 1 or 2 arguments</mtext></merror>".to_string()
+    }
+}
+
+fn format_exp(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>exp requires 1 argument</mtext></merror>".to_string();
+    }
+    let exponent = format_mathml(&args[0]);
+    format!("<msup><mi>e</mi>{}</msup>", exponent)
+}
+
+// ===== Other Math Functions =====
+
+fn format_abs(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>abs requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>|</mo>{}<mo>|</mo></mrow>", inner)
+}
+
+fn format_floor(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>floor requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>⌊</mo>{}<mo>⌋</mo></mrow>", inner)
+}
+
+fn format_ceil(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>ceil requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>⌈</mo>{}<mo>⌉</mo></mrow>", inner)
+}
+
+fn format_factorial(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>factorial requires 1 argument</mtext></merror>".to_string();
+    }
+    let n = format_mathml(&args[0]);
+    let wrapped = if needs_parens_for_factorial(&args[0]) {
+        format!("<mrow><mo>(</mo>{}<mo>)</mo></mrow>", n)
+    } else {
+        n
+    };
+    format!("<mrow>{}<mo>!</mo></mrow>", wrapped)
+}
+
+fn format_binomial(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>binom requires 2 arguments</mtext></merror>".to_string();
+    }
+    let n = format_mathml(&args[0]);
+    let k = format_mathml(&args[1]);
+    format!("<mrow><mo>(</mo><mfrac linethickness=\"0\">{}{}</mfrac><mo>)</mo></mrow>", n, k)
+}
+
+// ===== Matrices =====
+
+fn format_matrix(args: &[LispAST]) -> String {
+    if args.is_empty() {
+        return "<mtable></mtable>".to_string();
+    }
+    
+    let rows: Vec<_> = args.iter().map(|row_expr| {
+        if let LispAST::List(row_items) = row_expr {
+            let cells: Vec<_> = row_items.iter()
+                .map(|item| format!("<mtd>{}</mtd>", format_mathml(item)))
+                .collect();
+            format!("<mtr>{}</mtr>", cells.join(""))
+        } else {
+            format!("<mtr><mtd>{}</mtd></mtr>", format_mathml(row_expr))
+        }
+    }).collect();
+    
+    format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", rows.join(""))
+}
+
+fn format_vector(args: &[LispAST]) -> String {
+    let cells: Vec<_> = args.iter()
+        .map(|item| format!("<mtr><mtd>{}</mtd></mtr>", format_mathml(item)))
+        .collect();
+    format!("<mrow><mo>[</mo><mtable>{}</mtable><mo>]</mo></mrow>", cells.join(""))
+}
+
+fn format_determinant(args: &[LispAST]) -> String {
+    if args.is_empty() {
+        return "<mrow><mo>|</mo><mo>|</mo></mrow>".to_string();
+    }
+    
+    let rows: Vec<_> = args.iter().map(|row_expr| {
+        if let LispAST::List(row_items) = row_expr {
+            let cells: Vec<_> = row_items.iter()
+                .map(|item| format!("<mtd>{}</mtd>", format_mathml(item)))
+                .collect();
+            format!("<mtr>{}</mtr>", cells.join(""))
+        } else {
+            format!("<mtr><mtd>{}</mtd></mtr>", format_mathml(row_expr))
+        }
+    }).collect();
+    
+    format!("<mrow><mo>|</mo><mtable>{}</mtable><mo>|</mo></mrow>", rows.join(""))
+}
+
+// ===== Sets =====
+
+fn format_set(args: &[LispAST]) -> String {
+    let elements: Vec<_> = args.iter().map(format_mathml).collect();
+    format!("<mrow><mo>{{</mo>{}<mo>}}</mo></mrow>", elements.join("<mo>,</mo>"))
+}
+
+// ===== Logic =====
+
+fn format_not(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>not requires 1 argument</mtext></merror>".to_string();
+    }
+    let operand = format_mathml(&args[0]);
+    format!("<mrow><mo>¬</mo>{}</mrow>", operand)
+}
+
+fn format_quantifier(symbol: &str, args: &[LispAST]) -> String {
+    if args.len() < 2 {
+        return format!("<merror><mtext>{} requires at least 2 arguments</mtext></merror>", symbol);
+    }
+    let var = format_mathml(&args[0]);
+    let expr = format_mathml(&args[1]);
+    format!("<mrow><mo>{}</mo>{}<mo>:</mo>{}</mrow>", symbol, var, expr)
+}
+
+// ===== Grouping =====
+
+fn format_parenthesized(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>paren requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>(</mo>{}<mo>)</mo></mrow>", inner)
+}
+
+fn format_bracketed(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>bracket requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>[</mo>{}<mo>]</mo></mrow>", inner)
+}
+
+fn format_braced(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>brace requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mrow><mo>{{</mo>{}<mo>}}</mo></mrow>", inner)
+}
+
+// ===== Annotations =====
+
+fn format_text(args: &[LispAST]) -> String {
+    if args.is_empty() {
+        return "<mtext></mtext>".to_string();
+    }
+    let text: Vec<String> = args.iter()
+        .map(|arg| match arg {
+            LispAST::String(s) => escape_xml(s),
+            LispAST::Symbol(s) => escape_xml(s),
+            _ => format!("{:?}", arg),
+        })
+        .collect();
+    format!("<mtext>{}</mtext>", text.join(" "))
+}
+
+fn format_subscript(args: &[LispAST]) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>subscript requires 2 arguments</mtext></merror>".to_string();
+    }
+    let base = format_mathml(&args[0]);
+    let sub = format_mathml(&args[1]);
+    format!("<msub>{}{}</msub>", base, sub)
+}
+
+fn format_overline(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>overline requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mover>{}<mo>¯</mo></mover>", inner)
+}
+
+fn format_hat(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>hat requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mover>{}<mo>^</mo></mover>", inner)
+}
+
+fn format_dot(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>dot requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mover>{}<mo>˙</mo></mover>", inner)
+}
+
+fn format_ddot(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>ddot requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mover>{}<mo>¨</mo></mover>", inner)
+}
+
+fn format_vec_arrow(args: &[LispAST]) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>vec-arrow requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0]);
+    format!("<mover>{}<mo>→</mo></mover>", inner)
+}
+
+// ===== Generic Function Application =====
+
+fn format_func_application(name: &str, args: &[LispAST]) -> String {
+    let formatted_args: Vec<_> = args.iter().map(format_mathml).collect();
+    let func_name = format_symbol(name);
+    
+    if formatted_args.is_empty() {
+        format!("<mrow>{}<mo>(</mo><mo>)</mo></mrow>", func_name)
+    } else {
+        format!("<mrow>{}<mo>(</mo>{}<mo>)</mo></mrow>", func_name, formatted_args.join("<mo>,</mo>"))
+    }
+}
+
+// ===== Helper Functions =====
+
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+     .replace('<', "&lt;")
+     .replace('>', "&gt;")
+     .replace('"', "&quot;")
+     .replace('\'', "&apos;")
+}
+
+fn format_symbol(s: &str) -> String {
+    if let Some(entity) = Atog::get(s) {
+        format!("<mi>{}</mi>", entity)
+    } else {
+        format!("<mi>{}</mi>", escape_xml(s))
+    }
+}
+
+fn needs_parens_for_power(expr: &LispAST) -> bool {
+    matches!(expr, 
+        LispAST::List(exprs) if !exprs.is_empty() && matches!(&exprs[0], 
+            LispAST::Symbol(s) if matches!(s.as_str(), 
+                "+" | "-" | "*" | "/" | "add" | "sub" | "mul" | "div"
+            )
+        )
+    )
+}
+
+fn needs_parens_for_factorial(expr: &LispAST) -> bool {
+    matches!(expr, LispAST::List(_) | LispAST::Application { .. })
 }
 

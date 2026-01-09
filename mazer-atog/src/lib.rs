@@ -81,6 +81,7 @@ static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(||
         ("arrowleft", "←"),
         ("arrowright", "→"),
         ("arrow", "→"),
+        ("ellipsis", "…"),
     ]));
 
 pub struct Atog;

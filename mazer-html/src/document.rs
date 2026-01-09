@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use mazer_lisp::parser::Parser;
+use mazer_lisp::show::Show;
+use mazer_lisp::environment::Environment;
 use mazer_parser::MdAst;
 use mazer_render::ToMathML;
 use mazer_types::LispAST;
@@ -54,10 +56,11 @@ impl Document {
     }
 
     pub fn fragments(&self) -> BTreeMap<String, LispAST> {
+        // Only return Eval blocks for evaluation - Show blocks are formatted symbolically
         self.body
             .iter()
             .filter_map(|content| match content {
-                DocAst::Eval(ast) | DocAst::Show(ast) => {
+                DocAst::Eval(ast) => {
                     let key = format!("{:?}", ast);
                     Some((key, ast.clone()))
                 },
@@ -66,6 +69,8 @@ impl Document {
             .collect()
     } 
 
+    /// Inject evaluated results for Eval blocks.
+    /// Show blocks are handled separately via format_show_blocks().
     pub fn inject(&mut self, results: &BTreeMap<String, LispAST>) {
         for content in &mut self.body {
             match content {
@@ -76,14 +81,26 @@ impl Document {
                         *content = DocAst::Html("".into());
                     }
                 },
-                DocAst::Show(s) => {
-                    let key = format!("{:?}", s);
-                    if let Some(result) = results.get(&key) {
-                        // Show blocks display their evaluated result
-                        *content = DocAst::Show(result.clone());
-                    }
-                },
+                // Show blocks are now handled by format_show_blocks, not here
                 _ => {},
+            }
+        }
+    }
+    
+    /// Format all Show blocks using the symbolic Show formatter.
+    /// This preserves the symbolic structure and converts to MathML without evaluation.
+    /// Call this after inject() to format show blocks with the environment from evaluation.
+    // Format show blocks symbolically using the environment from evaluation
+    // This allows show blocks to use variables defined in eval blocks
+    pub fn fmt(&mut self, env: &Environment) {
+        for content in &mut self.body {
+            if let DocAst::Show(ast) = content {
+                let mut show = Show::new(env.clone());
+                let formatted = show.format(ast.clone())
+                    .unwrap_or_else(|e| format!("<merror><mtext>{}</mtext></merror>", e));
+                // Wrap in <math> tags for proper MathML rendering
+                let mathml = format!("<math display=\"inline\">{}</math>", formatted);
+                *content = DocAst::Html(mathml.into());
             }
         }
     }
@@ -98,12 +115,14 @@ impl Document {
                     html.push_str(content);
                 },
                 DocAst::Eval(_e) => {
-                    // NOTE: eval is expected to be in its final transformed
+                    // NOTE: eval is expected to be in its final transformed state
                     unreachable!("Interpreter should have processed all Eval blocks before output");
                 },
                 DocAst::Show(s) => {
+                    // Fallback if format_show_blocks wasn't called - use ToMathML
                     let s: String = s.to_mathml(); 
-                    html.push_str(&s);
+                    let mathml = format!("<math display=\"inline\">{}</math>", s);
+                    html.push_str(&mathml);
                 },
             }
         }
@@ -174,12 +193,13 @@ impl Document {
                 self.append(dast);
             },
             MdAst::Text { content } => {
-                let dast;
-                if content == "\n" {
-                    dast = DocAst::Html("<br/>".into());
+                let dast = if content == "\n" {
+                    DocAst::Html("<br/>".into())
                 } else {
-                    dast = DocAst::Html(content.into());
-                }
+                    // Replace newlines within text with <br/> tags
+                    let html_content = content.replace("\n", "<br/>");
+                    DocAst::Html(html_content.into())
+                };
                 self.append(dast);
             },
             MdAst::Paragraph { children } => {
@@ -252,7 +272,7 @@ impl Document {
 
     #[inline]
     fn append_codeblock(&mut self, code: String, language: Option<String>) {
-        let lang_html = format!("<pre> <code class=\"language-{}\">{}</code></pre>", language.unwrap_or_default(), code);
+        let lang_html = format!("<pre><code class=\"language-{}\">{}</code></pre>", language.unwrap_or_default(), code);
 
         let dast  = DocAst::Html(lang_html.into());
         self.append(dast);
