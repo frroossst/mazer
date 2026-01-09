@@ -1,6 +1,8 @@
 use mazer_atog::Atog;
 use mazer_types::{LispAST, Environment};
 
+pub mod docs;
+
 pub trait ToMathML {
     fn to_mathml(&self) -> String;
 }

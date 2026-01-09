@@ -1,31 +1,69 @@
 use std::env;
 
-use mazer_html::document::Document;
+use mazer_html::document::{Document, Metadata};
 use mazer_lisp::{interpreter::Interpreter, environment::EnvironmentExt};
 use mazer_types::Environment;
 use mazer_parser::Parser;
 
 #[derive(Default)]
-struct _Args<'a> {
-    verbose: bool,
-    filename: Option<&'a str>,
+struct Args {
+    filename: Option<String>,
     serve: bool,
+    open: bool,
+    verbose: bool,
     help: bool,
+    help_topic: Option<String>,
+}
+
+fn parse() -> Args {
+    let mut args = env::args();
+    args.next(); // program name
+
+    let mut result = Args::default();
+    let mut seen_file = false;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--serve" | "-s" => result.serve = true,
+            "--open" | "-o" => result.open = true,
+            "--verbose" | "-v" => result.verbose = true,
+            "--help" | "-h" => {
+                result.help = true;
+                result.help_topic = args.next();
+                break;
+            }
+            val if val.starts_with('-') => {
+                eprintln!("Unknown flag: {val}");
+            }
+            val => {
+                if !seen_file {
+                    result.filename = Some(val.to_string());
+                    seen_file = true;
+                } else if result.help && result.help_topic.is_none() {
+                    result.help_topic = Some(val.to_string());
+                } else {
+                    eprintln!("Ignoring extra positional argument: {val}");
+                }
+            }
+        }
+    }
+
+    result
 }
 
 fn main() {
-    let mut args = env::args();
-    let _program = args.next();
+    let args = parse();
+    let file_name = args.filename.expect("No input file specified");
 
-    let file = args.next();
-    // read file and process
-    let content = std::fs::read_to_string(file.unwrap()).expect("Failed to read file");
-
-
+    let content = std::fs::read_to_string(&file_name).expect("Failed to read file");
 
     let p = Parser::new(&content);
     let r = p.parse().expect("failed to parse");
     let mut d = Document::new(r);
+    d.meta(Metadata { 
+        source: &file_name,
+        version: env!("CARGO_PKG_VERSION"),
+    });
     d.build();
 
     let ctx = Environment::new().with_native().with_prelude();

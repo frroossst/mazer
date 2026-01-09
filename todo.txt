@@ -1,5 +1,1 @@
 -[  ] add a table fmt directive for pretty tables
-
--[ ] ellipsis
-
--[ ] fix limits showing up in mathml

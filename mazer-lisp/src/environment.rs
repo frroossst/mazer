@@ -33,7 +33,13 @@ impl EnvironmentExt for Environment {
         
         // TODO: add more stdlib functions here
         env.insert("+".into(), mazer_types::LispAST::NativeFunc(Native::add));
+        env.insert("add".into(), mazer_types::LispAST::NativeFunc(Native::add));
         env.insert("-".into(), mazer_types::LispAST::NativeFunc(Native::sub));
+        env.insert("sub".into(), mazer_types::LispAST::NativeFunc(Native::sub));
+        env.insert("*".into(), mazer_types::LispAST::NativeFunc(Native::mul));
+        env.insert("mul".into(), mazer_types::LispAST::NativeFunc(Native::mul));
+        env.insert("/".into(), mazer_types::LispAST::NativeFunc(Native::div));
+        env.insert("div".into(), mazer_types::LispAST::NativeFunc(Native::div));
 
         env.insert("reflect".into(), mazer_types::LispAST::NativeFunc(Native::reflect));
         env.insert("print".into(), mazer_types::LispAST::NativeFunc(Native::print));

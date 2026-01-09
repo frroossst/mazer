@@ -126,7 +126,9 @@ A derivative: (show (deriv f x)).
 )
 ```
 
-
+(show
+    (ellipsis)
+)
 
 - Item A
 

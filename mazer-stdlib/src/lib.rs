@@ -164,4 +164,50 @@ impl Native {
         
         Ok(LispAST::Number(result))
     }
+
+    pub fn mul(args: &[LispAST]) -> Result<LispAST, String> {
+        if !check_if_all_args_numbers(args) {
+            return Err("All arguments to mul must be numbers".to_string());
+        }
+        
+        if args.is_empty() {
+            return Err("* requires at least 1 argument".to_string());
+        }
+
+        let product = args.iter().fold(D512::from(1), |acc, x| {
+            if let LispAST::Number(n) = x {
+                acc * *n
+            } else {
+                acc
+            }
+        });
+        
+        Ok(LispAST::Number(product))
+    }
+
+    pub fn div(args: &[LispAST]) -> Result<LispAST, String> {
+        if !check_if_all_args_numbers(args) {
+            return Err("All arguments to div must be numbers".to_string());
+        }
+        
+        if args.is_empty() {
+            return Err("/ requires at least 1 argument".to_string());
+        }
+
+        let result = args.iter().fold(None, |acc: Option<D512>, x| {
+            if let LispAST::Number(n) = x {
+                match acc {
+                    None => Some(*n),
+                    Some(a) => Some(a / *n),
+                }
+            } else {
+                acc
+            }
+        });
+        
+        match result {
+            Some(res) => Ok(LispAST::Number(res)),
+            None => Err("Division failed".to_string()),
+        }
+    }
 }

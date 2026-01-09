@@ -22,6 +22,12 @@ pub enum DocAst {
     Show(LispAST),
 }
 
+pub struct Metadata<'a> {
+    // file tracking
+    pub source: &'a str,
+    pub version: &'a str,
+}
+
 // MdAst >| DocAst >| String
 pub struct Document {
     head: String,
@@ -44,6 +50,15 @@ impl Document {
 
     pub fn body(&self) -> Vec<DocAst> {
         self.body.clone()
+    }
+
+    pub fn meta(&mut self, meta: Metadata) {
+        let template = format!(
+            "<div id=\"mazer-meta\" style=\"display:none\" data-source-path=\"{}\" data-version=\"{}\"></div>",
+            meta.source,
+            meta.version
+        );
+        self.append(DocAst::Html(template.into()));
     }
 
     pub fn build(&mut self) {
