@@ -96,7 +96,8 @@ impl Document {
             if let DocAst::Show(ast) = content {
                 let formatted = format_mathml_with_env(ast, Some(env));
                 // Wrap in <math> tags for proper MathML rendering
-                let mathml = format!("<math display=\"inline\">{}</math>", formatted);
+                let mathml = format!("<math display=\"inline\"><mstyle displaystyle=\"true\">{}</mstyle></math>", formatted);
+
                 *content = DocAst::Html(mathml.into());
             }
         }
