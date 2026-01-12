@@ -61,6 +61,7 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             "define" => return format_define(args, env),
             "defunc" => return format_defunc(args, env),
             "quote" => return format_quote(args, env),
+            "string" => return format_string(args, env),
             
             // Arithmetic
             "+" | "add" => return format_infix_op(args, "+", env),
@@ -187,7 +188,41 @@ fn format_quote(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.is_empty() {
         return "<mrow></mrow>".to_string();
     }
-    format_mathml(&args[0], env)
+
+    // quoted expressions are rendered as-is
+    match &args[0] {
+        LispAST::String(s) => {
+            format!("<mtext>{}</mtext>", escape_xml(s))
+        }
+        LispAST::Symbol(s) => {
+            format_symbol(s)
+        }
+        _ => {
+            format_mathml(&args[0], env)
+        }
+    }
+
+}
+
+fn format_string(args: &[LispAST], env: Option<&Environment>) -> String {
+    if args.is_empty() {
+        return "<mrow></mrow>".to_string();
+    }
+
+    // String expressions are rendered by showing all their content
+    // without the "string(...)" wrapper
+    // Handle each argument, preserving parentheses for lists
+    let parts: Vec<_> = args.iter().map(|e| {
+        match e {
+            LispAST::List(items) if !items.is_empty() => {
+                // Render list contents with parentheses
+                let inner = items.iter().map(|item| format_mathml(item, env)).collect::<Vec<_>>().join("");
+                format!("<mrow><mo>(</mo>{}<mo>)</mo></mrow>", inner)
+            }
+            _ => format_mathml(e, env)
+        }
+    }).collect();
+    format!("<mrow>{}</mrow>", parts.join(""))
 }
 
 // ===== Arithmetic =====

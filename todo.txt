@@ -1,1 +1,16 @@
--[  ] add a table fmt directive for pretty tables
+-[ ] make sure show fmt can handle arbitrary quote so  I can represent something
+    like `f(x)`
+
+-[ ] make sure integrals take in a dx by default dx so it is 
+    (integral
+        (+
+            (pow x 2)
+        )
+        dx
+    )
+
+-[ ] why does (show pi) not do anything  but (show (pi)) shows pi ()
+
+
+-[ ] add a table fmt directive for pretty tables
+
