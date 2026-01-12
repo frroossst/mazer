@@ -76,6 +76,7 @@ The famous formula: (show (= x (frac (+ (- b) (sqrt (- (pow b 2) (* 4 a c)))) (*
 
 **Calculus:**
 An indefinite integral: (show (integral f)).
+An indefinite integral with respect to x: (show (integral (pow x 2) x)).
 A definite integral: (show (integral 0 infinity (exp (- (pow x 2))) x)).
 A sum: (show (sum (= i 1) n (pow i 2))).
 A derivative: (show (deriv f x)).
@@ -131,4 +132,11 @@ A derivative: (show (deriv f x)).
 )
 
 - Item A
+
+(show
+    (integral
+        (exp (- (pow x 2)))
+        x
+    )
+)
 

@@ -29,7 +29,11 @@ fn format_mathml(expr: &LispAST, env: Option<&Environment>) -> String {
         
         LispAST::String(s) => format!("<mtext>{}</mtext>", escape_xml(s)),
         
-        LispAST::Symbol(s) => format_symbol(s),
+        LispAST::Symbol(s) => {
+            let t = format_symbol(s);
+            dbg!(t.clone());
+            t
+        }
         
         LispAST::List(exprs) if exprs.is_empty() => "<mrow></mrow>".to_string(),
         
@@ -93,7 +97,7 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             // Trig functions
             "sin" | "cos" | "tan" | "cot" | "sec" | "csc" |
             "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" => {
-                return format_func(op, args, env);
+                return format_trig(op, args, env);
             }
             
             // Logarithms
@@ -147,6 +151,12 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             
             // Generic function call - check if user-defined
             _ => {
+                // check in mazer_atog environment first
+                if let Some(e) = Atog::get(op) {
+                    // we found the function to be in atog env
+                    return format_symbol(e);
+                }
+
                 // Check if it's a user-defined function
                 if let Some(e) = env {
                     if let Some(LispAST::UserFunc { .. }) = e.get(op) {
@@ -294,23 +304,32 @@ fn format_nthroot(args: &[LispAST], env: Option<&Environment>) -> String {
 fn format_integral(args: &[LispAST], env: Option<&Environment>) -> String {
     match args.len() {
         1 => {
+            // (integral expr) - unbounded integral without differential
             let integrand = format_mathml(&args[0], env);
             format!("<mrow><mo>∫</mo>{}</mrow>", integrand)
         }
+        2 => {
+            // (integral expr var) - indefinite integral with differential: ∫ expr dvar
+            let integrand = format_mathml(&args[0], env);
+            let var = format_mathml(&args[1], env);
+            format!("<mrow><mo>∫</mo>{}<mo>d</mo>{}</mrow>", integrand, var)
+        }
         3 => {
+            // (integral lower upper expr) - definite integral without explicit differential
             let lower = format_mathml(&args[0], env);
             let upper = format_mathml(&args[1], env);
             let integrand = format_mathml(&args[2], env);
             format!("<mrow><msubsup><mo>∫</mo>{}{}</msubsup>{}</mrow>", lower, upper, integrand)
         }
         4 => {
+            // (integral lower upper expr var) - definite integral with differential
             let lower = format_mathml(&args[0], env);
             let upper = format_mathml(&args[1], env);
             let integrand = format_mathml(&args[2], env);
             let var = format_mathml(&args[3], env);
             format!("<mrow><msubsup><mo>∫</mo>{}{}</msubsup>{}<mo>d</mo>{}</mrow>", lower, upper, integrand, var)
         }
-        _ => "<merror><mtext>integral requires 1, 3, or 4 arguments</mtext></merror>".to_string()
+        _ => "<merror><mtext>integral requires 1, 2, 3, or 4 arguments</mtext></merror>".to_string()
     }
 }
 
@@ -396,6 +415,29 @@ fn format_func(name: &str, args: &[LispAST], env: Option<&Environment>) -> Strin
     }
     let arg = format_mathml(&args[0], env);
     format!("<mrow><mi>{}</mi><mo>(</mo>{}<mo>)</mo></mrow>", name, arg)
+}
+
+fn format_trig(name: &str, args: &[LispAST], env: Option<&Environment>) -> String {
+    // renders just as functions regularly, but arctan and tanh and the likes 
+    // are shown as tan^-1 
+    if args.len() != 1 {
+        return format!("<merror><mtext>{} requires 1 argument</mtext></merror>", name);
+    }
+
+    let arg = format_mathml(&args[0], env);
+    let (func_name, is_inverse) = match name {
+        "arcsin" => ("sin", true),
+        "arccos" => ("cos", true),
+        "arctan" => ("tan", true),
+        _ => (name, false),
+    };
+
+    if is_inverse {
+        format!("<mrow><msup><mi>{}</mi><mo>⁻¹</mo></msup><mo>(</mo>{}<mo>)</mo></mrow>", func_name, arg)
+    } else {
+        format!("<mrow><mi>{}</mi><mo>(</mo>{}<mo>)</mo></mrow>", func_name, arg)
+    }
+
 }
 
 fn format_log(args: &[LispAST], env: Option<&Environment>) -> String {
