@@ -30,9 +30,7 @@ fn format_mathml(expr: &LispAST, env: Option<&Environment>) -> String {
         LispAST::String(s) => format!("<mtext>{}</mtext>", escape_xml(s)),
         
         LispAST::Symbol(s) => {
-            let t = format_symbol(s);
-            dbg!(t.clone());
-            t
+            format_symbol(s)
         }
         
         LispAST::List(exprs) if exprs.is_empty() => "<mrow></mrow>".to_string(),
