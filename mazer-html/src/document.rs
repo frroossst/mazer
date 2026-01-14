@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, rc::Rc};
 use mazer_lisp::parser::Parser;
 use mazer_types::Environment;
 use mazer_parser::MdAst;
-use mazer_render::{ToMathML, format_mathml_with_env};
+use mazer_render::{ToMathML, MathMLFormatter};
 use mazer_types::LispAST;
 
 
@@ -109,7 +109,8 @@ impl Document {
     pub fn fmt(&mut self, env: &Environment) {
         for content in &mut self.body {
             if let DocAst::Show(ast) = content {
-                let formatted = format_mathml_with_env(ast, Some(env));
+                let mathml_fmtr = MathMLFormatter::new(Some(env.clone()));
+                let formatted = mathml_fmtr.format(ast);
                 // Wrap in <math> tags for proper MathML rendering
                 let mathml = format!("<math display=\"inline\"><mstyle displaystyle=\"true\">{}</mstyle></math>", formatted);
 

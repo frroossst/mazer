@@ -13,12 +13,22 @@ impl ToMathML for LispAST {
     }
 }
 
-/// Format LispAST to MathML with optional environment for user-defined function lookup
-pub fn format_mathml_with_env(expr: &LispAST, env: Option<&Environment>) -> String {
-    format_mathml(expr, env)
+pub struct MathMLFormatter {
+    env: Option<Environment>,
 }
 
-/// Main MathML formatting function
+impl MathMLFormatter {
+    pub fn new(env: Option<Environment>) -> Self {
+        MathMLFormatter { env }
+    }
+
+    pub fn format(&self, expr: &LispAST) -> String {
+        format_mathml(expr, self.env.as_ref())
+    }
+}
+
+
+
 fn format_mathml(expr: &LispAST, env: Option<&Environment>) -> String {
     match expr {
         LispAST::Error(e) => format!("<merror><mtext>{}</mtext></merror>", escape_xml(e)),
