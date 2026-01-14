@@ -140,3 +140,14 @@ A derivative: (show (deriv f x)).
     )
 )
 
+Explicit multiplication: (show (* g cos theta))
+
+Implicit multiplication: (show (jux g cos theta))
+
+Coefficient: (show (jux 2 pi r))
+
+Multiple terms: (show (jux a b c))
+
+Single letter (no difference): (show (jux gcos))
+
+Compare: (show (* 2 x)) vs (show (jux 2 x))

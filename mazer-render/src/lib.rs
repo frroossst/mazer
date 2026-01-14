@@ -69,7 +69,8 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             "+" | "add" => return format_infix_op(args, "+", env),
             "-" | "sub" => return format_subtraction(args, env),
             "*" | "mul" => return format_infix_op(args, "×", env),
-            "/" | "div" => return format_fraction(args, env),
+            "/" | "div" => return format_division(args, env),
+            "juxtapose" | "jux" => return format_juxtapose(args, env),
             
             "pow" | "^" | "expt" => return format_power(args, env),
             "frac" => return format_fraction(args, env),
@@ -141,11 +142,13 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             // Annotations
             "text" => return format_text(args, env),
             "subscript" => return format_subscript(args, env),
+            "superscript" => return format_superscript(args, env),
             "overline" | "bar" => return format_overline(args, env),
             "hat" => return format_hat(args, env),
             "dot" => return format_dot(args, env),
             "ddot" => return format_ddot(args, env),
             "vec-arrow" | "arrow" => return format_vec_arrow(args, env),
+            "box" => return format_box(args, env),
             
             // Generic function call - check if user-defined
             _ => {
@@ -253,6 +256,33 @@ fn format_subtraction(args: &[LispAST], env: Option<&Environment>) -> String {
         return format!("<mrow><mo>-</mo>{}</mrow>", operand);
     }
     format_infix_op(args, "−", env)
+}
+
+fn format_division(args: &[LispAST], env: Option<&Environment>) -> String {
+    // Use fraction notation for exactly 2 arguments, infix for others
+    if args.len() == 2 {
+        format_fraction(args, env)
+    } else if args.len() == 1 {
+        // For single argument, show as 1/x (reciprocal)
+        let denominator = format_mathml(&args[0], env);
+        format!("<mfrac><mn>1</mn>{}</mfrac>", denominator)
+    } else {
+        // For n-ary division, use infix notation
+        format_infix_op(args, "÷", env)
+    }
+}
+
+fn format_juxtapose(args: &[LispAST], env: Option<&Environment>) -> String {
+    // Render arguments side-by-side with thin space between them
+    // This represents implicit multiplication (juxtaposition)
+    if args.is_empty() {
+        return "<mrow></mrow>".to_string();
+    }
+    
+    let parts: Vec<_> = args.iter().map(|e| format_mathml(e, env)).collect();
+    // Use thin space (U+2009) to separate elements slightly
+    let space = "<mspace width=\"0.167em\"/>";
+    format!("<mrow>{}</mrow>", parts.join(space))
 }
 
 fn format_power(args: &[LispAST], env: Option<&Environment>) -> String {
@@ -630,6 +660,15 @@ fn format_subscript(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<msub>{}{}</msub>", base, sub)
 }
 
+fn format_superscript(args: &[LispAST], env: Option<&Environment>) -> String {
+    if args.len() != 2 {
+        return "<merror><mtext>superscript requires 2 arguments</mtext></merror>".to_string();
+    }
+    let base = format_mathml(&args[0], env);
+    let sup = format_mathml(&args[1], env);
+    format!("<msup>{}{}</msup>", base, sup)
+}
+
 fn format_overline(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 1 {
         return "<merror><mtext>overline requires 1 argument</mtext></merror>".to_string();
@@ -668,6 +707,14 @@ fn format_vec_arrow(args: &[LispAST], env: Option<&Environment>) -> String {
     }
     let inner = format_mathml(&args[0], env);
     format!("<mover>{}<mo>→</mo></mover>", inner)
+}
+
+fn format_box(args: &[LispAST], env: Option<&Environment>) -> String {
+    if args.len() != 1 {
+        return "<merror><mtext>box requires 1 argument</mtext></merror>".to_string();
+    }
+    let inner = format_mathml(&args[0], env);
+    format!("<mrow style=\"border: 1px solid black; padding: 0.2em;\">{}</mrow>", inner)
 }
 
 // ===== Generic Function Application =====

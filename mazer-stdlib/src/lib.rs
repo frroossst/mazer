@@ -150,13 +150,23 @@ impl Native {
             return Err("- requires at least 1 argument".to_string());
         }
 
-        let result = args.iter().fold(D512::from(0), |acc, x| {
+        // For single argument, return negation
+        if args.len() == 1 {
+            if let LispAST::Number(n) = &args[0] {
+                return Ok(LispAST::Number(-*n));
+            }
+        }
+
+        // For multiple arguments, subtract sequentially from first
+        let first = if let LispAST::Number(n) = &args[0] {
+            *n
+        } else {
+            return Err("All arguments to sub must be numbers".to_string());
+        };
+
+        let result = args[1..].iter().fold(first, |acc, x| {
             if let LispAST::Number(n) = x {
-                if acc == D512::from(0) {
-                    *n
-                } else {
-                    acc - *n
-                }
+                acc - *n
             } else {
                 acc
             }
@@ -194,20 +204,34 @@ impl Native {
             return Err("/ requires at least 1 argument".to_string());
         }
 
-        let result = args.iter().fold(None, |acc: Option<D512>, x| {
-            if let LispAST::Number(n) = x {
-                match acc {
-                    None => Some(*n),
-                    Some(a) => Some(a / *n),
+        // For single argument, return reciprocal (1/x)
+        if args.len() == 1 {
+            if let LispAST::Number(n) = &args[0] {
+                if *n == D512::from(0) {
+                    return Err("Division by zero".to_string());
                 }
-            } else {
-                acc
+                return Ok(LispAST::Number(D512::from(1) / *n));
             }
-        });
-        
-        match result {
-            Some(res) => Ok(LispAST::Number(res)),
-            None => Err("Division failed".to_string()),
         }
+
+        // For multiple arguments, divide sequentially from first
+        let first = if let LispAST::Number(n) = &args[0] {
+            *n
+        } else {
+            return Err("All arguments to div must be numbers".to_string());
+        };
+
+        let result = args[1..].iter().try_fold(first, |acc, x| {
+            if let LispAST::Number(n) = x {
+                if *n == D512::from(0) {
+                    return Err("Division by zero".to_string());
+                }
+                Ok(acc / *n)
+            } else {
+                Ok(acc)
+            }
+        })?;
+        
+        Ok(LispAST::Number(result))
     }
 }

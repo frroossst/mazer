@@ -662,7 +662,48 @@ impl TokenParser {
                                         scheme_code.push('\n');
                                         self.advance();
                                     }
+                                    Token::SingleStar => {
+                                        scheme_code.push('*');
+                                        self.advance();
+                                    }
+                                    Token::DoubleStar => {
+                                        scheme_code.push_str("**");
+                                        self.advance();
+                                    }
+                                    Token::LeftBracket => {
+                                        scheme_code.push('[');
+                                        self.advance();
+                                    }
+                                    Token::RightBracket => {
+                                        scheme_code.push(']');
+                                        self.advance();
+                                    }
+                                    Token::Underscore => {
+                                        scheme_code.push('_');
+                                        self.advance();
+                                    }
+                                    Token::Tilde => {
+                                        scheme_code.push('~');
+                                        self.advance();
+                                    }
+                                    Token::DoublePipe => {
+                                        scheme_code.push_str("||");
+                                        self.advance();
+                                    }
+                                    Token::SingleBacktick => {
+                                        scheme_code.push('`');
+                                        self.advance();
+                                    }
+                                    Token::TripleBacktick => {
+                                        scheme_code.push_str("```");
+                                        self.advance();
+                                    }
+                                    Token::TripleDash => {
+                                        scheme_code.push_str("---");
+                                        self.advance();
+                                    }
                                     _ => {
+                                        // Skip other special tokens (headers, bullet points, etc.)
                                         self.advance();
                                     }
                                 }

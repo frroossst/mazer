@@ -1,4 +1,6 @@
 -[ ] why does (show pi) not do anything  but (show (pi)) shows pi ()
 
+-[ ] add in-browser support for eval js for plots
+
 -[ ] add a table fmt directive for pretty tables
 
