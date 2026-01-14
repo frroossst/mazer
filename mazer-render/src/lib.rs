@@ -184,8 +184,6 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
     format!("<mrow>{}</mrow>", parts.join(""))
 }
 
-// ===== Special Forms =====
-
 fn format_define(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 2 {
         return "<merror><mtext>define requires 2 arguments</mtext></merror>".to_string();
@@ -245,8 +243,6 @@ fn format_string(args: &[LispAST], env: Option<&Environment>) -> String {
     }).collect();
     format!("<mrow>{}</mrow>", parts.join(""))
 }
-
-// ===== Arithmetic =====
 
 fn format_infix_op(args: &[LispAST], op: &str, env: Option<&Environment>) -> String {
     if args.is_empty() {
@@ -336,8 +332,6 @@ fn format_nthroot(args: &[LispAST], env: Option<&Environment>) -> String {
     let radicand = format_mathml(&args[1], env);
     format!("<mroot>{}{}</mroot>", radicand, index)
 }
-
-// ===== Calculus =====
 
 fn format_integral(args: &[LispAST], env: Option<&Environment>) -> String {
     match args.len() {
@@ -445,8 +439,6 @@ fn format_partial(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<mrow><mfrac><mo>∂</mo><mrow><mo>∂</mo>{}</mrow></mfrac>{}</mrow>", var, expr)
 }
 
-// ===== Functions =====
-
 fn format_func(name: &str, args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 1 {
         return format!("<merror><mtext>{} requires 1 argument</mtext></merror>", name);
@@ -501,8 +493,6 @@ fn format_exp(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<msup><mi>e</mi>{}</msup>", exponent)
 }
 
-// ===== Other Math Functions =====
-
 fn format_abs(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 1 {
         return "<merror><mtext>abs requires 1 argument</mtext></merror>".to_string();
@@ -549,8 +539,6 @@ fn format_binomial(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<mrow><mo>(</mo><mfrac linethickness=\"0\">{}{}</mfrac><mo>)</mo></mrow>", n, k)
 }
 
-// ===== Matrices =====
-
 fn format_matrix(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.is_empty() {
         return "<mtable></mtable>".to_string();
@@ -596,14 +584,10 @@ fn format_determinant(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<mrow><mo>|</mo><mtable>{}</mtable><mo>|</mo></mrow>", rows.join(""))
 }
 
-// ===== Sets =====
-
 fn format_set(args: &[LispAST], env: Option<&Environment>) -> String {
     let elements: Vec<_> = args.iter().map(|e| format_mathml(e, env)).collect();
     format!("<mrow><mo>{{</mo>{}<mo>}}</mo></mrow>", elements.join("<mo>,</mo>"))
 }
-
-// ===== Logic =====
 
 fn format_not(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 1 {
@@ -621,8 +605,6 @@ fn format_quantifier(symbol: &str, args: &[LispAST], env: Option<&Environment>) 
     let expr = format_mathml(&args[1], env);
     format!("<mrow><mo>{}</mo>{}<mo>.</mo>{}</mrow>", symbol, var, expr)
 }
-
-// ===== Grouping =====
 
 fn format_parenthesized(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.is_empty() {
@@ -647,8 +629,6 @@ fn format_braced(args: &[LispAST], env: Option<&Environment>) -> String {
     let inner = format_mathml(&args[0], env);
     format!("<mrow><mo>{{</mo>{}<mo>}}</mo></mrow>", inner)
 }
-
-// ===== Annotations =====
 
 fn format_text(args: &[LispAST], _env: Option<&Environment>) -> String {
     let text_parts: Vec<_> = args.iter().map(|arg| {
@@ -727,8 +707,6 @@ fn format_box(args: &[LispAST], env: Option<&Environment>) -> String {
     format!("<mrow style=\"border: 1px solid black; padding: 0.2em;\">{}</mrow>", inner)
 }
 
-// ===== Generic Function Application =====
-
 fn format_func_application(name: &str, args: &[LispAST], env: Option<&Environment>) -> String {
     let formatted_args: Vec<_> = args.iter().map(|e| format_mathml(e, env)).collect();
     let func_name = format_symbol(name);
@@ -739,8 +717,6 @@ fn format_func_application(name: &str, args: &[LispAST], env: Option<&Environmen
         format!("<mrow>{}<mo>(</mo>{}<mo>)</mo></mrow>", func_name, formatted_args.join("<mo>,</mo>"))
     }
 }
-
-// ===== Helper Functions =====
 
 fn escape_xml(s: &str) -> String {
     s.replace('&', "&amp;")

@@ -111,9 +111,9 @@ impl Document {
             if let DocAst::Show(ast) = content {
                 let mathml_fmtr = MathMLFormatter::new(Some(env.clone()));
                 let formatted = mathml_fmtr.format(ast);
+
                 // Wrap in <math> tags for proper MathML rendering
                 let mathml = format!("<math display=\"inline\"><mstyle displaystyle=\"true\">{}</mstyle></math>", formatted);
-
                 *content = DocAst::Html(mathml.into());
             }
         }
