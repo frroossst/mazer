@@ -59,7 +59,6 @@ fn format_mathml(expr: &LispAST, env: Option<&Environment>) -> String {
     }
 }
 
-/// Format a list expression, handling special mathematical forms
 fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
     if exprs.is_empty() {
         return "<mrow></mrow>".to_string();

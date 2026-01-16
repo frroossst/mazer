@@ -6,5 +6,5 @@ rustflags = ["-C", "link-arg=--ld-path=wild"]
 frequency = "never"
 
 [build]
-rustflags = ["-Clink-arg=-fuse-ld=lld", "-Zthreads=22"]
+rustflags = ["-Zthreads=22"]
 

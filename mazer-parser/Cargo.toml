@@ -1,8 +1,7 @@
 [package]
 name = "mazer-parser"
-version = "0.0.0"
+version = "0.15.0"
 edition = "2024"
 
 [dependencies]
-rayon = "1.10"
 unicode-segmentation = "1.12"

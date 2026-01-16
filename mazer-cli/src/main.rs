@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, sync::Arc};
 
 use mazer_html::document::{Document, Metadata};
 use mazer_lisp::{interpreter::Interpreter, environment::EnvironmentExt};
@@ -51,9 +51,22 @@ fn parse() -> Args {
     result
 }
 
+fn print_help_message() {
+    println!("Usage: mazer-cli <input-file> [options]");
+    println!("Options:");
+    println!("  --serve, -s       Serve the output via a local web server");
+    println!("  --open, -o        Open the output in the default web browser");
+    println!("  --verbose, -v     Enable verbose logging");
+    println!("  --help, -h        Show this help message");
+}
+
 fn main() {
     let args = parse();
-    let file_name = args.filename.expect("No input file specified");
+    let file_name = args.filename.unwrap_or_else(|| {
+        eprintln!("No input file specified.");
+        print_help_message();
+        std::process::exit(1);
+    });
 
     let content = std::fs::read_to_string(&file_name).expect("Failed to read file");
 

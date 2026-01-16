@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -932,35 +931,9 @@ impl<'a> Parser<'a> {
             return Err(ParseError::EmptyInput);
         }
 
-        // Parallel chunking breaks constructs that can span multiple lines (for example fenced
-        // code blocks), so prefer the sequential parser for correctness.
-        self.parse_sequential()
-    }
-
-    fn parse_sequential(&self) -> Result<Vec<MdAst>> {
         let mut tokenizer = Tokenizer::new(self.input);
         let tokens = tokenizer.tokenize();
         Ok(Parser::parse_tokens(tokens))
-    }
-
-    #[allow(dead_code)]
-    fn parse_parallel(&self) -> Result<Vec<MdAst>> {
-        let lines: Vec<&str> = self.input.lines().collect();
-        let chunk_size = (lines.len() / rayon::current_num_threads()).max(50);
-        let chunks: Vec<_> = lines
-            .chunks(chunk_size)
-            .map(|chunk| chunk.join("\n"))
-            .collect();
-
-        Ok(chunks
-            .par_iter()
-            .filter_map(|chunk| {
-                let mut tokenizer = Tokenizer::new(chunk);
-                let tokens = tokenizer.tokenize();
-                Some(Parser::parse_tokens(tokens))
-            })
-            .flatten()
-            .collect())
     }
 
     fn parse_tokens(tokens: Vec<Token>) -> Vec<MdAst> {
