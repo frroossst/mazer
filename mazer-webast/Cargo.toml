@@ -1,0 +1,9 @@
+[package]
+name = "mazer-webast"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+mazer-types = { path = "../mazer-types" }
+strum = "0.27.2"
+

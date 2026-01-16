@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 fastnum = "0.7.4"
+strum = "0.27.2"
+strum_macros = "0.27.2"

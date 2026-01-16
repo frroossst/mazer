@@ -1,5 +1,5 @@
 use mazer_atog::Atog;
-use mazer_types::{LispAST, Environment};
+use mazer_types::{Environment, LispAST, implfuncs::ShowFunc};
 
 pub mod docs;
 
@@ -67,113 +67,119 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
     // Check for special forms
     if let LispAST::Symbol(op) = &exprs[0] {
         let args = &exprs[1..];
-        match op.as_str() {
-            // Special forms
-            "define" => return format_define(args, env),
-            "defunc" => return format_defunc(args, env),
-            "quote" => return format_quote(args, env),
-            "string" => return format_string(args, env),
+        let op_enum: ShowFunc = op.clone().into();
+        
+        match op_enum {
+            ShowFunc::Define => return format_define(args, env),
+            ShowFunc::Defunc => return format_defunc(args, env),
+            ShowFunc::Quote => return format_quote(args, env),
+            ShowFunc::String => return format_string(args, env),
             
             // Arithmetic
-            "+" | "add" => return format_infix_op(args, "+", env),
-            "-" | "sub" => return format_subtraction(args, env),
-            "*" | "mul" => return format_infix_op(args, "×", env),
-            "/" | "div" => return format_division(args, env),
-            "juxtapose" | "jux" => return format_juxtapose(args, env),
+            ShowFunc::Add => return format_infix_op(args, "+", env),
+            ShowFunc::Sub => return format_subtraction(args, env),
+            ShowFunc::Mul => return format_infix_op(args, "×", env),
+            ShowFunc::Div => return format_division(args, env),
+            ShowFunc::Jux => return format_juxtapose(args, env),
             
-            "pow" | "^" | "expt" => return format_power(args, env),
-            "frac" => return format_fraction(args, env),
-            "sqrt" => return format_sqrt(args, env),
-            "root" => return format_nthroot(args, env),
+            ShowFunc::Pow => return format_power(args, env),
+            ShowFunc::Frac => return format_fraction(args, env),
+            ShowFunc::Sqrt => return format_sqrt(args, env),
+            ShowFunc::Root => return format_nthroot(args, env),
             
             // Comparisons
-            "=" | "eq" => return format_infix_op(args, "=", env),
-            "!=" | "neq" => return format_infix_op(args, "≠", env),
-            "<" | "lt" => return format_infix_op(args, "<", env),
-            ">" | "gt" => return format_infix_op(args, ">", env),
-            "<=" | "le" | "leq" => return format_infix_op(args, "≤", env),
-            ">=" | "ge" | "geq" => return format_infix_op(args, "≥", env),
+            ShowFunc::Eq => return format_infix_op(args, "=", env),
+            ShowFunc::Neq => return format_infix_op(args, "≠", env),
+            ShowFunc::Lt => return format_infix_op(args, "<", env),
+            ShowFunc::Gt => return format_infix_op(args, ">", env),
+            ShowFunc::Leq => return format_infix_op(args, "≤", env),
+            ShowFunc::Geq => return format_infix_op(args, "≥", env),
             
             // Calculus
-            "integral" | "int" => return format_integral(args, env),
-            "sum" => return format_sum(args, env),
-            "prod" | "product" => return format_product(args, env),
-            "lim" | "limit" => return format_limit(args, env),
-            "deriv" | "derivative" => return format_derivative(args, env),
-            "partial" => return format_partial(args, env),
+            ShowFunc::Integral => return format_integral(args, env),
+            ShowFunc::Sum => return format_sum(args, env),
+            ShowFunc::Prod => return format_product(args, env),
+            ShowFunc::Limit => return format_limit(args, env),
+            ShowFunc::Derivative => return format_derivative(args, env),
+            ShowFunc::Partial => return format_partial(args, env),
             
             // Trig functions
-            "sin" | "cos" | "tan" | "cot" | "sec" | "csc" |
-            "arcsin" | "arccos" | "arctan" | "sinh" | "cosh" | "tanh" => {
-                return format_trig(op, args, env);
-            }
+            ShowFunc::Sin => return format_trig("sin", args, env),
+            ShowFunc::Cos => return format_trig("cos", args, env),
+            ShowFunc::Tan => return format_trig("tan", args, env),
+            ShowFunc::Cot => return format_trig("cot", args, env),
+            ShowFunc::Sec => return format_trig("sec", args, env),
+            ShowFunc::Cosec => return format_trig("csc", args, env),
+            ShowFunc::Arcsin => return format_trig("arcsin", args, env),
+            ShowFunc::Arccos => return format_trig("arccos", args, env),
+            ShowFunc::Arctan => return format_trig("arctan", args, env),
             
             // Logarithms
-            "ln" => return format_func("ln", args, env),
-            "log" => return format_log(args, env),
-            "exp" => return format_exp(args, env),
+            ShowFunc::Ln => return format_func("ln", args, env),
+            ShowFunc::Log => return format_log(args, env),
+            ShowFunc::Exp => return format_exp(args, env),
             
             // Other math functions
-            "abs" => return format_abs(args, env),
-            "floor" => return format_floor(args, env),
-            "ceil" => return format_ceil(args, env),
-            "fact" | "factorial" => return format_factorial(args, env),
-            "binom" | "choose" => return format_binomial(args, env),
+            ShowFunc::Abs => return format_abs(args, env),
+            ShowFunc::Floor => return format_floor(args, env),
+            ShowFunc::Ceil => return format_ceil(args, env),
+            ShowFunc::Fact => return format_factorial(args, env),
+            ShowFunc::Binom => return format_binomial(args, env),
             
             // Matrices
-            "matrix" => return format_matrix(args, env),
-            "vec" | "vector" => return format_vector(args, env),
-            "det" => return format_determinant(args, env),
+            ShowFunc::Matrix => return format_matrix(args, env),
+            ShowFunc::Vec => return format_vector(args, env),
+            ShowFunc::Det => return format_determinant(args, env),
             
             // Sets
-            "set" => return format_set(args, env),
-            "in" | "elem" => return format_infix_op(args, "∈", env),
-            "notin" => return format_infix_op(args, "∉", env),
-            "subset" => return format_infix_op(args, "⊆", env),
-            "supset" => return format_infix_op(args, "⊇", env),
-            "union" => return format_infix_op(args, "∪", env),
-            "intersect" => return format_infix_op(args, "∩", env),
+            ShowFunc::Set => return format_set(args, env),
+            ShowFunc::In => return format_infix_op(args, "∈", env),
+            ShowFunc::NotIn => return format_infix_op(args, "∉", env),
+            ShowFunc::Subset => return format_infix_op(args, "⊆", env),
+            ShowFunc::Superset => return format_infix_op(args, "⊇", env),
+            ShowFunc::Union => return format_infix_op(args, "∪", env),
+            ShowFunc::Intersect => return format_infix_op(args, "∩", env),
             
             // Logic
-            "and" => return format_infix_op(args, "∧", env),
-            "or" => return format_infix_op(args, "∨", env),
-            "not" => return format_not(args, env),
-            "implies" => return format_infix_op(args, "⟹", env),
-            "iff" => return format_infix_op(args, "⟺", env),
-            "forall" => return format_quantifier("∀", args, env),
-            "exists" => return format_quantifier("∃", args, env),
+            ShowFunc::And => return format_infix_op(args, "∧", env),
+            ShowFunc::Or => return format_infix_op(args, "∨", env),
+            ShowFunc::Not => return format_not(args, env),
+            ShowFunc::Implies => return format_infix_op(args, "⟹", env),
+            ShowFunc::Iff => return format_infix_op(args, "⟺", env),
+            ShowFunc::ForAll => return format_quantifier("∀", args, env),
+            ShowFunc::Exists => return format_quantifier("∃", args, env),
             
             // Grouping
-            "paren" => return format_parenthesized(args, env),
-            "bracket" => return format_bracketed(args, env),
-            "brace" => return format_braced(args, env),
+            ShowFunc::Paren => return format_parenthesized(args, env),
+            ShowFunc::Bracket => return format_bracketed(args, env),
+            ShowFunc::Brace => return format_braced(args, env),
             
             // Annotations
-            "text" => return format_text(args, env),
-            "subscript" => return format_subscript(args, env),
-            "superscript" => return format_superscript(args, env),
-            "overline" | "bar" => return format_overline(args, env),
-            "hat" => return format_hat(args, env),
-            "dot" => return format_dot(args, env),
-            "ddot" => return format_ddot(args, env),
-            "vec-arrow" | "arrow" => return format_vec_arrow(args, env),
-            "box" => return format_box(args, env),
+            ShowFunc::Text => return format_text(args, env),
+            ShowFunc::Subscript => return format_subscript(args, env),
+            ShowFunc::Superscript => return format_superscript(args, env),
+            ShowFunc::Overline => return format_overline(args, env),
+            ShowFunc::Hat => return format_hat(args, env),
+            ShowFunc::Dot => return format_dot(args, env),
+            ShowFunc::Ddot => return format_ddot(args, env),
+            ShowFunc::Arrow => return format_vec_arrow(args, env),
+            ShowFunc::Box => return format_box(args, env),
             
             // Generic function call - check if user-defined
-            _ => {
+            ShowFunc::MaybeFunc(ref op_str) => {
                 // check in mazer_atog environment first
-                if let Some(e) = Atog::get(op) {
+                if let Some(e) = Atog::get(op_str) {
                     // we found the function to be in atog env
                     return format_symbol(e);
                 }
 
                 // Check if it's a user-defined function
                 if let Some(e) = env {
-                    if let Some(LispAST::UserFunc { .. }) = e.get(op) {
-                        return format_func_application(op, args, env);
+                    if let Some(LispAST::UserFunc { .. }) = e.get(op_str) {
+                        return format_func_application(op_str, args, env);
                     }
                 }
-                return format_func_application(op, args, env);
+                return format_func_application(op_str, args, env);
             }
         }
     }
