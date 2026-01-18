@@ -1,10 +1,11 @@
-use std::{env, sync::Arc};
+use std::env;
 
 use mazer_html::document::{Document, Metadata};
 use mazer_lisp::{interpreter::Interpreter, environment::EnvironmentExt};
 use mazer_types::Environment;
 use mazer_parser::Parser;
-use tiny_http::{Header, HeaderField};
+
+use tiny_http::{Server, Response, Header};
 
 #[derive(Default)]
 struct Args {
@@ -72,14 +73,18 @@ fn main() {
     let content = std::fs::read_to_string(&file_name).expect("Failed to read file");
 
     if args.serve {
-        use tiny_http::{Server, Response, Header};
-
         let port = 64217;
         let server = Server::http(format!("0.0.0.0:{}", port));
+
         match server {
             Ok(server) => {
                 println!("Serving on http://localhost:{}", port);
                 println!("Press Ctrl+C to stop the server");
+
+                if args.open {
+                    opener::open_browser(format!("http://localhost:{}", port)).expect("Failed to open browser");
+                }
+
                 loop {
                     for request in server.incoming_requests() {
                         let o = compile(&content, &file_name);
