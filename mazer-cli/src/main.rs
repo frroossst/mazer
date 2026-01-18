@@ -4,6 +4,7 @@ use mazer_html::document::{Document, Metadata};
 use mazer_lisp::{interpreter::Interpreter, environment::EnvironmentExt};
 use mazer_types::Environment;
 use mazer_parser::Parser;
+use tiny_http::{Header, HeaderField};
 
 #[derive(Default)]
 struct Args {
@@ -70,6 +71,42 @@ fn main() {
 
     let content = std::fs::read_to_string(&file_name).expect("Failed to read file");
 
+    if args.serve {
+        use tiny_http::{Server, Response, Header};
+
+        let port = 64217;
+        let server = Server::http(format!("0.0.0.0:{}", port));
+        match server {
+            Ok(server) => {
+                println!("Serving on http://localhost:{}", port);
+                println!("Press Ctrl+C to stop the server");
+                loop {
+                    for request in server.incoming_requests() {
+                        let o = compile(&content, &file_name);
+                        let response = Response::from_string(o)
+                        .with_header(
+                            Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=UTF-8"[..]).unwrap()
+                        );
+
+                        let _ = request.respond(response);
+                    }
+                }
+            },
+            Err(e) => {
+                eprintln!("[ERROR] {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        let o = compile(&content, &file_name);
+
+        // write to /tmp/output.html
+        std::fs::write("/tmp/output.html", o).expect("Failed to write output");
+    }
+
+}
+
+fn compile(content: &str, file_name: &str) -> String {
     let p = Parser::new(&content);
     let r = p.parse().expect("failed to parse");
     let mut d = Document::new(r);
@@ -89,7 +126,5 @@ fn main() {
     
     let o = d.output();
 
-    // write to /tmp/output.html
-    std::fs::write("/tmp/output.html", o).expect("Failed to write output");
-
+    o
 }
