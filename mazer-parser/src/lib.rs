@@ -413,6 +413,46 @@ impl TokenParser {
                     text.push_str(ws);
                     self.advance();
                 }
+                Token::LeftParen => {
+                    text.push('(');
+                    self.advance();
+                }
+                Token::RightParen => {
+                    text.push(')');
+                    self.advance();
+                }
+                Token::LeftBracket => {
+                    text.push('[');
+                    self.advance();
+                }
+                Token::RightBracket => {
+                    text.push(']');
+                    self.advance();
+                }
+                Token::SingleBacktick => {
+                    text.push('`');
+                    self.advance();
+                }
+                Token::DoublePipe => {
+                    text.push_str("||");
+                    self.advance();
+                }
+                Token::DoubleStar => {
+                    text.push_str("**");
+                    self.advance();
+                }
+                Token::SingleStar => {
+                    text.push('*');
+                    self.advance();
+                }
+                Token::Underscore => {
+                    text.push('_');
+                    self.advance();
+                }
+                Token::Tilde => {
+                    text.push('~');
+                    self.advance();
+                }
                 _ => break,
             }
         }
