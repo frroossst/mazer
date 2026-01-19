@@ -1,5 +1,5 @@
 /// Formats an addition expression.
-/// 
+///
 /// # Arguments
 /// - N args: `(add expr1 expr2 ... exprN)` - adds all expressions
 /// # Examples
@@ -7,7 +7,7 @@
 /// (show (add 1 2 3))
 /// (show (add 11 12))
 /// ```
-#[doc (alias = "+")]
+#[doc(alias = "+")]
 pub mod add {}
 
 /// Formats an integral expression.
@@ -40,5 +40,3 @@ pub mod integral {}
 /// ```
 #[doc(alias = "summation")]
 pub mod sum {}
-
-

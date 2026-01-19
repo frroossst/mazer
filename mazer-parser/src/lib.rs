@@ -32,24 +32,61 @@ pub type Result<T> = std::result::Result<T, ParseError>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MdAst {
-    Header { level: u8, text: String },
-    UnorderedList { items: Vec<String> },
-    CheckboxUnchecked { text: String },
-    CheckboxChecked { text: String },
-    BlockQuote { content: String },
-    Spoiler { content: String },
-    Link { text: String, url: String },
-    CodeBlock { language: Option<String>, code: String },
-    InlineCode { code: String },
-    Bold { text: String },
-    Italic { text: String },
-    Underline { text: String },
-    Strikethrough { text: String },
+    Header {
+        level: u8,
+        text: String,
+    },
+    UnorderedList {
+        items: Vec<String>,
+    },
+    CheckboxUnchecked {
+        text: String,
+    },
+    CheckboxChecked {
+        text: String,
+    },
+    BlockQuote {
+        content: String,
+    },
+    Spoiler {
+        content: String,
+    },
+    Link {
+        text: String,
+        url: String,
+    },
+    CodeBlock {
+        language: Option<String>,
+        code: String,
+    },
+    InlineCode {
+        code: String,
+    },
+    Bold {
+        text: String,
+    },
+    Italic {
+        text: String,
+    },
+    Underline {
+        text: String,
+    },
+    Strikethrough {
+        text: String,
+    },
     PageSeparator,
-    EvalBlock { code: String },
-    ShowBlock { code: String },
-    Text { content: String },
-    Paragraph { children: Vec<MdAst> },
+    EvalBlock {
+        code: String,
+    },
+    ShowBlock {
+        code: String,
+    },
+    Text {
+        content: String,
+    },
+    Paragraph {
+        children: Vec<MdAst>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -221,7 +258,7 @@ impl<'a> Tokenizer<'a> {
                             continue;
                         }
                     }
-                    
+
                     // For hyphens not at start of line or not followed by space, treat as text
                     self.advance();
                     tokens.push(Token::Text("-".to_string()));
@@ -397,8 +434,12 @@ impl TokenParser {
         while let Some(token) = self.peek(0) {
             match token {
                 // Stop parsing inline elements when we hit block-level tokens
-                Token::CheckboxUnchecked | Token::CheckboxChecked | Token::BlockQuote 
-                | Token::BulletPoint | Token::Header(_) | Token::TripleBacktick 
+                Token::CheckboxUnchecked
+                | Token::CheckboxChecked
+                | Token::BlockQuote
+                | Token::BulletPoint
+                | Token::Header(_)
+                | Token::TripleBacktick
                 | Token::TripleDash => break,
                 Token::Newline if until_newline => break,
                 Token::Newline => {
@@ -714,11 +755,13 @@ impl TokenParser {
                             } else {
                                 elements.push(MdAst::ShowBlock { code: scheme_code });
                             }
-                            
+
                             // Preserve newline after show/eval block if present
                             if matches!(self.peek(0), Some(Token::Newline)) {
                                 self.advance();
-                                elements.push(MdAst::Text { content: "\n".to_string() });
+                                elements.push(MdAst::Text {
+                                    content: "\n".to_string(),
+                                });
                             }
                             continue;
                         }
@@ -766,7 +809,10 @@ impl TokenParser {
                     self.advance();
                     let text = self.collect_line_text();
 
-                    ast_nodes.push(MdAst::Header { level: level.clamp(1, 6) , text });
+                    ast_nodes.push(MdAst::Header {
+                        level: level.clamp(1, 6),
+                        text,
+                    });
                 }
                 Some(Token::BulletPoint) => {
                     // Collect all consecutive bullet points into a single UnorderedList
@@ -829,8 +875,7 @@ impl TokenParser {
                     let mut iterations = 0;
                     while let Some(token) = self.peek(0) {
                         iterations += 1;
-                        if iterations % 100 == 0 {
-                        }
+                        if iterations % 100 == 0 {}
                         match token {
                             Token::TripleBacktick => {
                                 self.advance();
@@ -1026,7 +1071,10 @@ mod tests {
 
         assert_eq!(ast.len(), 1);
         assert!(matches!(ast[0], MdAst::CodeBlock { .. }));
-        assert!(!ast.iter().any(|node| matches!(node, MdAst::EvalBlock { .. })));
+        assert!(
+            !ast.iter()
+                .any(|node| matches!(node, MdAst::EvalBlock { .. }))
+        );
 
         if let MdAst::CodeBlock { code, .. } = &ast[0] {
             assert!(code.contains("(eval (print \"hello\"))"));
@@ -1037,10 +1085,13 @@ mod tests {
     fn test_inline_code() {
         let input = "This is `inline code` here";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(ast.iter().any(|node| match node {
-            MdAst::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, MdAst::InlineCode { .. })),
-            _ => false,
+        assert!(ast.iter().any(|node| {
+            match node {
+                MdAst::Paragraph { children } => children
+                    .iter()
+                    .any(|c| matches!(c, MdAst::InlineCode { .. })),
+                _ => false,
+            }
         }));
     }
 
@@ -1055,11 +1106,14 @@ mod tests {
     fn test_eval_scheme() {
         let input = "Result: (eval (+ 1 1))";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(ast.iter().any(|node| match node {
-            MdAst::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, MdAst::EvalBlock { .. })),
-            MdAst::EvalBlock { .. } => true,
-            _ => false,
+        assert!(ast.iter().any(|node| {
+            match node {
+                MdAst::Paragraph { children } => children
+                    .iter()
+                    .any(|c| matches!(c, MdAst::EvalBlock { .. })),
+                MdAst::EvalBlock { .. } => true,
+                _ => false,
+            }
         }));
     }
 
@@ -1067,11 +1121,14 @@ mod tests {
     fn test_show_scheme() {
         let input = "(show (matrix (1 1 1)))";
         let ast = Parser::new(input).parse().unwrap();
-        assert!(ast.iter().any(|node| match node {
-            MdAst::Paragraph { children } =>
-                children.iter().any(|c| matches!(c, MdAst::ShowBlock { .. })),
-            MdAst::ShowBlock { .. } => true,
-            _ => false,
+        assert!(ast.iter().any(|node| {
+            match node {
+                MdAst::Paragraph { children } => children
+                    .iter()
+                    .any(|c| matches!(c, MdAst::ShowBlock { .. })),
+                MdAst::ShowBlock { .. } => true,
+                _ => false,
+            }
         }));
     }
 
@@ -1204,11 +1261,17 @@ mod tests {
         }
 
         // Check unordered list
-        let list_count = ast.iter().filter(|node| matches!(node, MdAst::UnorderedList { .. })).count();
+        let list_count = ast
+            .iter()
+            .filter(|node| matches!(node, MdAst::UnorderedList { .. }))
+            .count();
         assert_eq!(list_count, 1);
 
         // Verify the list has 2 items
-        if let Some(MdAst::UnorderedList { items }) = ast.iter().find(|node| matches!(node, MdAst::UnorderedList { .. })) {
+        if let Some(MdAst::UnorderedList { items }) = ast
+            .iter()
+            .find(|node| matches!(node, MdAst::UnorderedList { .. }))
+        {
             assert_eq!(items.len(), 2);
         }
     }
@@ -1254,6 +1317,9 @@ mod tests {
         let eval_blocks = count_eval(&ast);
 
         // Only the inline (eval (+ 1 1)) should be parsed as an eval block
-        assert_eq!(eval_blocks, 1, "unexpected eval blocks found in markdown example");
+        assert_eq!(
+            eval_blocks, 1,
+            "unexpected eval blocks found in markdown example"
+        );
     }
 }

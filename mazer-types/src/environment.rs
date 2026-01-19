@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use crate::LispAST;
+use std::collections::BTreeMap;
 
 pub type EnvMap = BTreeMap<String, LispAST>;
 
@@ -20,15 +20,15 @@ impl Environment {
             self.bindings.insert(k.clone(), v.clone());
         }
     }
-    
+
     pub fn insert(&mut self, name: &str, value: LispAST) {
         self.bindings.insert(name.to_string(), value);
     }
-    
+
     pub fn get(&self, name: &str) -> Option<&LispAST> {
         self.bindings.get(name)
     }
-    
+
     pub fn set(&mut self, name: String, value: LispAST) {
         self.bindings.insert(name, value);
     }

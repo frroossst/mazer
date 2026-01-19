@@ -1,12 +1,10 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use mazer_lisp::parser::Parser;
-use mazer_types::Environment;
 use mazer_parser::MdAst;
-use mazer_render::{ToMathML, MathMLFormatter};
+use mazer_render::{MathMLFormatter, ToMathML};
+use mazer_types::Environment;
 use mazer_types::LispAST;
-
-
 
 enum FontKind {
     Bold,
@@ -36,9 +34,7 @@ pub struct Document {
 }
 
 impl Document {
-
     pub fn new(nodes: Vec<MdAst>) -> Self {
-
         let head = "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2232%22 font-size=%2232%22>🍁</text></svg>\"><script src=\"https://cdn.jsdelivr.net/npm/@arborium/arborium/dist/arborium.iife.js\" data-theme=\"github-light\" data-selector=\"pre code\"></script></head>";
 
         Document {
@@ -55,8 +51,7 @@ impl Document {
     pub fn meta(&mut self, meta: Metadata) {
         let template = format!(
             "<div id=\"mazer-meta\" style=\"display:none\" data-source-path=\"{}\" data-version=\"{}\"></div>",
-            meta.source,
-            meta.version
+            meta.source, meta.version
         );
         self.append(DocAst::Html(template.into()));
     }
@@ -77,11 +72,11 @@ impl Document {
                 DocAst::Eval(ast) => {
                     let key = format!("{:?}", ast);
                     Some((key, ast.clone()))
-                },
+                }
                 _ => None,
             })
             .collect()
-    } 
+    }
 
     /// Inject evaluated results for Eval blocks.
     /// Show blocks are handled separately via format_show_blocks().
@@ -94,13 +89,13 @@ impl Document {
                         // Eval blocks execute for side effects only, don't display
                         *content = DocAst::Html("".into());
                     }
-                },
+                }
                 // Show blocks are now handled by format_show_blocks, not here
-                _ => {},
+                _ => {}
             }
         }
     }
-    
+
     /// Format all Show blocks using the symbolic Show formatter.
     /// This preserves the symbolic structure and converts to MathML without evaluation.
     /// Call this after inject() to format show blocks with the environment from evaluation.
@@ -113,7 +108,10 @@ impl Document {
                 let formatted = mathml_fmtr.format(ast);
 
                 // Wrap in <math> tags for proper MathML rendering
-                let mathml = format!("<math display=\"inline\"><mstyle displaystyle=\"true\">{}</mstyle></math>", formatted);
+                let mathml = format!(
+                    "<math display=\"inline\"><mstyle displaystyle=\"true\">{}</mstyle></math>",
+                    formatted
+                );
                 *content = DocAst::Html(mathml.into());
             }
         }
@@ -127,17 +125,17 @@ impl Document {
             match n {
                 DocAst::Html(content) => {
                     html.push_str(content);
-                },
+                }
                 DocAst::Eval(_e) => {
                     // NOTE: eval is expected to be in its final transformed state
                     unreachable!("Interpreter should have processed all Eval blocks before output");
-                },
+                }
                 DocAst::Show(s) => {
                     // Fallback if format_show_blocks wasn't called - use ToMathML
-                    let s: String = s.to_mathml(); 
+                    let s: String = s.to_mathml();
                     let mathml = format!("<math display=\"inline\">{}</math>", s);
                     html.push_str(&mathml);
-                },
+                }
             }
         }
         html.push_str("</html>");
@@ -152,60 +150,64 @@ impl Document {
         match node {
             MdAst::Header { level, text } => {
                 self.append_header(level, text);
-            },
+            }
             MdAst::UnorderedList { items } => {
                 self.append_unordered_list(items);
-            },
+            }
             MdAst::CheckboxUnchecked { text } => {
                 self.append_checkbox(text, false);
-            },
+            }
             MdAst::CheckboxChecked { text } => {
                 self.append_checkbox(text, true);
-            },
+            }
             MdAst::BlockQuote { content } => {
                 self.append_blockquote(content);
-            },
+            }
             MdAst::Spoiler { content } => {
                 self.append_spoiler(content);
-            },
+            }
             MdAst::Link { text, url } => {
                 self.append_link(text, url);
-            },
+            }
             MdAst::CodeBlock { code, language } => {
                 self.append_codeblock(code, language);
-            },
+            }
             MdAst::InlineCode { code } => {
                 self.append_inline_code(code);
-            },
+            }
             MdAst::Bold { text } => {
                 self.append_text(text, FontKind::Bold);
-            },
+            }
             MdAst::Italic { text } => {
                 self.append_text(text, FontKind::Italic);
-            },
+            }
             MdAst::Underline { text } => {
                 self.append_text(text, FontKind::Underline);
-            },
+            }
             MdAst::Strikethrough { text } => {
                 self.append_text(text, FontKind::Strikethrough);
-            },
+            }
             MdAst::PageSeparator => {
                 self.append_page_separator();
-            },
+            }
             MdAst::EvalBlock { code } => {
                 let mut p = Parser::new(&code);
-                let r = p.parse().unwrap_or(LispAST::Error("<<failed to parse>>".into()));
+                let r = p
+                    .parse()
+                    .unwrap_or(LispAST::Error("<<failed to parse>>".into()));
 
                 let dast = DocAst::Eval(r);
                 self.append(dast);
-            },
+            }
             MdAst::ShowBlock { code } => {
                 let mut p = Parser::new(&code);
-                let r = p.parse().unwrap_or(LispAST::Error("<<failed to parse>>".into()));
+                let r = p
+                    .parse()
+                    .unwrap_or(LispAST::Error("<<failed to parse>>".into()));
 
                 let dast = DocAst::Show(r);
                 self.append(dast);
-            },
+            }
             MdAst::Text { content } => {
                 let dast = if content == "\n" {
                     DocAst::Html("<br/>".into())
@@ -215,7 +217,7 @@ impl Document {
                     DocAst::Html(html_content.into())
                 };
                 self.append(dast);
-            },
+            }
             MdAst::Paragraph { children } => {
                 for c in children {
                     self.append_node(c);
@@ -278,7 +280,10 @@ impl Document {
     #[inline]
     fn append_link(&mut self, text: String, url: String) {
         // always open in new tab
-        let link_html = format!("<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">{}</a>", url, text);
+        let link_html = format!(
+            "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">{}</a>",
+            url, text
+        );
 
         let dast = DocAst::Html(link_html.into());
         self.append(dast);
@@ -286,9 +291,13 @@ impl Document {
 
     #[inline]
     fn append_codeblock(&mut self, code: String, language: Option<String>) {
-        let lang_html = format!("<pre><code class=\"language-{}\">{}</code></pre>", language.unwrap_or_default(), code);
+        let lang_html = format!(
+            "<pre><code class=\"language-{}\">{}</code></pre>",
+            language.unwrap_or_default(),
+            code
+        );
 
-        let dast  = DocAst::Html(lang_html.into());
+        let dast = DocAst::Html(lang_html.into());
         self.append(dast);
     }
 
@@ -318,6 +327,4 @@ impl Document {
         let dast = DocAst::Html("<hr/>".into());
         self.append(dast);
     }
-
-
 }

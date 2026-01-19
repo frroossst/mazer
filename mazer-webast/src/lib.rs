@@ -1,7 +1,6 @@
 use mazer_types::implfuncs::ShowFunc;
 use strum::IntoEnumIterator;
 
-
 struct MazerLSP;
 
 impl MazerLSP {
@@ -13,5 +12,3 @@ impl MazerLSP {
         vec![]
     }
 }
-
-

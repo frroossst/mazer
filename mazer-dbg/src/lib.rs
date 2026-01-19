@@ -161,34 +161,35 @@ pub fn send_to_debug_server_and_wait(
     backtrace: String,
 ) {
     if let (Some(sender), Some(receiver)) = (DEBUG_SENDER.get(), RESPONSE_RECEIVER.get())
-        && let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock()) {
-            let message = DebugMessage {
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64,
-                file: file.into(),
-                line,
-                column,
-                variables,
-                backtrace,
-            };
+        && let (Ok(sender), Ok(receiver)) = (sender.lock(), receiver.lock())
+    {
+        let message = DebugMessage {
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+            file: file.into(),
+            line,
+            column,
+            variables,
+            backtrace,
+        };
 
-            if let Err(e) = sender.send(message) {
-                eprintln!("Failed to send debug message: {}", e);
-                return;
+        if let Err(e) = sender.send(message) {
+            eprintln!("Failed to send debug message: {}", e);
+            return;
+        }
+
+        // Wait for response (GUI window closed)
+        match receiver.recv() {
+            Ok(_response) => {
+                // continue execution
             }
-
-            // Wait for response (GUI window closed)
-            match receiver.recv() {
-                Ok(_response) => {
-                    // continue execution
-                }
-                Err(e) => {
-                    eprintln!("Failed to receive response from debug server: {}", e);
-                }
+            Err(e) => {
+                eprintln!("Failed to receive response from debug server: {}", e);
             }
         }
+    }
 }
 
 /// The debug server process that receives debug messages and shows GUI

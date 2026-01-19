@@ -1,22 +1,24 @@
-use std::{collections::HashMap, io::{Write, stderr}};
+use std::{
+    collections::HashMap,
+    io::{Write, stderr},
+};
 
 use fastnum::D512;
 use mazer_types::LispAST;
 
-// prlude functions are functions that are valid lisp code that is parsed 
+// prlude functions are functions that are valid lisp code that is parsed
 // and added to the environment at startup
 pub struct Prelude;
 
 impl Prelude {
-
     pub fn new() -> HashMap<String, &'static str> {
         let mut prelude = HashMap::new();
-        
+
         prelude.insert("not".into(), Self::not());
         prelude.insert("or".into(), Self::or());
         prelude.insert("and".into(), Self::and());
         prelude.insert("xor".into(), Self::xor());
-        
+
         prelude
     }
 
@@ -59,9 +61,7 @@ impl Prelude {
             )
         "#
     }
-
 }
-
 
 #[inline]
 fn check_if_all_args_numbers(args: &[LispAST]) -> bool {
@@ -71,13 +71,12 @@ fn check_if_all_args_numbers(args: &[LispAST]) -> bool {
 pub struct Native;
 
 impl Native {
-
     // type infer runtime
     pub fn reflect(args: &[LispAST]) -> Result<LispAST, String> {
         if args.len() != 1 {
             return Err("reflect requires exactly 1 argument".to_string());
         }
-        
+
         let type_str = match &args[0] {
             LispAST::Number(_) => "Number",
             LispAST::Bool(_) => "Bool",
@@ -89,10 +88,9 @@ impl Native {
             LispAST::Application { .. } => "Application",
             LispAST::Error(_) => "Error",
         };
-        
+
         Ok(LispAST::Symbol(type_str.to_string()))
     }
-
 
     pub fn print(args: &[LispAST]) -> Result<LispAST, String> {
         for arg in args {
@@ -129,7 +127,7 @@ impl Native {
         if args.is_empty() {
             return Err("+ requires at least 1 argument".to_string());
         }
-        
+
         let sum = args.iter().fold(D512::from(0), |acc, x| {
             if let LispAST::Number(n) = x {
                 acc + *n
@@ -137,15 +135,15 @@ impl Native {
                 acc
             }
         });
-        
+
         Ok(LispAST::Number(sum))
     }
-    
+
     pub fn sub(args: &[LispAST]) -> Result<LispAST, String> {
         if !check_if_all_args_numbers(args) {
             return Err("All arguments to sub must be numbers".to_string());
         }
-        
+
         if args.is_empty() {
             return Err("- requires at least 1 argument".to_string());
         }
@@ -171,7 +169,7 @@ impl Native {
                 acc
             }
         });
-        
+
         Ok(LispAST::Number(result))
     }
 
@@ -179,7 +177,7 @@ impl Native {
         if !check_if_all_args_numbers(args) {
             return Err("All arguments to mul must be numbers".to_string());
         }
-        
+
         if args.is_empty() {
             return Err("* requires at least 1 argument".to_string());
         }
@@ -191,7 +189,7 @@ impl Native {
                 acc
             }
         });
-        
+
         Ok(LispAST::Number(product))
     }
 
@@ -199,7 +197,7 @@ impl Native {
         if !check_if_all_args_numbers(args) {
             return Err("All arguments to div must be numbers".to_string());
         }
-        
+
         if args.is_empty() {
             return Err("/ requires at least 1 argument".to_string());
         }
@@ -231,7 +229,7 @@ impl Native {
                 Ok(acc)
             }
         })?;
-        
+
         Ok(LispAST::Number(result))
     }
 }

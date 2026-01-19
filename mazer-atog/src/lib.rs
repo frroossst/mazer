@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use std::sync::LazyLock;
 use std::collections::hash_map::IntoIter;
+use std::sync::LazyLock;
 
-static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| HashMap::from([
+static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
+    HashMap::from([
         // greek symbols
         ("alpha", "α"),
         ("Alpha", "Α"),
@@ -82,7 +83,8 @@ static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(||
         ("arrowright", "→"),
         ("arrow", "→"),
         ("ellipsis", "…"),
-    ]));
+    ])
+});
 
 pub struct Atog;
 

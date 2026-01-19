@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use mazer_types::{LispAST, Environment};
+use mazer_types::{Environment, LispAST};
 use unicode_segmentation::UnicodeSegmentation;
 
 pub struct Interpreter {
@@ -16,33 +16,37 @@ impl Interpreter {
     pub fn results(&self) -> &BTreeMap<String, LispAST> {
         &self.fragments
     }
-    
+
     pub fn run(&mut self) -> Result<LispAST, String> {
         let mut result = LispAST::Bool(false);
-        
+
         for (name, fragment) in self.fragments.clone() {
             result = self.eval(fragment)?;
             // Update the fragments map with the evaluated result
             self.fragments.insert(name, result.clone());
             // dbg!(&result);
         }
-        
+
         Ok(result)
     }
-    
+
     pub fn eval(&mut self, expr: LispAST) -> Result<LispAST, String> {
         match expr {
             LispAST::Error(e) => Err(e),
-            LispAST::Number(_) | LispAST::Bool(_) | LispAST::String(_) | LispAST::NativeFunc(_) | LispAST::UserFunc { .. } => Ok(expr),
-            
-            LispAST::Symbol(ref s) => {
-                self.env.get(s)
-                    .cloned()
-                    .ok_or_else(|| format!("Unbound symbol: {}", s))
-            }
-            
+            LispAST::Number(_)
+            | LispAST::Bool(_)
+            | LispAST::String(_)
+            | LispAST::NativeFunc(_)
+            | LispAST::UserFunc { .. } => Ok(expr),
+
+            LispAST::Symbol(ref s) => self
+                .env
+                .get(s)
+                .cloned()
+                .ok_or_else(|| format!("Unbound symbol: {}", s)),
+
             LispAST::List(ref exprs) if exprs.is_empty() => Ok(expr),
-            
+
             LispAST::List(exprs) => {
                 // Handle special forms
                 if let LispAST::Symbol(ref s) = exprs[0] {
@@ -51,48 +55,56 @@ impl Interpreter {
                         "defunc" => return self.eval_defunc(&exprs[1..]),
                         "if" => return self.eval_if(&exprs[1..]),
                         "begin" => return self.eval_begin(&exprs[1..]),
-                        "quote" => return exprs.get(1).cloned()
-                            .ok_or_else(|| "quote requires 1 argument".to_string()),
+                        "quote" => {
+                            return exprs
+                                .get(1)
+                                .cloned()
+                                .ok_or_else(|| "quote requires 1 argument".to_string());
+                        }
                         "string" => return self.eval_string(&exprs[1..]),
                         _ => {}
                     }
                 }
-                
+
                 // Function application - evaluate function and arguments
                 let func = self.eval(exprs[0].clone())?;
-                let args: Result<Vec<_>, _> = exprs[1..].iter()
-                    .map(|e| self.eval(e.clone()))
-                    .collect();
+                let args: Result<Vec<_>, _> =
+                    exprs[1..].iter().map(|e| self.eval(e.clone())).collect();
                 let args = args?;
-                
+
                 self.apply(func, args)
             }
-            
+
             // Application is lazy - args aren't evaluated yet
             LispAST::Application { name, args } => {
-                let func = self.env.get(&name)
+                let func = self
+                    .env
+                    .get(&name)
                     .cloned()
                     .ok_or_else(|| format!("Unbound function: {}", name))?;
-                
+
                 // Evaluate args before passing to function
-                let evaled_args: Result<Vec<_>, _> = args.iter()
-                    .map(|e| self.eval(e.clone()))
-                    .collect();
+                let evaled_args: Result<Vec<_>, _> =
+                    args.iter().map(|e| self.eval(e.clone())).collect();
                 let evaled_args = evaled_args?;
-                
+
                 self.apply(func, evaled_args)
             }
         }
     }
-    
+
     fn apply(&mut self, func: LispAST, args: Vec<LispAST>) -> Result<LispAST, String> {
         match func {
             LispAST::NativeFunc(f) => f(&args),
             LispAST::UserFunc { params, body } => {
                 if params.len() != args.len() {
-                    return Err(format!("Expected {} arguments, got {}", params.len(), args.len()));
+                    return Err(format!(
+                        "Expected {} arguments, got {}",
+                        params.len(),
+                        args.len()
+                    ));
                 }
-                
+
                 // Create a new scope with parameters bound to arguments
                 let mut saved_bindings = BTreeMap::new();
                 for (param, arg) in params.iter().zip(args.iter()) {
@@ -101,74 +113,73 @@ impl Interpreter {
                     }
                     self.env.set(param.clone(), arg.clone());
                 }
-                
+
                 // Evaluate the function body
                 let result = self.eval((*body).clone());
-                
+
                 // Restore the original bindings
                 for (param, original) in &saved_bindings {
                     self.env.set(param.clone(), original.clone());
                 }
-                
+
                 result
             }
             _ => Err(format!("Not a function: {:?}", func)),
         }
     }
-    
+
     fn eval_define(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
         if args.len() != 2 {
             return Err("define requires 2 arguments".to_string());
         }
-        
+
         let name = match &args[0] {
             LispAST::Symbol(s) => s.clone(),
             _ => return Err("define requires symbol as first argument".to_string()),
         };
-        
+
         let value = self.eval(args[1].clone())?;
         self.env.set(name, value.clone());
         Ok(value)
     }
-    
+
     fn eval_defunc(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
         if args.len() != 3 {
             return Err("defunc requires 3 arguments: name, (params...), body".to_string());
         }
-        
+
         let name = match &args[0] {
             LispAST::Symbol(s) => s.clone(),
             _ => return Err("defunc requires symbol as first argument".to_string()),
         };
-        
+
         let params = match &args[1] {
-            LispAST::List(param_list) => {
-                param_list.iter().map(|p| {
-                    match p {
-                        LispAST::Symbol(s) => Ok(s.clone()),
-                        _ => Err("Parameters must be symbols".to_string()),
-                    }
-                }).collect::<Result<Vec<_>, _>>()?
-            }
+            LispAST::List(param_list) => param_list
+                .iter()
+                .map(|p| match p {
+                    LispAST::Symbol(s) => Ok(s.clone()),
+                    _ => Err("Parameters must be symbols".to_string()),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
             _ => return Err("defunc requires parameter list as second argument".to_string()),
         };
-        
+
         let body = args[2].clone();
-        
+
         let user_func = LispAST::UserFunc {
             params,
             body: Box::new(body),
         };
-        
+
         self.env.set(name, user_func.clone());
         Ok(user_func)
     }
-    
+
     fn eval_if(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
         if args.len() != 3 {
             return Err("if requires 3 arguments".to_string());
         }
-        
+
         let cond = self.eval(args[0].clone())?;
         match cond {
             LispAST::Bool(true) => self.eval(args[1].clone()),
@@ -176,7 +187,7 @@ impl Interpreter {
             _ => Err("if condition must be boolean".to_string()),
         }
     }
-    
+
     fn eval_begin(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
         if args.is_empty() {
             return Err("begin requires at least 1 expression".to_string());
@@ -187,12 +198,12 @@ impl Interpreter {
         }
         Ok(result)
     }
-    
+
     fn eval_string(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
         if args.len() != 1 {
             return Err("string requires exactly 1 argument".to_string());
         }
-        
+
         // Evaluate the argument (e.g., to handle (quote ...) or other expressions)
         // but if it's a simple symbol, don't fail on unbound
         let value = match &args[0] {
@@ -205,7 +216,7 @@ impl Interpreter {
                 self.eval(args[0].clone())?
             }
         };
-        
+
         let string_repr = match &value {
             LispAST::String(s) => s.clone(),
             LispAST::Symbol(s) => s.clone(),
@@ -213,7 +224,8 @@ impl Interpreter {
             LispAST::Bool(b) => b.to_string(),
             LispAST::List(items) => {
                 // Convert list to string representation using graphemes
-                let parts: Vec<String> = items.iter()
+                let parts: Vec<String> = items
+                    .iter()
                     .map(|item| match item {
                         LispAST::String(s) => s.clone(),
                         LispAST::Symbol(s) => s.clone(),
@@ -226,14 +238,14 @@ impl Interpreter {
             }
             _ => format!("{:?}", value),
         };
-        
+
         // Validate UTF-8 by collecting graphemes
         let graphemes: Vec<&str> = string_repr.graphemes(true).collect();
         let validated = graphemes.join("");
-        
+
         Ok(LispAST::String(validated))
     }
-    
+
     pub fn env(&self) -> &Environment {
         &self.env
     }

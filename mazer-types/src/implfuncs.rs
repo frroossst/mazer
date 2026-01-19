@@ -4,38 +4,91 @@ use strum_macros::EnumIter;
 pub enum ShowFunc {
     MaybeFunc(String),
 
-    Define, Defunc, Quote, String,
+    Define,
+    Defunc,
+    Quote,
+    String,
 
-    Jux, 
+    Jux,
 
-    Add, Sub, Mul, Div, 
-    Pow, Frac, Sqrt, Root, 
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Pow,
+    Frac,
+    Sqrt,
+    Root,
 
-    Eq, Neq, Gt, Lt, Geq, Leq,
+    Eq,
+    Neq,
+    Gt,
+    Lt,
+    Geq,
+    Leq,
 
-    Integral, Sum, Prod, Limit,
-    Derivative, Partial,
+    Integral,
+    Sum,
+    Prod,
+    Limit,
+    Derivative,
+    Partial,
 
-    Sin, Cos, Tan,
-    Cot, Sec, Cosec,
+    Sin,
+    Cos,
+    Tan,
+    Cot,
+    Sec,
+    Cosec,
 
-    Arcsin, Arccos, Arctan,
+    Arcsin,
+    Arccos,
+    Arctan,
 
-    Ln, Log, Exp,
+    Ln,
+    Log,
+    Exp,
 
-    Abs, Floor, Ceil, Fact, Binom,
+    Abs,
+    Floor,
+    Ceil,
+    Fact,
+    Binom,
 
-    Matrix, Vec, Det, Set, In, NotIn,
+    Matrix,
+    Vec,
+    Det,
+    Set,
+    In,
+    NotIn,
 
-    Subset, Superset, Union, Intersect,
+    Subset,
+    Superset,
+    Union,
+    Intersect,
 
-    And, Or, Not, Implies, Iff, ForAll, Exists,
+    And,
+    Or,
+    Not,
+    Implies,
+    Iff,
+    ForAll,
+    Exists,
 
-    Paren, Bracket, Brace,
+    Paren,
+    Bracket,
+    Brace,
 
-    Text, Subscript, Superscript, Overline, 
+    Text,
+    Subscript,
+    Superscript,
+    Overline,
 
-    Hat, Dot, Ddot, Arrow, Box,
+    Hat,
+    Dot,
+    Ddot,
+    Arrow,
+    Box,
 }
 
 pub enum Arguments {
@@ -139,4 +192,3 @@ impl From<String> for ShowFunc {
         }
     }
 }
-
