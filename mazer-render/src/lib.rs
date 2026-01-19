@@ -85,6 +85,7 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
 
             // Comparisons
             ShowFunc::Eq => return format_infix_op(args, "=", env),
+            ShowFunc::Approx => return format_infix_op(args, "≈", env),
             ShowFunc::Neq => return format_infix_op(args, "≠", env),
             ShowFunc::Lt => return format_infix_op(args, "<", env),
             ShowFunc::Gt => return format_infix_op(args, ">", env),

@@ -24,6 +24,7 @@ pub enum ShowFunc {
     Neq,
     Gt,
     Lt,
+    Approx,
     Geq,
     Leq,
 
@@ -131,6 +132,7 @@ impl From<String> for ShowFunc {
             "sqrt" => Self::Sqrt,
             "root" => Self::Root,
             "eq" | "=" => Self::Eq,
+            "approx" | "≈" => Self::Approx,
             "neq" | "!=" => Self::Neq,
             "gt" | ">" => Self::Gt,
             "lt" | "<" => Self::Lt,
