@@ -1,0 +1,14 @@
+[package]
+name = "mazer-wasm"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+mazer-parser = { path = "../mazer-parser" }
+mazer-html = { path = "../mazer-html" }
+mazer-lisp = { path = "../mazer-lisp" }
+mazer-types = { path = "../mazer-types" }
+wasm-bindgen = "0.2.108"
+
+[lib]
+crate-type = ["cdylib"]
