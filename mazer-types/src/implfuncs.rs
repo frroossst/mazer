@@ -79,6 +79,7 @@ pub enum ShowFunc {
     Paren,
     Bracket,
     Brace,
+    // VBar,
 
     Text,
     Subscript,

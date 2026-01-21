@@ -1,7 +1,7 @@
 use std::env;
 use std::sync::LazyLock;
 
-use mazer_html::document::{Document, Metadata};
+use mazer_html::document::{Document, Metadata, DocOutputType};
 use mazer_lisp::{environment::EnvironmentExt, interpreter::Interpreter};
 use mazer_parser::Parser;
 use mazer_types::Environment;
@@ -122,7 +122,7 @@ fn main() {
 fn compile(content: &str, file_name: &str) -> String {
     let p = Parser::new(content);
     let r = p.parse().expect("failed to parse");
-    let mut d = Document::new(r);
+    let mut d = Document::new(r).dockind(DocOutputType::FullBody);
     d.meta(Metadata {
         source: file_name,
         version: env!("CARGO_PKG_VERSION"),

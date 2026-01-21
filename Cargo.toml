@@ -11,6 +11,7 @@ members = [
     "mazer-types",
     "mazer-atog",
     "mazer-webast",
+    "mazer-wasm",
 ]
 
 resolver = "3"

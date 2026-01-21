@@ -6,6 +6,13 @@ use mazer_render::{MathMLFormatter, ToMathML};
 use mazer_types::Environment;
 use mazer_types::LispAST;
 
+
+#[derive(Clone)]
+pub enum DocOutputType {
+    FullBody,
+    InnerHtml,
+}
+
 enum FontKind {
     Bold,
     Italic,
@@ -27,10 +34,12 @@ pub struct Metadata<'a> {
 }
 
 // MdAst >| DocAst >| String
+#[derive(Clone)]
 pub struct Document {
     head: String,
     body: Vec<DocAst>,
     nodes: Vec<MdAst>,
+    doc_type: DocOutputType,
 }
 
 impl Document {
@@ -41,7 +50,13 @@ impl Document {
             head: String::from(head),
             body: Vec::new(),
             nodes,
+            doc_type: DocOutputType::FullBody,
         }
+    }
+
+    pub fn dockind(&mut self, t: DocOutputType) -> Self {
+        self.doc_type = t;
+        self.clone()
     }
 
     pub fn body(&self) -> Vec<DocAst> {
@@ -57,11 +72,27 @@ impl Document {
     }
 
     pub fn build(&mut self) {
-        self.append(DocAst::Html("<body>".into()));
+        match self.doc_type {
+            DocOutputType::FullBody => {
+                self.append(DocAst::Html("<body>".into()));
+            }
+            DocOutputType::InnerHtml => {
+                self.append(DocAst::Html(r#"<div id="mazer-wasm-container">"#.into()));
+            }
+        }
+
         for node in &self.nodes.clone() {
             self.append_node(node.clone());
         }
-        self.append(DocAst::Html("</body>".into()));
+
+        match self.doc_type {
+            DocOutputType::FullBody => {
+                self.append(DocAst::Html("</body>".into()));
+            }
+            DocOutputType::InnerHtml => {
+                self.append(DocAst::Html("</div>".into()));
+            }
+        }
     }
 
     pub fn fragments(&self) -> BTreeMap<String, LispAST> {
@@ -117,9 +148,19 @@ impl Document {
         }
     }
 
+    /// If t == OutputType::FullBody, returns full HTML document as String.
+    /// If t == OutputType::InnerHtml, returns only the inner HTML of the body enclosed
+    /// in  a <div> tag
     pub fn output(&self) -> String {
         let mut html = String::with_capacity(1024);
-        html.push_str(&self.head);
+
+        match self.doc_type {
+            DocOutputType::FullBody => {
+                html.push_str(&self.head);
+            }
+            DocOutputType::InnerHtml => {
+            }
+        }
 
         for n in &self.body {
             match n {
@@ -138,7 +179,15 @@ impl Document {
                 }
             }
         }
-        html.push_str("</html>");
+
+        match self.doc_type {
+            DocOutputType::FullBody => {
+                html.push_str("</html>");
+            }
+            DocOutputType::InnerHtml => {
+            }
+        }
+
         html
     }
 

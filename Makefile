@@ -21,4 +21,7 @@ build:
 release:
 	cargo build --release
 
+wasm:
+	echo "pack for wasm and produce a html + compatible js file"
+
 
