@@ -1,11 +1,14 @@
 use std::env;
-use std::sync::LazyLock;
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock};
 
-use mazer_html::document::{Document, Metadata, DocOutputType};
+use mazer_html::document::{DocOutputType, Document, Metadata};
 use mazer_lisp::{environment::EnvironmentExt, interpreter::Interpreter};
 use mazer_parser::Parser;
 use mazer_types::Environment;
 
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tiny_http::{Header, Response, Server};
 
 #[derive(Debug, Default)]
@@ -84,7 +87,34 @@ fn main() {
         match server {
             Ok(server) => {
                 println!("Serving on http://localhost:{}", port);
+                println!("Watching {} for changes...", file_name);
                 println!("Press Ctrl+C to stop the server");
+
+                // Version counter for live reload
+                let version = Arc::new(AtomicU64::new(0));
+                let version_for_watcher = Arc::clone(&version);
+
+                // Set up file watcher
+                let file_path = Path::new(file_name).canonicalize().unwrap_or_else(|_| {
+                    eprintln!("Failed to resolve file path");
+                    std::process::exit(1);
+                });
+                let watch_path = file_path.clone();
+
+                let mut watcher: RecommendedWatcher =
+                    notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+                        if let Ok(event) = res {
+                            if event.kind.is_modify() {
+                                version_for_watcher.fetch_add(1, Ordering::SeqCst);
+                                println!("File changed, reloading...");
+                            }
+                        }
+                    })
+                    .expect("Failed to create file watcher");
+
+                watcher
+                    .watch(&watch_path, RecursiveMode::NonRecursive)
+                    .expect("Failed to watch file");
 
                 if args.open {
                     opener::open_browser(format!("http://localhost:{}", port))
@@ -93,16 +123,33 @@ fn main() {
 
                 loop {
                     for request in server.incoming_requests() {
-                        let o = compile(&content, file_name);
-                        let response = Response::from_string(o).with_header(
-                            Header::from_bytes(
-                                &b"Content-Type"[..],
-                                &b"text/html; charset=UTF-8"[..],
-                            )
-                            .unwrap(),
-                        );
+                        let url = request.url();
 
-                        let _ = request.respond(response);
+                        if url == "/__version" {
+                            // Return current version for live reload polling
+                            let v = version.load(Ordering::SeqCst);
+                            let response = Response::from_string(v.to_string()).with_header(
+                                Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..])
+                                    .unwrap(),
+                            );
+                            let _ = request.respond(response);
+                        } else {
+                            // Serve the compiled HTML with live reload script
+                            let content =
+                                std::fs::read_to_string(&file_path).expect("Failed to read file");
+                            let mut html = compile(&content, file_name);
+                            html = inject_live_reload_script(&html, version.load(Ordering::SeqCst));
+
+                            let response = Response::from_string(html).with_header(
+                                Header::from_bytes(
+                                    &b"Content-Type"[..],
+                                    &b"text/html; charset=UTF-8"[..],
+                                )
+                                .unwrap(),
+                            );
+
+                            let _ = request.respond(response);
+                        }
                     }
                 }
             }
@@ -138,4 +185,32 @@ fn compile(content: &str, file_name: &str) -> String {
     d.fmt(interp.env());
 
     d.output()
+}
+
+fn inject_live_reload_script(html: &str, version: u64) -> String {
+    let script = format!(
+        r#"<script>
+(function() {{
+    let currentVersion = {version};
+    setInterval(async () => {{
+        try {{
+            const res = await fetch('/__version');
+            const newVersion = parseInt(await res.text(), 10);
+            if (newVersion > currentVersion) {{
+                location.reload();
+            }}
+        }} catch (e) {{}}
+    }}, 500);
+}})();
+</script>"#
+    );
+
+    // Insert before </body> if it exists, otherwise append
+    if let Some(pos) = html.to_lowercase().rfind("</body>") {
+        let mut result = html.to_string();
+        result.insert_str(pos, &script);
+        result
+    } else {
+        format!("{}{}", html, script)
+    }
 }

@@ -1,5 +1,7 @@
 # Foo
 
+look ma! live reload
+
 ## Bar
 
 ### Baz
