@@ -105,17 +105,6 @@ pub enum FuncKind {
     UserDefined,
 }
 
-pub struct FuncMetadata {
-    args: Arguments,
-    kind: FuncKind,
-}
-
-impl ShowFunc {
-    pub fn metadata(&self) -> FuncMetadata {
-        todo!()
-    }
-}
-
 impl From<String> for ShowFunc {
     fn from(s: String) -> Self {
         match s.as_str() {

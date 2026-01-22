@@ -20,6 +20,7 @@ resolver = "3"
 opt-level = 3
 strip = true
 lto = true
+overflow-checks = false
 
 [profile.release.package."*"]
 opt-level = "z"

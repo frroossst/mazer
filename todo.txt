@@ -1,4 +1,8 @@
--[ ] why does (show pi) not do anything  but (show (pi)) shows pi ()
+-[ ] add VBar for math evaluation bar
+
+-[ ] add maybe in browser js eval
+
+-[ ] add tagging to show like equation numbers and stuff
 
 -[ ] add in-browser support for eval js for plots
 
