@@ -2,6 +2,10 @@
 
 look ma! live reload
 
+frfr?
+
+(show (string f((pow Delta 2))))
+
 ## Bar
 
 ### Baz

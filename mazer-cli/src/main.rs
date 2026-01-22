@@ -90,7 +90,6 @@ fn main() {
                 println!("Watching {} for changes...", file_name);
                 println!("Press Ctrl+C to stop the server");
 
-                // Version counter for live reload
                 let version = Arc::new(AtomicU64::new(0));
                 let version_for_watcher = Arc::clone(&version);
 
@@ -106,7 +105,6 @@ fn main() {
                         if let Ok(event) = res {
                             if event.kind.is_modify() {
                                 version_for_watcher.fetch_add(1, Ordering::SeqCst);
-                                println!("File changed, reloading...");
                             }
                         }
                     })
@@ -125,7 +123,42 @@ fn main() {
                     for request in server.incoming_requests() {
                         let url = request.url();
 
-                        if url == "/__version" {
+                        if url.starts_with("/__content") {
+                            // htmx polling endpoint - returns body content if changed
+                            let current_version = version.load(Ordering::SeqCst);
+
+                            // Parse version from query string (?v=123)
+                            let client_version: Option<u64> = url
+                                .split('?')
+                                .nth(1)
+                                .and_then(|q| q.strip_prefix("v="))
+                                .and_then(|v| v.parse().ok());
+
+                            if client_version == Some(current_version) {
+                                // No change - return 204 No Content (htmx won't swap)
+                                let response = Response::empty(204);
+                                let _ = request.respond(response);
+                            } else {
+                                // Content changed - return new body HTML
+                                let content =
+                                    std::fs::read_to_string(&file_path).expect("Failed to read file");
+                                let html = compile(&content, file_name);
+
+                                // Extract just the body content
+                                let body_html = extract_body_content(&html);
+
+                                let response = Response::from_string(body_html)
+                                    .with_header(
+                                        Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=UTF-8"[..])
+                                            .unwrap(),
+                                    )
+                                    .with_header(
+                                        Header::from_bytes(&b"X-Mazer-Version"[..], current_version.to_string().as_bytes())
+                                            .unwrap(),
+                                    );
+                                let _ = request.respond(response);
+                            }
+                        } else if url == "/__version" {
                             // Return current version for live reload polling
                             let v = version.load(Ordering::SeqCst);
                             let response = Response::from_string(v.to_string()).with_header(
@@ -188,24 +221,46 @@ fn compile(content: &str, file_name: &str) -> String {
 }
 
 fn inject_live_reload_script(html: &str, version: u64) -> String {
-    let script = format!(
-        r#"<script>
+    let script = r#"<script>
 (function() {{
     let currentVersion = {version};
-    setInterval(async () => {{
-        try {{
-            const res = await fetch('/__version');
-            const newVersion = parseInt(await res.text(), 10);
-            if (newVersion > currentVersion) {{
-                location.reload();
-            }}
-        }} catch (e) {{}}
-    }}, 500);
+    let scrollX = 0, scrollY = 0;
+
+    // Save scroll position before htmx swap
+    document.body.addEventListener('htmx:beforeSwap', function(evt) {{
+        scrollX = window.scrollX;
+        scrollY = window.scrollY;
+    }});
+
+    // Restore scroll position after htmx swap and re-highlight code
+    document.body.addEventListener('htmx:afterSwap', function(evt) {{
+        // Update version from response header
+        const newVersion = evt.detail.xhr.getResponseHeader('X-Mazer-Version');
+        if (newVersion) {{
+            currentVersion = parseInt(newVersion, 10);
+            // Update the hx-get URL with new version
+            document.body.setAttribute('hx-get', '/__content?v=' + currentVersion);
+            htmx.process(document.body);
+        }}
+        // Restore scroll position
+        window.scrollTo(scrollX, scrollY);
+        // Re-run syntax highlighting
+        if (window.arborium) {{
+            window.arborium.highlightAll();
+        }}
+    }});
 }})();
-</script>"#
+</script>"#;
+
+    // Add htmx attributes to body tag
+    let body_with_htmx = format!(
+        r#"<body hx-get="/__content?v={version}" hx-trigger="every 500ms" hx-swap="innerHTML">"#
     );
 
-    // Insert before </body> if it exists, otherwise append
+    // Replace opening body tag with htmx-enabled one
+    let html = html.replace("<body>", &body_with_htmx);
+
+    // Insert script before </body> if it exists, otherwise append
     if let Some(pos) = html.to_lowercase().rfind("</body>") {
         let mut result = html.to_string();
         result.insert_str(pos, &script);
@@ -213,4 +268,25 @@ fn inject_live_reload_script(html: &str, version: u64) -> String {
     } else {
         format!("{}{}", html, script)
     }
+}
+
+fn extract_body_content(html: &str) -> String {
+    let lower = html.to_lowercase();
+
+    // Find body start (after <body...>)
+    let body_start = if let Some(pos) = lower.find("<body") {
+        // Find the closing > of the body tag
+        if let Some(end) = html[pos..].find('>') {
+            pos + end + 1
+        } else {
+            return html.to_string();
+        }
+    } else {
+        return html.to_string();
+    };
+
+    // Find body end
+    let body_end = lower.rfind("</body>").unwrap_or(html.len());
+
+    html[body_start..body_end].to_string()
 }
