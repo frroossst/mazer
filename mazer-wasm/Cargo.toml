@@ -12,3 +12,6 @@ wasm-bindgen = "0.2.108"
 
 [lib]
 crate-type = ["cdylib"]
+
+[package.metadata.wasm-pack]
+wasm-opt = false

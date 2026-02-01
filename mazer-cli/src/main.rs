@@ -100,15 +100,16 @@ fn main() {
                 });
                 let watch_path = file_path.clone();
 
-                let mut watcher: RecommendedWatcher =
-                    notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+                let mut watcher: RecommendedWatcher = notify::recommended_watcher(
+                    move |res: Result<notify::Event, notify::Error>| {
                         if let Ok(event) = res {
                             if event.kind.is_modify() {
                                 version_for_watcher.fetch_add(1, Ordering::SeqCst);
                             }
                         }
-                    })
-                    .expect("Failed to create file watcher");
+                    },
+                )
+                .expect("Failed to create file watcher");
 
                 watcher
                     .watch(&watch_path, RecursiveMode::NonRecursive)
@@ -140,8 +141,8 @@ fn main() {
                                 let _ = request.respond(response);
                             } else {
                                 // Content changed - return new body HTML
-                                let content =
-                                    std::fs::read_to_string(&file_path).expect("Failed to read file");
+                                let content = std::fs::read_to_string(&file_path)
+                                    .expect("Failed to read file");
                                 let html = compile(&content, file_name);
 
                                 // Extract just the body content
@@ -149,12 +150,18 @@ fn main() {
 
                                 let response = Response::from_string(body_html)
                                     .with_header(
-                                        Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=UTF-8"[..])
-                                            .unwrap(),
+                                        Header::from_bytes(
+                                            &b"Content-Type"[..],
+                                            &b"text/html; charset=UTF-8"[..],
+                                        )
+                                        .unwrap(),
                                     )
                                     .with_header(
-                                        Header::from_bytes(&b"X-Mazer-Version"[..], current_version.to_string().as_bytes())
-                                            .unwrap(),
+                                        Header::from_bytes(
+                                            &b"X-Mazer-Version"[..],
+                                            current_version.to_string().as_bytes(),
+                                        )
+                                        .unwrap(),
                                     );
                                 let _ = request.respond(response);
                             }

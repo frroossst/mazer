@@ -83,6 +83,9 @@ static LETTERS: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(||
         ("arrowright", "→"),
         ("arrow", "→"),
         ("ellipsis", "…"),
+        ("Laplace", "𝓛"),
+        ("Reals", "ℝ"),
+        ("reals", "ℝ"),
     ])
 });
 
