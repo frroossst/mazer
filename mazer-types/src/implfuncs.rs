@@ -19,12 +19,13 @@
 //! ```
 
 use mazer_macros::FuncMeta;
+use serde::Serialize;
 use strum_macros::EnumIter;
 
 /// Specifies how many arguments a function accepts.
 ///
 /// This is used for validation and LSP completions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum Arguments {
     /// Exactly N arguments required.
     Fixed(usize),

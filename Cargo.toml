@@ -6,6 +6,7 @@ members = [
     "mazer-atog",
     "mazer-cli",
     "mazer-dbg",
+    "mazer-gendoc",
     "mazer-html",
     "mazer-lisp",
     "mazer-macros",
@@ -14,7 +15,7 @@ members = [
     "mazer-stdlib",
     "mazer-types",
     "mazer-wasm",
-    "mazer-webast",
+    # "mazer-webast",
 ]
 resolver = "3"
 
@@ -35,4 +36,8 @@ strip = true
 
 [profile.release.package."*"]
 opt-level = "z"
+
+[workspace.lints.clippy]
+pedantic = "deny"
+nursery  = "deny"
 

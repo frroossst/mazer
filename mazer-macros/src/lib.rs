@@ -464,7 +464,7 @@ fn generate_all_functions_impl(_enum_name: &Ident, variants: &[(Ident, Option<Fu
 fn generate_func_info_struct() -> TokenStream2 {
     quote! {
         /// Metadata about a function, used for LSP and documentation.
-        #[derive(Debug, Clone)]
+        #[derive(Debug, Clone, serde::Serialize)]
         pub struct FuncInfo {
             /// The Rust enum variant name (e.g., "Arcsin")
             pub variant_name: &'static str,
