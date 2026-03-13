@@ -22,7 +22,7 @@ struct Args {
 }
 
 // Global singleton for parsed arguments - initialized once on first access
-static PARSED_ARGS: LazyLock<Args> = LazyLock::new(|| parse());
+static PARSED_ARGS: LazyLock<Args> = LazyLock::new(parse);
 
 fn parse() -> Args {
     let mut args = env::args();
@@ -102,11 +102,10 @@ fn main() {
 
                 let mut watcher: RecommendedWatcher = notify::recommended_watcher(
                     move |res: Result<notify::Event, notify::Error>| {
-                        if let Ok(event) = res {
-                            if event.kind.is_modify() {
+                        if let Ok(event) = res
+                            && event.kind.is_modify() {
                                 version_for_watcher.fetch_add(1, Ordering::SeqCst);
                             }
-                        }
                     },
                 )
                 .expect("Failed to create file watcher");
@@ -270,7 +269,7 @@ fn inject_live_reload_script(html: &str, version: u64) -> String {
     // Insert script before </body> if it exists, otherwise append
     if let Some(pos) = html.to_lowercase().rfind("</body>") {
         let mut result = html.to_string();
-        result.insert_str(pos, &script);
+        result.insert_str(pos, script);
         result
     } else {
         format!("{}{}", html, script)

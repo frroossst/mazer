@@ -172,32 +172,26 @@ fn parse_arity_expr(expr: &Expr) -> AritySpec {
         return AritySpec::Variadic;
     }
 
-    if let Some(rest) = expr_str.strip_prefix("Fixed(") {
-        if let Some(num_str) = rest.strip_suffix(")") {
-            if let Ok(n) = num_str.parse::<usize>() {
+    if let Some(rest) = expr_str.strip_prefix("Fixed(")
+        && let Some(num_str) = rest.strip_suffix(")")
+            && let Ok(n) = num_str.parse::<usize>() {
                 return AritySpec::Fixed(n);
             }
-        }
-    }
 
-    if let Some(rest) = expr_str.strip_prefix("AtLeast(") {
-        if let Some(num_str) = rest.strip_suffix(")") {
-            if let Ok(n) = num_str.parse::<usize>() {
+    if let Some(rest) = expr_str.strip_prefix("AtLeast(")
+        && let Some(num_str) = rest.strip_suffix(")")
+            && let Ok(n) = num_str.parse::<usize>() {
                 return AritySpec::AtLeast(n);
             }
-        }
-    }
 
-    if let Some(rest) = expr_str.strip_prefix("Range(") {
-        if let Some(nums_str) = rest.strip_suffix(")") {
+    if let Some(rest) = expr_str.strip_prefix("Range(")
+        && let Some(nums_str) = rest.strip_suffix(")") {
             let parts: Vec<&str> = nums_str.split(',').collect();
-            if parts.len() == 2 {
-                if let (Ok(a), Ok(b)) = (parts[0].parse::<usize>(), parts[1].parse::<usize>()) {
+            if parts.len() == 2
+                && let (Ok(a), Ok(b)) = (parts[0].parse::<usize>(), parts[1].parse::<usize>()) {
                     return AritySpec::Range(a, b);
                 }
-            }
         }
-    }
 
     AritySpec::Variadic
 }
