@@ -9,7 +9,4 @@ mazer-html = { path = "../mazer-html" }
 mazer-lisp = { path = "../mazer-lisp" }
 mazer-types = { path = "../mazer-types" }
 mazer-atog = { path = "../mazer-atog" }
-tiny_http = "0.12.0"
-notify = "8.2.0"
-opener = "0.8.3"
 
