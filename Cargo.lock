@@ -1945,16 +1945,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mazer-gendoc"
-version = "0.1.0"
-dependencies = [
- "mazer-atog",
- "mazer-types",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "mazer-html"
 version = "0.15.0"
 dependencies = [

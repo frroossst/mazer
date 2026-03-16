@@ -6,7 +6,6 @@ members = [
     "mazer-atog",
     "mazer-cli",
     "mazer-dbg",
-    "mazer-gendoc",
     "mazer-html",
     "mazer-lisp",
     "mazer-macros",
