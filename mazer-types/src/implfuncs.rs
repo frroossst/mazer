@@ -220,6 +220,10 @@ pub enum ShowFunc {
     #[func(names = ["partial"], arity = Fixed(2), doc = "Partial derivative: (partial expr var)")]
     Partial,
 
+    /// Leibniz differential: `(dd x t)` renders as dx/dt, `(dd x t 2)` renders as d²x/dt²
+    #[func(names = ["dd"], arity = Range(2, 3), doc = "Leibniz differential: (dd x t) for dx/dt or (dd x t n) for dⁿx/dtⁿ")]
+    Dd,
+
     // =========================================================================
     // Trigonometric Functions
     // =========================================================================
@@ -435,6 +439,18 @@ pub enum ShowFunc {
     /// Box: `(box expr)` renders expr in a box
     #[func(names = ["box"], arity = Fixed(1), doc = "Box: (box expr) renders expr in a box")]
     Box,
+
+    /// Prime notation: `(prime x)` renders as x′, `(prime x 2)` renders as x″
+    #[func(names = ["prime"], arity = Range(1, 2), doc = "Prime notation: (prime x) for x′ or (prime x n) for x with n primes")]
+    Prime,
+
+    /// Function application: `(funcapp f x)` renders as f(x), `(funcapp f x y)` renders as f(x, y)
+    #[func(names = ["funcapp", "fapp"], arity = AtLeast(1), doc = "Function application: (funcapp f x) renders as f(x)")]
+    FuncApp,
+
+    /// Evaluated-at: `(evalat expr var val)` renders as expr|_{var=val}
+    #[func(names = ["evalat", "eval-at"], arity = Range(1, 3), doc = "Evaluated-at: (evalat expr var val) renders as expr|_{var=val}")]
+    EvalAt,
 
     /// Fallback for user-defined or unknown functions.
     MaybeFunc(String),

@@ -99,6 +99,7 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             ShowFunc::Limit => return format_limit(args, env),
             ShowFunc::Derivative => return format_derivative(args, env),
             ShowFunc::Partial => return format_partial(args, env),
+            ShowFunc::Dd => return format_dd(args, env),
 
             // Trig functions
             ShowFunc::Sin => return format_trig("sin", args, env),
@@ -161,6 +162,9 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             ShowFunc::Ddot => return format_ddot(args, env),
             ShowFunc::Arrow => return format_vec_arrow(args, env),
             ShowFunc::Box => return format_box(args, env),
+            ShowFunc::Prime => return format_prime(args, env),
+            ShowFunc::FuncApp => return format_funcapp(args, env),
+            ShowFunc::EvalAt => return format_evalat(args, env),
 
             // Generic function call - check if user-defined
             ShowFunc::MaybeFunc(ref op_str) => {
@@ -795,6 +799,106 @@ fn format_func_application(name: &str, args: &[LispAST], env: Option<&Environmen
             func_name,
             formatted_args.join("<mo>,</mo>")
         )
+    }
+}
+
+fn format_dd(args: &[LispAST], env: Option<&Environment>) -> String {
+    match args.len() {
+        2 => {
+            // (dd x t) -> dx/dt
+            let x = format_mathml(&args[0], env);
+            let t = format_mathml(&args[1], env);
+            format!(
+                "<mfrac><mrow><mi>d</mi>{}</mrow><mrow><mi>d</mi>{}</mrow></mfrac>",
+                x, t
+            )
+        }
+        3 => {
+            // (dd x t n) -> d^n x / dt^n
+            let x = format_mathml(&args[0], env);
+            let t = format_mathml(&args[1], env);
+            let n = format_mathml(&args[2], env);
+            format!(
+                "<mfrac><mrow><msup><mi>d</mi>{}</msup>{}</mrow><mrow><mi>d</mi><msup>{}{}</msup></mrow></mfrac>",
+                n, x, t, n
+            )
+        }
+        _ => "<merror><mtext>dd requires 2 or 3 arguments</mtext></merror>".to_string(),
+    }
+}
+
+fn format_prime(args: &[LispAST], env: Option<&Environment>) -> String {
+    match args.len() {
+        1 => {
+            // (prime x) -> x′
+            let inner = format_mathml(&args[0], env);
+            format!("<msup>{}<mo>′</mo></msup>", inner)
+        }
+        2 => {
+            // (prime x n) -> x with n prime marks
+            let inner = format_mathml(&args[0], env);
+            if let LispAST::Number(n) = &args[1] {
+                let n_val = format!("{}", n).parse::<usize>().unwrap_or(1);
+                let primes = "′".repeat(n_val);
+                format!("<msup>{}<mo>{}</mo></msup>", inner, primes)
+            } else {
+                // symbolic order: render as x^(n)
+                let n = format_mathml(&args[1], env);
+                format!(
+                    "<msup>{}<mrow><mo>(</mo>{}<mo>)</mo></mrow></msup>",
+                    inner, n
+                )
+            }
+        }
+        _ => "<merror><mtext>prime requires 1 or 2 arguments</mtext></merror>".to_string(),
+    }
+}
+
+fn format_funcapp(args: &[LispAST], env: Option<&Environment>) -> String {
+    if args.is_empty() {
+        return "<merror><mtext>funcapp requires at least 1 argument</mtext></merror>".to_string();
+    }
+    let func_name = format_mathml(&args[0], env);
+    if args.len() == 1 {
+        // (funcapp f) -> f()
+        format!("<mrow>{}<mo>(</mo><mo>)</mo></mrow>", func_name)
+    } else {
+        let formatted_args: Vec<_> = args[1..].iter().map(|e| format_mathml(e, env)).collect();
+        format!(
+            "<mrow>{}<mo>(</mo>{}<mo>)</mo></mrow>",
+            func_name,
+            formatted_args.join("<mo>,</mo>")
+        )
+    }
+}
+
+fn format_evalat(args: &[LispAST], env: Option<&Environment>) -> String {
+    match args.len() {
+        1 => {
+            // (evalat expr) -> expr|
+            let expr = format_mathml(&args[0], env);
+            format!("<msub><mrow>{}<mo>|</mo></mrow><mrow></mrow></msub>", expr)
+        }
+        2 => {
+            // (evalat expr point) -> expr|_{point}
+            let expr = format_mathml(&args[0], env);
+            let point = format_mathml(&args[1], env);
+            format!(
+                "<msub><mrow>{}<mo stretchy=\"true\">|</mo></mrow>{}</msub>",
+                expr, point
+            )
+        }
+        3 => {
+            // (evalat expr var val) -> expr|_{var=val}
+            let expr = format_mathml(&args[0], env);
+            let var = format_mathml(&args[1], env);
+            let val = format_mathml(&args[2], env);
+            format!(
+                "<msub><mrow>{}<mo stretchy=\"true\">|</mo></mrow><mrow>{}<mo>=</mo>{}</mrow></msub>",
+                expr, var, val
+            )
+        }
+        _ => "<merror><mtext>evalat requires 1 to 3 arguments</mtext></merror>".to_string(),
     }
 }
 

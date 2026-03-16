@@ -1,5 +1,7 @@
 .PHONY: *
 
+build:
+	cargo build
 
 clean:
 	cargo clean -p mazer-atog
@@ -14,9 +16,6 @@ clean:
 
 install:
 	cargo install --force --path ./mazer-cli/
-
-build:
-	cargo build
 
 release:
 	cargo build --release
