@@ -87,6 +87,39 @@ pub fn derive_func_meta(input: TokenStream) -> TokenStream {
     for variant in &data_enum.variants {
         let has_fields = !matches!(&variant.fields, Fields::Unit);
         let func_attr = parse_func_attr(&variant.attrs);
+
+        // Enforce: every unit variant (no fields) must have a #[func(...)] with a non-empty doc
+        if !has_fields {
+            match &func_attr {
+                None => {
+                    return syn::Error::new_spanned(
+                        &variant.ident,
+                        format!(
+                            "variant `{}` is missing a #[func(...)] attribute. \
+                             All function variants must be annotated with \
+                             #[func(names = [...], arity = ..., doc = \"...\")]",
+                            variant.ident
+                        ),
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+                Some(attr) if attr.doc.is_empty() => {
+                    return syn::Error::new_spanned(
+                        &variant.ident,
+                        format!(
+                            "variant `{}` has a #[func] attribute but is missing a `doc` field. \
+                             All functions must be documented: #[func(... doc = \"description\")]",
+                            variant.ident
+                        ),
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+                _ => {}
+            }
+        }
+
         variant_metas.push((variant.ident.clone(), func_attr, has_fields));
     }
 

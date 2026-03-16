@@ -1919,6 +1919,7 @@ version = "0.15.0"
 name = "mazer-cli"
 version = "0.15.0"
 dependencies = [
+ "mazer-atog",
  "mazer-html",
  "mazer-lisp",
  "mazer-parser",
@@ -1947,6 +1948,7 @@ dependencies = [
 name = "mazer-gendoc"
 version = "0.1.0"
 dependencies = [
+ "mazer-atog",
  "mazer-types",
  "serde",
  "serde_json",
