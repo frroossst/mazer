@@ -567,29 +567,40 @@ impl TokenParser {
                     elements.push(MdAst::Bold { text });
                 }
                 Token::SingleStar => {
-                    flush_text(&mut text_buffer, &mut elements);
-                    self.advance();
-                    let mut text = String::new();
-                    while let Some(token) = self.peek(0) {
-                        match token {
-                            Token::SingleStar => {
-                                self.advance();
-                                break;
-                            }
-                            Token::Text(t) => {
-                                text.push_str(t);
-                                self.advance();
-                            }
-                            Token::Whitespace(ws) => {
-                                text.push_str(ws);
-                                self.advance();
-                            }
-                            _ => {
-                                self.advance();
+                    // Check if * is preceded by an alphanumeric char (e.g. lambda*I)
+                    // If so, treat it as a literal * rather than emphasis
+                    let preceded_by_alnum = text_buffer
+                        .chars()
+                        .last()
+                        .map_or(false, |c| c.is_alphanumeric());
+                    if preceded_by_alnum {
+                        text_buffer.push('*');
+                        self.advance();
+                    } else {
+                        flush_text(&mut text_buffer, &mut elements);
+                        self.advance();
+                        let mut text = String::new();
+                        while let Some(token) = self.peek(0) {
+                            match token {
+                                Token::SingleStar => {
+                                    self.advance();
+                                    break;
+                                }
+                                Token::Text(t) => {
+                                    text.push_str(t);
+                                    self.advance();
+                                }
+                                Token::Whitespace(ws) => {
+                                    text.push_str(ws);
+                                    self.advance();
+                                }
+                                _ => {
+                                    self.advance();
+                                }
                             }
                         }
+                        elements.push(MdAst::Italic { text });
                     }
-                    elements.push(MdAst::Italic { text });
                 }
                 Token::Underscore => {
                     flush_text(&mut text_buffer, &mut elements);
