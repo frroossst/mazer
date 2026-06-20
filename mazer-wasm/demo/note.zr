@@ -1,0 +1,32 @@
+# Notes from the field
+
+This note is a plain `.zr` file rendered **client-side** by the mazer wasm
+module and dropped into the page you're looking at.
+
+## Some math
+
+Inline math works: (show (= (+ (pow (sin theta) 2) (pow (cos theta) 2)) 1)).
+
+The quadratic formula:
+
+(show (= x (frac (+ (- b) (sqrt (- (pow b 2) (* 4 a c)))) (* 2 a))))
+
+A summation: (show (sum (= i 1) n (pow i 2))).
+
+## Some code
+
+```rust
+fn main() {
+    println!("Hello from a .zr note!");
+}
+```
+
+## Other bits
+
+- bullet one
+- bullet two
+- bullet three
+
+> Notes render with your page's own styling.
+
+Read more at [the mazer repo](https://github.com/).

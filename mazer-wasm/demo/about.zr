@@ -1,0 +1,6 @@
+## About this demo
+
+Each `<div data-mazer="...">` on the page is an independent block. This is a
+second `.zr` file, fetched and rendered separately from the first.
+
+If one note fails to load, only that block shows an error — the rest still render.
