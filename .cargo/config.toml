@@ -2,6 +2,11 @@
 linker = "clang"
 rustflags = ["-C", "link-arg=--ld-path=wild"]
 
+# wasm uses rust-lld, which rejects the host's `-fuse-ld=lld`. Giving the wasm
+# target its own rustflags stops it from inheriting the `[build]` flags below.
+[target.wasm32-unknown-unknown]
+rustflags = ["-Zthreads=22"]
+
 [gc.auto]
 frequency = "never"
 

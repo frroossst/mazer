@@ -14,6 +14,7 @@ members = [
     "mazer-stdlib",
     "mazer-types",
     "mazer-wasm",
+    "mazer-units",
 ]
 resolver = "3"
 

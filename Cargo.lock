@@ -1928,6 +1928,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mazer-units"
+version = "0.0.0"
+
+[[package]]
 name = "mazer-wasm"
 version = "0.0.0"
 dependencies = [

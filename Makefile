@@ -21,6 +21,6 @@ release:
 	cargo build --release
 
 wasm:
-	echo "pack for wasm and produce a html + compatible js file"
+	wasm-pack build mazer-wasm --target web --out-dir pkg
 
 
