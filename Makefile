@@ -20,8 +20,15 @@ install:
 release:
 	cargo build --release
 
+# Features the Rust toolchain emits that wasm-opt (v105) must be told to allow.
+WASM_OPT_FEATURES := --enable-bulk-memory --enable-sign-ext \
+	--enable-nontrapping-float-to-int --enable-mutable-globals \
+	--enable-multivalue --enable-reference-types
+
 wasm:
 	wasm-pack build mazer-wasm --target web --out-dir pkg
+	wasm-opt -Oz --converge $(WASM_OPT_FEATURES) \
+		-o mazer-wasm/pkg/mazer_wasm_bg.wasm mazer-wasm/pkg/mazer_wasm_bg.wasm
 
 deploy: wasm ## copies to adhyan.ca
 	cp ./mazer-wasm/pkg/mazer_wasm_bg.wasm /home/home/Desktop/Projects/adhyan.ca/
