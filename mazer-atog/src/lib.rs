@@ -104,6 +104,8 @@ static SYMBOLS: LazyLock<HashMap<&'static str, SymbolEntry>> = LazyLock::new(|| 
         // Logic
         ("forall",       "∀", "Universal quantifier — for all"),
         ("exists",       "∃", "Existential quantifier — there exists"),
+        ("turnstile",    "⊢", "Turnstile — proves/yields (syntactic entailment)"),
+        ("vdash",        "⊢", "Turnstile — proves/yields (alias for turnstile)"),
 
         // Arrows
         ("arrowup",      "↑", "Upward arrow"),

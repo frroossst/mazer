@@ -23,4 +23,9 @@ release:
 wasm:
 	wasm-pack build mazer-wasm --target web --out-dir pkg
 
+deploy: wasm ## copies to adhyan.ca
+	cp ./mazer-wasm/pkg/mazer_wasm_bg.wasm /home/home/Desktop/Projects/adhyan.ca/
+	cp ./mazer-wasm/pkg/mazer_wasm.js /home/home/Desktop/Projects/adhyan.ca/
+
+
 
