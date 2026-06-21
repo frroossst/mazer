@@ -129,6 +129,9 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             ShowFunc::Vec => return format_vector(args, env),
             ShowFunc::Det => return format_determinant(args, env),
 
+            // Type theory / inference rules
+            ShowFunc::TyJudge => return format_ty_judgement(args, env),
+
             // Sets
             ShowFunc::Set => return format_set(args, env),
             ShowFunc::In => return format_infix_op(args, "∈", env),
@@ -653,6 +656,39 @@ fn format_determinant(args: &[LispAST], env: Option<&Environment>) -> String {
     format!(
         "<mrow><mo>|</mo><mtable>{}</mtable><mo>|</mo></mrow>",
         rows.join("")
+    )
+}
+
+fn format_ty_judgement(args: &[LispAST], env: Option<&Environment>) -> String {
+    if args.len() != 3 {
+        return "<merror><mtext>ty-judge requires 3 arguments: (ty-judge name (premises...) conclusion)</mtext></merror>".to_string();
+    }
+
+    // A rule name (e.g. T-VAR) is conventionally upright text rather than an
+    // italic math variable, so render bare symbols/strings as <mtext>. Anything
+    // structured (a list) falls back to normal math rendering.
+    let name = match &args[0] {
+        LispAST::Symbol(s) | LispAST::String(s) => format!("<mtext>{}</mtext>", escape_xml(s)),
+        other => format_mathml(other, env),
+    };
+
+    // Premises are a list; each is rendered and separated by a wide space (a "tab").
+    let premises = match &args[1] {
+        LispAST::List(items) => items
+            .iter()
+            .map(|p| format_mathml(p, env))
+            .collect::<Vec<_>>()
+            .join("<mspace width=\"2em\"/>"),
+        other => format_mathml(other, env),
+    };
+
+    let conclusion = format_mathml(&args[2], env);
+
+    // <mfrac> draws the inference bar and centres its axis on it, so trailing
+    // content (the rule name) sits vertically centred to the right of the bar.
+    format!(
+        "<mrow><mfrac><mrow>{}</mrow><mrow>{}</mrow></mfrac><mspace width=\"0.5em\"/>{}</mrow>",
+        premises, conclusion, name
     )
 }
 

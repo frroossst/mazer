@@ -321,6 +321,14 @@ pub enum ShowFunc {
     Det,
 
     // =========================================================================
+    // Type Theory / Inference Rules
+    // =========================================================================
+
+    /// Typing judgement / inference rule: `(ty-judge name (premises...) conclusion)`
+    #[func(names = ["ty-judge", "ty-judgement"], arity = Fixed(3), doc = "Inference rule: (ty-judge name (premises...) conclusion)")]
+    TyJudge,
+
+    // =========================================================================
     // Set Operations
     // =========================================================================
 
