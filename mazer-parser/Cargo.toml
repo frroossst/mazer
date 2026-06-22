@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 unicode-segmentation = "1.12"
+thiserror = { workspace = true }
+miette = { workspace = true, features = ["derive"] }

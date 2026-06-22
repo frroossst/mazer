@@ -1,9 +1,12 @@
 use fastnum::{D512, decimal::Context};
-use mazer_types::LispAST;
+use mazer_types::{LispAST, LispError};
 
 pub enum LispToken {
     Symbol(String),
     Number(D512),
+    /// Text that looked numeric but failed to parse; surfaced as an error by the
+    /// parser rather than panicking in the tokenizer.
+    BadNumber(String),
     OpenParen,
     CloseParen,
 }
@@ -72,10 +75,10 @@ impl Tokenizer {
                         }
                     }
                     let num_str: String = chars[start..i].iter().collect();
-                    let number = D512::from_str(&num_str, Context::default())
-                        .map_err(|e| e.to_string())
-                        .expect(&format!("Failed to parse number: '{}'", num_str));
-                    tokens.push(LispToken::Number(number));
+                    match D512::from_str(&num_str, Context::default()) {
+                        Ok(number) => tokens.push(LispToken::Number(number)),
+                        Err(_) => tokens.push(LispToken::BadNumber(num_str)),
+                    }
                 }
                 _ => {
                     let start = i;
@@ -119,7 +122,7 @@ impl Parser {
         token
     }
 
-    pub fn parse(&mut self) -> Result<LispAST, String> {
+    pub fn parse(&mut self) -> Result<LispAST, LispError> {
         let mut exprs = Vec::new();
 
         while self.pos < self.tokens.len() {
@@ -127,7 +130,7 @@ impl Parser {
         }
 
         if exprs.is_empty() {
-            return Err("No expressions to parse".to_string());
+            return Err(LispError::EmptyProgram);
         }
 
         if exprs.len() == 1 {
@@ -139,9 +142,10 @@ impl Parser {
         }
     }
 
-    fn parse_one(&mut self) -> Result<LispAST, String> {
+    fn parse_one(&mut self) -> Result<LispAST, LispError> {
         match self.advance() {
             Some(LispToken::Number(n)) => Ok(LispAST::Number(*n)),
+            Some(LispToken::BadNumber(text)) => Err(LispError::BadNumber { text: text.clone() }),
             Some(LispToken::Symbol(s)) => match s.as_str() {
                 "true" => Ok(LispAST::Bool(true)),
                 "false" => Ok(LispAST::Bool(false)),
@@ -155,8 +159,8 @@ impl Parser {
                 self.advance(); // consume CloseParen
                 Ok(LispAST::List(list))
             }
-            Some(LispToken::CloseParen) => Err("Unexpected ')'".to_string()),
-            None => Err("Unexpected EOF".to_string()),
+            Some(LispToken::CloseParen) => Err(LispError::UnexpectedCloseParen),
+            None => Err(LispError::UnexpectedEof),
         }
     }
 }

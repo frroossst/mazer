@@ -54,7 +54,7 @@ pub fn run_mazer(content: &str, window_name: &str) -> String {
     if let Err(e) = interp.run() {
         return format!(
             "<pre class=\"mazer-error\">mazer eval error: {}</pre>",
-            escape_html(&e)
+            escape_html(&e.to_string())
         );
     }
     let rst = interp.results();

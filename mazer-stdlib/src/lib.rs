@@ -4,7 +4,7 @@ use std::{
 };
 
 use fastnum::D512;
-use mazer_types::LispAST;
+use mazer_types::{LispAST, LispError};
 
 // prlude functions are functions that are valid lisp code that is parsed
 // and added to the environment at startup
@@ -63,36 +63,38 @@ impl Prelude {
     }
 }
 
-#[inline]
-fn check_if_all_args_numbers(args: &[LispAST]) -> bool {
-    args.iter().all(|a| matches!(a, LispAST::Number(_)))
+/// Ensure every argument is a `Number`, otherwise report the first offender's
+/// type against `form`.
+fn require_all_numbers(form: &str, args: &[LispAST]) -> Result<(), LispError> {
+    for a in args {
+        if !matches!(a, LispAST::Number(_)) {
+            return Err(LispError::TypeMismatch {
+                form: form.to_string(),
+                expected: "Number".to_string(),
+                got: a.type_name().to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 pub struct Native;
 
 impl Native {
     // type infer runtime
-    pub fn reflect(args: &[LispAST]) -> Result<LispAST, String> {
+    pub fn reflect(args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.len() != 1 {
-            return Err("reflect requires exactly 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "reflect".to_string(),
+                expected: "1".to_string(),
+                got: args.len(),
+            });
         }
 
-        let type_str = match &args[0] {
-            LispAST::Number(_) => "Number",
-            LispAST::Bool(_) => "Bool",
-            LispAST::String(_) => "String",
-            LispAST::Symbol(_) => "Symbol",
-            LispAST::List(_) => "List",
-            LispAST::NativeFunc(_) => "NativeFunc",
-            LispAST::UserFunc { .. } => "UserFunc",
-            LispAST::Application { .. } => "Application",
-            LispAST::Error(_) => "Error",
-        };
-
-        Ok(LispAST::Symbol(type_str.to_string()))
+        Ok(LispAST::Symbol(args[0].type_name().to_string()))
     }
 
-    pub fn print(args: &[LispAST]) -> Result<LispAST, String> {
+    pub fn print(args: &[LispAST]) -> Result<LispAST, LispError> {
         for arg in args {
             match arg {
                 LispAST::Number(n) => eprint!("{}", n),
@@ -110,7 +112,7 @@ impl Native {
         Ok(LispAST::Bool(true))
     }
 
-    pub fn debug(args: &[LispAST]) -> Result<LispAST, String> {
+    pub fn debug(args: &[LispAST]) -> Result<LispAST, LispError> {
         for arg in args {
             eprintln!("{:?}", arg);
         }
@@ -119,14 +121,15 @@ impl Native {
         Ok(LispAST::Bool(true))
     }
 
-    pub fn add(args: &[LispAST]) -> Result<LispAST, String> {
-        if !check_if_all_args_numbers(args) {
-            return Err("All arguments to add must be numbers".to_string());
-        }
-
+    pub fn add(args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.is_empty() {
-            return Err("+ requires at least 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "add".to_string(),
+                expected: "at least 1".to_string(),
+                got: 0,
+            });
         }
+        require_all_numbers("add", args)?;
 
         let sum = args.iter().fold(D512::from(0), |acc, x| {
             if let LispAST::Number(n) = x {
@@ -139,14 +142,15 @@ impl Native {
         Ok(LispAST::Number(sum))
     }
 
-    pub fn sub(args: &[LispAST]) -> Result<LispAST, String> {
-        if !check_if_all_args_numbers(args) {
-            return Err("All arguments to sub must be numbers".to_string());
-        }
-
+    pub fn sub(args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.is_empty() {
-            return Err("- requires at least 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "sub".to_string(),
+                expected: "at least 1".to_string(),
+                got: 0,
+            });
         }
+        require_all_numbers("sub", args)?;
 
         // For single argument, return negation
         if args.len() == 1 {
@@ -159,7 +163,11 @@ impl Native {
         let first = if let LispAST::Number(n) = &args[0] {
             *n
         } else {
-            return Err("All arguments to sub must be numbers".to_string());
+            return Err(LispError::TypeMismatch {
+                form: "sub".to_string(),
+                expected: "Number".to_string(),
+                got: args[0].type_name().to_string(),
+            });
         };
 
         let result = args[1..].iter().fold(first, |acc, x| {
@@ -173,14 +181,15 @@ impl Native {
         Ok(LispAST::Number(result))
     }
 
-    pub fn mul(args: &[LispAST]) -> Result<LispAST, String> {
-        if !check_if_all_args_numbers(args) {
-            return Err("All arguments to mul must be numbers".to_string());
-        }
-
+    pub fn mul(args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.is_empty() {
-            return Err("* requires at least 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "mul".to_string(),
+                expected: "at least 1".to_string(),
+                got: 0,
+            });
         }
+        require_all_numbers("mul", args)?;
 
         let product = args.iter().fold(D512::from(1), |acc, x| {
             if let LispAST::Number(n) = x {
@@ -193,20 +202,21 @@ impl Native {
         Ok(LispAST::Number(product))
     }
 
-    pub fn div(args: &[LispAST]) -> Result<LispAST, String> {
-        if !check_if_all_args_numbers(args) {
-            return Err("All arguments to div must be numbers".to_string());
-        }
-
+    pub fn div(args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.is_empty() {
-            return Err("/ requires at least 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "div".to_string(),
+                expected: "at least 1".to_string(),
+                got: 0,
+            });
         }
+        require_all_numbers("div", args)?;
 
         // For single argument, return reciprocal (1/x)
         if args.len() == 1 {
             if let LispAST::Number(n) = &args[0] {
                 if *n == D512::from(0) {
-                    return Err("Division by zero".to_string());
+                    return Err(LispError::DivisionByZero);
                 }
                 return Ok(LispAST::Number(D512::from(1) / *n));
             }
@@ -216,13 +226,17 @@ impl Native {
         let first = if let LispAST::Number(n) = &args[0] {
             *n
         } else {
-            return Err("All arguments to div must be numbers".to_string());
+            return Err(LispError::TypeMismatch {
+                form: "div".to_string(),
+                expected: "Number".to_string(),
+                got: args[0].type_name().to_string(),
+            });
         };
 
         let result = args[1..].iter().try_fold(first, |acc, x| {
             if let LispAST::Number(n) = x {
                 if *n == D512::from(0) {
-                    return Err("Division by zero".to_string());
+                    return Err(LispError::DivisionByZero);
                 }
                 Ok(acc / *n)
             } else {

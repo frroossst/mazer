@@ -9,4 +9,5 @@ mazer-html = { path = "../mazer-html" }
 mazer-lisp = { path = "../mazer-lisp" }
 mazer-types = { path = "../mazer-types" }
 mazer-atog = { path = "../mazer-atog" }
+miette = { workspace = true, features = ["fancy"] }
 

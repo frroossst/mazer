@@ -1,32 +1,27 @@
-use std::fmt;
+use miette::Diagnostic;
+use thiserror::Error;
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error, Diagnostic)]
 pub enum ParseError {
+    #[error("unexpected end of input at byte {position}: expected {expected}")]
+    #[diagnostic(
+        code(mazer::markdown::unexpected_eof),
+        help("the document ends in the middle of a construct — close it before EOF")
+    )]
     UnexpectedEndOfInput { expected: String, position: usize },
+
+    #[error("invalid syntax at byte {position}: {message}")]
+    #[diagnostic(code(mazer::markdown::invalid_syntax))]
     InvalidSyntax { message: String, position: usize },
+
+    #[error("cannot parse empty input")]
+    #[diagnostic(
+        code(mazer::markdown::empty_input),
+        help("provide some markdown content to render")
+    )]
     EmptyInput,
 }
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParseError::UnexpectedEndOfInput { expected, position } => {
-                write!(
-                    f,
-                    "Unexpected end of input at position {}: expected {}",
-                    position, expected
-                )
-            }
-            ParseError::InvalidSyntax { message, position } => {
-                write!(f, "Invalid syntax at position {}: {}", position, message)
-            }
-            ParseError::EmptyInput => write!(f, "Cannot parse empty input"),
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
 
 pub type Result<T> = std::result::Result<T, ParseError>;
 

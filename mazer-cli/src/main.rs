@@ -1,6 +1,8 @@
 use std::env;
 use std::sync::LazyLock;
 
+use miette::{IntoDiagnostic, WrapErr};
+
 use mazer_atog::Atog;
 use mazer_html::document::{DocOutputType, Document, Metadata};
 use mazer_lisp::{environment::EnvironmentExt, interpreter::Interpreter};
@@ -146,33 +148,39 @@ fn run_doc_search(query: &str) {
     }
 }
 
-fn main() {
+fn main() -> miette::Result<()> {
     // Access the global parsed args (initialized on first access)
     let args = &*PARSED_ARGS;
 
     // Handle `doc` subcommand
     if let Some(ref query) = args.doc_query {
         run_doc_search(query);
-        return;
+        return Ok(());
     }
 
-    let file_name = args.filename.as_deref().map(|s| s).unwrap_or_else(|| {
+    let Some(file_name) = args.filename.as_deref() else {
         eprintln!("No input file specified.");
         print_help_message();
         std::process::exit(1);
-    });
+    };
 
-    let content = std::fs::read_to_string(file_name).expect("Failed to read file");
+    let content = std::fs::read_to_string(file_name)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to read input file '{file_name}'"))?;
 
-    let o = compile(&content, file_name);
+    let o = compile(&content, file_name)?;
 
     // write to /tmp/output.html
-    std::fs::write("/tmp/output.html", o).expect("Failed to write output");
+    std::fs::write("/tmp/output.html", o)
+        .into_diagnostic()
+        .wrap_err("failed to write /tmp/output.html")?;
+
+    Ok(())
 }
 
-fn compile(content: &str, file_name: &str) -> String {
+fn compile(content: &str, file_name: &str) -> miette::Result<String> {
     let p = Parser::new(content);
-    let r = p.parse().expect("failed to parse");
+    let r = p.parse()?;
     let mut d = Document::new(r).dockind(DocOutputType::FullBody);
     d.meta(Metadata {
         source: file_name,
@@ -183,11 +191,11 @@ fn compile(content: &str, file_name: &str) -> String {
     let ctx = Environment::new().with_native().with_prelude();
     let frg = d.fragments();
     let mut interp = Interpreter::new(frg, ctx);
-    interp.run().expect("inter no pret");
+    interp.run()?;
     let rst = interp.results();
     d.inject(rst);
     d.fmt(interp.env());
 
-    d.output()
+    Ok(d.output())
 }
 

@@ -1,7 +1,12 @@
 use std::collections::BTreeMap;
 
-use mazer_types::{Environment, LispAST};
+use mazer_atog::Atog;
+use mazer_types::{Environment, LispAST, LispError};
+use strsim::levenshtein;
 use unicode_segmentation::UnicodeSegmentation;
+
+/// Maximum edit distance for a "did you mean" suggestion to be offered.
+const SUGGESTION_THRESHOLD: usize = 2;
 
 pub struct Interpreter {
     fragments: BTreeMap<String, LispAST>,
@@ -17,7 +22,7 @@ impl Interpreter {
         &self.fragments
     }
 
-    pub fn run(&mut self) -> Result<LispAST, String> {
+    pub fn run(&mut self) -> Result<LispAST, LispError> {
         let mut result = LispAST::Bool(false);
 
         for (name, fragment) in self.fragments.clone() {
@@ -30,20 +35,48 @@ impl Interpreter {
         Ok(result)
     }
 
-    pub fn eval(&mut self, expr: LispAST) -> Result<LispAST, String> {
+    /// Build an unbound-symbol error, attaching a "did you mean" suggestion when a
+    /// close match exists among the bindings or the symbol table.
+    fn unbound(&self, name: &str) -> LispError {
+        self.suggest(name).map_or_else(
+            || LispError::UnboundSymbol { name: name.to_string() },
+            |suggestion| LispError::UnboundSymbolDidYouMean {
+                name: name.to_string(),
+                suggestion,
+            },
+        )
+    }
+
+    /// Find the closest known name (an environment binding or a symbol-table
+    /// entry) within [`SUGGESTION_THRESHOLD`] edits of `name`.
+    fn suggest(&self, name: &str) -> Option<String> {
+        let candidates = self
+            .env
+            .bindings
+            .keys()
+            .map(String::as_str)
+            .chain(Atog::iter().map(|(k, _)| *k));
+
+        let mut best: Option<(usize, String)> = None;
+        for cand in candidates {
+            let d = levenshtein(name, cand);
+            if d <= SUGGESTION_THRESHOLD && best.as_ref().is_none_or(|(bd, _)| d < *bd) {
+                best = Some((d, cand.to_string()));
+            }
+        }
+        best.map(|(_, c)| c)
+    }
+
+    pub fn eval(&mut self, expr: LispAST) -> Result<LispAST, LispError> {
         match expr {
-            LispAST::Error(e) => Err(e),
+            LispAST::Error(e) => Err(LispError::Message(e)),
             LispAST::Number(_)
             | LispAST::Bool(_)
             | LispAST::String(_)
             | LispAST::NativeFunc(_)
             | LispAST::UserFunc { .. } => Ok(expr),
 
-            LispAST::Symbol(ref s) => self
-                .env
-                .get(s)
-                .cloned()
-                .ok_or_else(|| format!("Unbound symbol: {}", s)),
+            LispAST::Symbol(ref s) => self.env.get(s).cloned().ok_or_else(|| self.unbound(s)),
 
             LispAST::List(ref exprs) if exprs.is_empty() => Ok(expr),
 
@@ -56,10 +89,11 @@ impl Interpreter {
                         "if" => return self.eval_if(&exprs[1..]),
                         "begin" => return self.eval_begin(&exprs[1..]),
                         "quote" => {
-                            return exprs
-                                .get(1)
-                                .cloned()
-                                .ok_or_else(|| "quote requires 1 argument".to_string());
+                            return exprs.get(1).cloned().ok_or_else(|| LispError::Arity {
+                                form: "quote".to_string(),
+                                expected: "1".to_string(),
+                                got: exprs.len().saturating_sub(1),
+                            });
                         }
                         "string" => return self.eval_string(&exprs[1..]),
                         _ => {}
@@ -81,7 +115,7 @@ impl Interpreter {
                     .env
                     .get(&name)
                     .cloned()
-                    .ok_or_else(|| format!("Unbound function: {}", name))?;
+                    .ok_or_else(|| self.unbound(&name))?;
 
                 // Evaluate args before passing to function
                 let evaled_args: Result<Vec<_>, _> =
@@ -93,16 +127,16 @@ impl Interpreter {
         }
     }
 
-    fn apply(&mut self, func: LispAST, args: Vec<LispAST>) -> Result<LispAST, String> {
+    fn apply(&mut self, func: LispAST, args: Vec<LispAST>) -> Result<LispAST, LispError> {
         match func {
             LispAST::NativeFunc(f) => f(&args),
             LispAST::UserFunc { params, body } => {
                 if params.len() != args.len() {
-                    return Err(format!(
-                        "Expected {} arguments, got {}",
-                        params.len(),
-                        args.len()
-                    ));
+                    return Err(LispError::Arity {
+                        form: "function".to_string(),
+                        expected: params.len().to_string(),
+                        got: args.len(),
+                    });
                 }
 
                 // Create a new scope with parameters bound to arguments
@@ -124,18 +158,30 @@ impl Interpreter {
 
                 result
             }
-            _ => Err(format!("Not a function: {:?}", func)),
+            other => Err(LispError::NotAFunction {
+                value_type: other.type_name().to_string(),
+            }),
         }
     }
 
-    fn eval_define(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+    fn eval_define(&mut self, args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.len() != 2 {
-            return Err("define requires 2 arguments".to_string());
+            return Err(LispError::Arity {
+                form: "define".to_string(),
+                expected: "2".to_string(),
+                got: args.len(),
+            });
         }
 
         let name = match &args[0] {
             LispAST::Symbol(s) => s.clone(),
-            _ => return Err("define requires symbol as first argument".to_string()),
+            other => {
+                return Err(LispError::TypeMismatch {
+                    form: "define".to_string(),
+                    expected: "Symbol".to_string(),
+                    got: other.type_name().to_string(),
+                });
+            }
         };
 
         let value = self.eval(args[1].clone())?;
@@ -143,14 +189,24 @@ impl Interpreter {
         Ok(value)
     }
 
-    fn eval_defunc(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+    fn eval_defunc(&mut self, args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.len() != 3 {
-            return Err("defunc requires 3 arguments: name, (params...), body".to_string());
+            return Err(LispError::Arity {
+                form: "defunc".to_string(),
+                expected: "3 (name, (params...), body)".to_string(),
+                got: args.len(),
+            });
         }
 
         let name = match &args[0] {
             LispAST::Symbol(s) => s.clone(),
-            _ => return Err("defunc requires symbol as first argument".to_string()),
+            other => {
+                return Err(LispError::TypeMismatch {
+                    form: "defunc".to_string(),
+                    expected: "Symbol".to_string(),
+                    got: other.type_name().to_string(),
+                });
+            }
         };
 
         let params = match &args[1] {
@@ -158,10 +214,20 @@ impl Interpreter {
                 .iter()
                 .map(|p| match p {
                     LispAST::Symbol(s) => Ok(s.clone()),
-                    _ => Err("Parameters must be symbols".to_string()),
+                    other => Err(LispError::TypeMismatch {
+                        form: "defunc parameter".to_string(),
+                        expected: "Symbol".to_string(),
+                        got: other.type_name().to_string(),
+                    }),
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            _ => return Err("defunc requires parameter list as second argument".to_string()),
+            other => {
+                return Err(LispError::TypeMismatch {
+                    form: "defunc".to_string(),
+                    expected: "List (parameter list)".to_string(),
+                    got: other.type_name().to_string(),
+                });
+            }
         };
 
         let body = args[2].clone();
@@ -175,22 +241,34 @@ impl Interpreter {
         Ok(user_func)
     }
 
-    fn eval_if(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+    fn eval_if(&mut self, args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.len() != 3 {
-            return Err("if requires 3 arguments".to_string());
+            return Err(LispError::Arity {
+                form: "if".to_string(),
+                expected: "3".to_string(),
+                got: args.len(),
+            });
         }
 
         let cond = self.eval(args[0].clone())?;
         match cond {
             LispAST::Bool(true) => self.eval(args[1].clone()),
             LispAST::Bool(false) => self.eval(args[2].clone()),
-            _ => Err("if condition must be boolean".to_string()),
+            other => Err(LispError::TypeMismatch {
+                form: "if condition".to_string(),
+                expected: "Bool".to_string(),
+                got: other.type_name().to_string(),
+            }),
         }
     }
 
-    fn eval_begin(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+    fn eval_begin(&mut self, args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.is_empty() {
-            return Err("begin requires at least 1 expression".to_string());
+            return Err(LispError::Arity {
+                form: "begin".to_string(),
+                expected: "at least 1".to_string(),
+                got: 0,
+            });
         }
         let mut result = LispAST::Bool(false);
         for expr in args {
@@ -199,9 +277,13 @@ impl Interpreter {
         Ok(result)
     }
 
-    fn eval_string(&mut self, args: &[LispAST]) -> Result<LispAST, String> {
+    fn eval_string(&mut self, args: &[LispAST]) -> Result<LispAST, LispError> {
         if args.len() != 1 {
-            return Err("string requires exactly 1 argument".to_string());
+            return Err(LispError::Arity {
+                form: "string".to_string(),
+                expected: "1".to_string(),
+                got: args.len(),
+            });
         }
 
         // Evaluate the argument (e.g., to handle (quote ...) or other expressions)

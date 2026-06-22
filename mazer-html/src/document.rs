@@ -243,7 +243,7 @@ impl Document {
                 let mut p = Parser::new(&code);
                 let r = p
                     .parse()
-                    .unwrap_or(LispAST::Error("<<failed to parse>>".into()));
+                    .unwrap_or_else(|e| LispAST::Error(e.to_string()));
 
                 let dast = DocAst::Eval(r);
                 self.append(dast);
@@ -252,7 +252,7 @@ impl Document {
                 let mut p = Parser::new(&code);
                 let r = p
                     .parse()
-                    .unwrap_or(LispAST::Error("<<failed to parse>>".into()));
+                    .unwrap_or_else(|e| LispAST::Error(e.to_string()));
 
                 let dast = DocAst::Show(r);
                 self.append(dast);
