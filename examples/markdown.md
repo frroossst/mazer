@@ -96,6 +96,13 @@ A derivative: (show (deriv f x)).
 **Matrices:**
 (show (matrix (1 2) (3 4))).
 
+**Tables:**
+A grid table (the default style) with a bold header row:
+(show (table (header Name Age City) (row Alice 30 NYC) (row Bob 25 LA))).
+
+A clean table (rule under the header only), right-aligned values, and math in cells:
+(show (table (style clean) (align left right) (header n (frac 1 n)) (row 1 1) (row 2 (frac 1 2)))).
+
 **Logic:**
 (show (implies p q)).
 (show (forall x (exists y (= x y)))).

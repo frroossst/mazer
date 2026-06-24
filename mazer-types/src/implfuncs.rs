@@ -94,6 +94,7 @@ pub enum FuncKind {
 /// - **Logarithms**: `ln`, `log`, `exp`
 /// - **Other Math**: `abs`, `floor`, `ceil`, `factorial`, `binom`
 /// - **Linear Algebra**: `matrix`, `vec`, `det`
+/// - **Tables**: `table`
 /// - **Sets**: `set`, `in`, `notin`, `subset`, `superset`, `union`, `intersect`
 /// - **Logic**: `and`, `or`, `not`, `implies`, `iff`, `forall`, `exists`
 /// - **Grouping**: `paren`, `bracket`, `brace`
@@ -319,6 +320,15 @@ pub enum ShowFunc {
     /// Determinant: `(det (row1) (row2) ...)`
     #[func(names = ["det", "determinant"], arity = Variadic, doc = "Determinant: (det (row1) (row2) ...)")]
     Det,
+
+    // =========================================================================
+    // Tables
+    // =========================================================================
+
+    /// Pretty table: `(table (header ...) (row ...) ...)` with optional
+    /// `(align ...)` and `(style grid|clean|plain)` directives.
+    #[func(names = ["table"], arity = Variadic, doc = "Pretty table: (table (header c1 c2) (row a b) ...) with optional (align left right) and (style grid|clean|plain)")]
+    Table,
 
     // =========================================================================
     // Type Theory / Inference Rules

@@ -129,6 +129,9 @@ fn format_list(exprs: &[LispAST], env: Option<&Environment>) -> String {
             ShowFunc::Vec => return format_vector(args, env),
             ShowFunc::Det => return format_determinant(args, env),
 
+            // Tables
+            ShowFunc::Table => return format_table(args, env),
+
             // Type theory / inference rules
             ShowFunc::TyJudge => return format_ty_judgement(args, env),
 
@@ -659,6 +662,120 @@ fn format_determinant(args: &[LispAST], env: Option<&Environment>) -> String {
     )
 }
 
+/// Formats a pretty table as a styled MathML `<mtable>`.
+///
+/// Rows are described with explicit tags:
+/// - `(header c1 c2 ...)` — a header row (cells rendered in bold)
+/// - `(row c1 c2 ...)` — a data row
+/// - a bare list `(c1 c2 ...)` — also treated as a data row (matrix-compatible)
+///
+/// Two optional directives may appear anywhere among the rows:
+/// - `(align a1 a2 ...)` — per-column alignment (`left`/`right`/`center`, or
+///   the short forms `l`/`r`/`c`). The last value repeats for extra columns.
+/// - `(style grid|clean|plain)` — visual style. Defaults to `grid`.
+///
+/// Cells may hold any show expression, e.g. `(row 1 (frac 1 2))`.
+fn format_table(args: &[LispAST], env: Option<&Environment>) -> String {
+    let mut style = "grid";
+    let mut col_align: Option<String> = None;
+    let mut has_header = false;
+    let mut rows_html: Vec<String> = Vec::new();
+
+    for arg in args {
+        match arg {
+            LispAST::List(items) if !items.is_empty() => {
+                if let LispAST::Symbol(tag) = &items[0] {
+                    match tag.as_str() {
+                        "align" => {
+                            let aligns: Vec<&str> = items[1..].iter().map(map_align).collect();
+                            if !aligns.is_empty() {
+                                col_align = Some(aligns.join(" "));
+                            }
+                            continue;
+                        }
+                        "style" => {
+                            if let Some(LispAST::Symbol(s)) = items.get(1) {
+                                style = match s.as_str() {
+                                    "clean" => "clean",
+                                    "plain" => "plain",
+                                    _ => "grid",
+                                };
+                            }
+                            continue;
+                        }
+                        "header" => {
+                            has_header = true;
+                            rows_html.push(format_table_row(&items[1..], true, env));
+                            continue;
+                        }
+                        "row" => {
+                            rows_html.push(format_table_row(&items[1..], false, env));
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+                // Bare list with no recognized tag: treat the whole list as a row.
+                rows_html.push(format_table_row(items, false, env));
+            }
+            // A non-list argument becomes a single-cell row.
+            other => rows_html.push(format_table_row(std::slice::from_ref(other), false, env)),
+        }
+    }
+
+    let mut attrs = String::from(" columnspacing=\"1em\" rowspacing=\"0.5em\"");
+    attrs.push_str(&format!(
+        " columnalign=\"{}\"",
+        col_align.as_deref().unwrap_or("left")
+    ));
+    match style {
+        // Lines between every row and column, plus an outer frame.
+        "grid" => attrs.push_str(" frame=\"solid\" rowlines=\"solid\" columnlines=\"solid\""),
+        // Outer frame and a single rule under the header (if any), no column lines.
+        "clean" => {
+            attrs.push_str(" frame=\"solid\" columnlines=\"none\"");
+            if has_header {
+                // The list applies per row-gap; "solid none" rules under the
+                // header only (the trailing "none" repeats for later gaps).
+                attrs.push_str(" rowlines=\"solid none\"");
+            }
+        }
+        // "plain": aligned cells with no frame or rules.
+        _ => {}
+    }
+
+    format!("<mtable{}>{}</mtable>", attrs, rows_html.join(""))
+}
+
+/// Formats one table row. Header cells are wrapped in a bold `<mstyle>`.
+fn format_table_row(cells: &[LispAST], is_header: bool, env: Option<&Environment>) -> String {
+    let tds: Vec<String> = cells
+        .iter()
+        .map(|cell| {
+            let inner = format_mathml(cell, env);
+            if is_header {
+                format!("<mtd><mstyle mathvariant=\"bold\">{}</mstyle></mtd>", inner)
+            } else {
+                format!("<mtd>{}</mtd>", inner)
+            }
+        })
+        .collect();
+    format!("<mtr>{}</mtr>", tds.join(""))
+}
+
+/// Maps a column-alignment token to a MathML `columnalign` value.
+fn map_align(a: &LispAST) -> &'static str {
+    let s = match a {
+        LispAST::Symbol(s) | LispAST::String(s) => s.as_str(),
+        _ => "",
+    };
+    match s {
+        "right" | "r" => "right",
+        "center" | "centre" | "c" | "middle" | "m" => "center",
+        _ => "left",
+    }
+}
+
 fn format_ty_judgement(args: &[LispAST], env: Option<&Environment>) -> String {
     if args.len() != 3 {
         return "<merror><mtext>ty-judge requires 3 arguments: (ty-judge name (premises...) conclusion)</mtext></merror>".to_string();
@@ -966,4 +1083,126 @@ fn needs_parens_for_power(expr: &LispAST) -> bool {
 
 fn needs_parens_for_factorial(expr: &LispAST) -> bool {
     matches!(expr, LispAST::List(_) | LispAST::Application { .. })
+}
+
+#[cfg(test)]
+mod table_tests {
+    use super::*;
+
+    fn sym(s: &str) -> LispAST {
+        LispAST::Symbol(s.to_string())
+    }
+
+    fn list(items: Vec<LispAST>) -> LispAST {
+        LispAST::List(items)
+    }
+
+    /// A header + a couple of data rows, default (grid) style.
+    fn sample_table() -> Vec<LispAST> {
+        vec![
+            list(vec![sym("header"), sym("Name"), sym("Age"), sym("City")]),
+            list(vec![sym("row"), sym("Alice"), sym("30"), sym("NYC")]),
+            list(vec![sym("row"), sym("Bob"), sym("25"), sym("LA")]),
+        ]
+    }
+
+    #[test]
+    fn grid_is_the_default_style() {
+        let out = format_table(&sample_table(), None);
+        assert!(out.starts_with("<mtable"));
+        assert!(out.ends_with("</mtable>"));
+        assert!(out.contains("frame=\"solid\""));
+        assert!(out.contains("rowlines=\"solid\""));
+        assert!(out.contains("columnlines=\"solid\""));
+    }
+
+    #[test]
+    fn header_cells_are_bold_and_rows_are_emitted() {
+        let out = format_table(&sample_table(), None);
+        assert!(out.contains("<mstyle mathvariant=\"bold\"><mi>Name</mi></mstyle>"));
+        // Three rows total (1 header + 2 data).
+        assert_eq!(out.matches("<mtr>").count(), 3);
+        // Header has one bold cell per column; data rows have none.
+        assert_eq!(out.matches("mathvariant=\"bold\"").count(), 3);
+        // Data cell renders without bold wrapper.
+        assert!(out.contains("<mtd><mi>Alice</mi></mtd>"));
+    }
+
+    #[test]
+    fn dispatches_through_format_mathml() {
+        // Verifies the `table` symbol routes to ShowFunc::Table.
+        let expr = list(vec![
+            sym("table"),
+            list(vec![sym("header"), sym("A")]),
+            list(vec![sym("row"), sym("x")]),
+        ]);
+        let out = format_mathml(&expr, None);
+        assert!(out.contains("<mtable"));
+        assert!(out.contains("mathvariant=\"bold\""));
+    }
+
+    #[test]
+    fn align_directive_sets_columnalign() {
+        let args = vec![
+            list(vec![sym("align"), sym("left"), sym("right"), sym("c")]),
+            list(vec![sym("row"), sym("a"), sym("b"), sym("c")]),
+        ];
+        let out = format_table(&args, None);
+        assert!(out.contains("columnalign=\"left right center\""));
+        // The align directive itself is not rendered as a row.
+        assert_eq!(out.matches("<mtr>").count(), 1);
+    }
+
+    #[test]
+    fn defaults_to_left_alignment() {
+        let out = format_table(&sample_table(), None);
+        assert!(out.contains("columnalign=\"left\""));
+    }
+
+    #[test]
+    fn clean_style_rules_under_header_only() {
+        let mut args = sample_table();
+        args.insert(0, list(vec![sym("style"), sym("clean")]));
+        let out = format_table(&args, None);
+        assert!(out.contains("frame=\"solid\""));
+        assert!(out.contains("columnlines=\"none\""));
+        assert!(out.contains("rowlines=\"solid none\""));
+        assert!(!out.contains("columnlines=\"solid\""));
+    }
+
+    #[test]
+    fn plain_style_has_no_frame_or_lines() {
+        let args = vec![
+            list(vec![sym("style"), sym("plain")]),
+            list(vec![sym("row"), sym("a"), sym("b")]),
+        ];
+        let out = format_table(&args, None);
+        assert!(!out.contains("frame"));
+        assert!(!out.contains("rowlines"));
+        assert!(!out.contains("columnlines"));
+    }
+
+    #[test]
+    fn bare_lists_are_treated_as_rows() {
+        // Matrix-style rows (no header/row tag) still render as data rows.
+        let args = vec![
+            list(vec![sym("a"), sym("b")]),
+            list(vec![sym("c"), sym("d")]),
+        ];
+        let out = format_table(&args, None);
+        assert_eq!(out.matches("<mtr>").count(), 2);
+        assert!(!out.contains("mathvariant=\"bold\""));
+        assert!(out.contains("<mtd><mi>a</mi></mtd>"));
+    }
+
+    #[test]
+    fn cells_may_hold_math_expressions() {
+        let args = vec![
+            list(vec![sym("header"), sym("x"), list(vec![sym("funcapp"), sym("f"), sym("x")])]),
+            list(vec![sym("row"), sym("1"), list(vec![sym("frac"), sym("1"), sym("2")])]),
+        ];
+        let out = format_table(&args, None);
+        // The fraction in the data cell is rendered as <mfrac>.
+        assert!(out.contains("<mfrac>"));
+    }
 }

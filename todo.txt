@@ -6,5 +6,5 @@
 
 -[ ] add in-browser support for eval js for plots
 
--[ ] add a table fmt directive for pretty tables
+-[x] add a table fmt directive for pretty tables
 
