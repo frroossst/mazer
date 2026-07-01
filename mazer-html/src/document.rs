@@ -343,7 +343,7 @@ impl Document {
         let lang_html = format!(
             "<pre><code class=\"language-{}\">{}</code></pre>",
             language.unwrap_or_default(),
-            code
+            escape_html(&code)
         );
 
         let dast = DocAst::Html(lang_html.into());
@@ -352,7 +352,7 @@ impl Document {
 
     #[inline]
     fn append_inline_code(&mut self, code: String) {
-        let inline_code_html = format!("<code>{}</code>", code);
+        let inline_code_html = format!("<code>{}</code>", escape_html(&code));
 
         let dast = DocAst::Html(inline_code_html.into());
         self.append(dast);
@@ -376,4 +376,11 @@ impl Document {
         let dast = DocAst::Html("<hr/>".into());
         self.append(dast);
     }
+}
+
+#[inline]
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
