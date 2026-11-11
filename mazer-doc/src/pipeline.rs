@@ -4,13 +4,69 @@
 //!   diagnostics out.
 //! - The LSP calls only [`analyze`], on every edit.
 //! - A live preview calls [`render`] on an existing [`Analysis`].
+//!
+//! # What each reserved form does
+//!
+//! - `(show expr)` shows `expr`; a single atom `(show G)` shows that atom.
+//!   `(show a b c)` shows its expressions side by side (juxtaposed): each is
+//!   rendered on its own and they are placed in one `<mrow>`.
+//!   `(show (tag name) expr ...)` as a block is a numbered display equation.
+//!   `(show)`, or a tag with nothing after it, is an `Arity` error.
+//! - A `show` alone in a top-level paragraph is a display equation
+//!   (`<div class="mazer-equation"><math display="block">`); anywhere else it
+//!   is inline math in the old wrapper
+//!   (`<math display="inline"><mstyle displaystyle="true">`).
+//! - `(eval expr)` takes exactly one expression (`Arity` otherwise). An
+//!   `eval` nested inside a `show`, a `let` value or another `eval` is
+//!   `NestedEval` and is replaced by an `Error` node in the resolved tree.
+//!   The evaluator's result is rendered like a `show`: as a display equation
+//!   for a block `eval`, inline otherwise.
+//! - `(let ...)`, `(alias ...)` and `(macro ...)` produce no output, as a
+//!   block or inside a sentence. A paragraph holding nothing else produces
+//!   nothing, and a definition on a line of its own leaves no empty line.
+//! - `(ref name)` is a link `<a class="mazer-ref" href="#eq-name">(n)</a>`.
+//!
+//! # Error boxes
+//!
+//! A code form renders as an error box (`<pre class="mazer-error">` for a
+//! block, `<span class="mazer-error">` inside a sentence) holding the escaped
+//! messages, instead of its normal output, when:
+//! 1. its resolved tree contains an `Error` node (reader recovery, a failed
+//!    macro use, a nested `eval`, an oversized substitution), or
+//! 2. [`Analysis::diags`] holds an *error*-severity diagnostic whose primary
+//!    span lies inside the form and which rendering the form's expressions
+//!    does not produce itself. Problems the math emitter reports (a keyword
+//!    with the wrong number of arguments, a bare keyword without a sign)
+//!    already render in place as `<merror>`, so they do not box the form;
+//!    everything the document stage reports (bad definitions, macro arity
+//!    and depth, misplaced or duplicate tags, unresolved references, an empty
+//!    `show`, reader errors) does, or
+//! 3. it is an `eval` and there is no evaluator (`NoEvaluator`) or the
+//!    evaluator returned `None`.
+//!
+//! This applies to definitions too: a broken `let`, `alias` or `macro` shows
+//! a box where a good one shows nothing. Warnings and hints never box. An
+//! `eval` that boxes for reason 1 or 2 is not evaluated.
+//!
+//! # Diagnostics
+//!
+//! `analyze` reports each problem once, including keyword-call problems (via
+//! `mazer_math::check`). `render` therefore drops diagnostics the emitter
+//! pushes again while rendering and reports only new ones: `NoEvaluator`,
+//! the evaluator's own, problems in an evaluator's result, and
+//! target-specific ones such as `UnsupportedTarget` for LaTeX.
 
-use mazer_syntax::{Diag, Diags, Document, SourceMap};
+use std::sync::LazyLock;
 
-use crate::bindings::Binding;
+use mazer_syntax::{Diag, DiagCode, Diags, Document, FileId, Node, NodeKind, SourceMap, markdown};
+
+use crate::STDLIB;
+use crate::bindings::{Binding, LetPass};
 use crate::eval::Evaluator;
-use crate::labels::Labels;
-use crate::macros::Macros;
+use crate::html;
+use crate::labels::{Labels, collect_labels};
+use crate::macros::{Macros, collect_macros, expand};
+use crate::walk;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Target {
@@ -74,10 +130,144 @@ pub struct Analysis {
 /// Order: parse the markdown and read each code form -> collect `alias` /
 /// `macro` (embedded `stdlib.zr`, then the note) -> expand -> substitute `let`
 /// variables in document order -> collect labels -> check every keyword call.
+///
+/// `resolved` differs from `written` only inside code forms: the expressions
+/// of `show` and `eval` and the value of `let` are expanded and substituted.
+/// Definitions (`alias`, `macro`), `(tag name)` and `(ref name)` are left as
+/// written.
 #[must_use]
 pub fn analyze(src: &str, name: &str) -> Analysis {
-    let _ = (src, name);
-    todo!("step 2, document agent")
+    analyze_with(src, name, &PRELUDE)
+}
+
+/// [`analyze`] with a given prelude (tests use their own).
+fn analyze_with(src: &str, name: &str, prelude: &Prelude) -> Analysis {
+    let mut sources = SourceMap::new();
+    let file = sources.add(name.to_owned(), src.to_owned());
+    sources.add("stdlib.zr".to_owned(), prelude.text.to_owned());
+
+    let mut diags = prelude.diags.clone();
+    let written = markdown::parse(src, file, &mut diags);
+
+    let mut macros = prelude.macros.clone();
+    collect_macros(&written, &mut macros, &mut diags);
+
+    let mut resolved = written.clone();
+    let mut pass = LetPass::default();
+    walk::for_each_code_mut(&mut resolved, &mut |form, _| resolve_form(form, &macros, &mut pass, &mut diags));
+
+    let labels = collect_labels(&written, &mut diags);
+
+    walk::for_each_code(&resolved, &mut |form, _| {
+        for expr in shown(form) {
+            mazer_math::check(expr, &mut diags);
+        }
+    });
+
+    Analysis {
+        sources,
+        written,
+        resolved,
+        macros,
+        labels,
+        lets: pass.lets,
+        diags,
+    }
+}
+
+/// A prelude, read as file 1: its definitions, and any problems with it.
+struct Prelude {
+    text: &'static str,
+    macros: Macros,
+    diags: Diags,
+}
+
+impl Prelude {
+    fn read(text: &'static str) -> Self {
+        let mut diags = Diags::new();
+        let doc = markdown::parse(text, FileId(1), &mut diags);
+        let mut macros = Macros::new();
+        collect_macros(&doc, &mut macros, &mut diags);
+        Self { text, macros, diags }
+    }
+}
+
+/// The embedded prelude, read once per process.
+static PRELUDE: LazyLock<Prelude> = LazyLock::new(|| Prelude::read(STDLIB));
+
+/// The expressions a form puts on the page (or hands to the evaluator): the
+/// items of a `show` after an optional leading tag, the arguments of an
+/// `eval`.
+pub(crate) fn shown(form: &Node) -> &[Node] {
+    if form.is_form("show") {
+        match form.args() {
+            [tag, rest @ ..] if tag.is_form("tag") => rest,
+            all => all,
+        }
+    } else if form.is_form("eval") {
+        form.args()
+    } else {
+        &[]
+    }
+}
+
+/// Expands and substitutes one code form in place, in document order.
+fn resolve_form(form: &mut Node, macros: &Macros, pass: &mut LetPass, diags: &mut Diags) {
+    if form.is_form("show") || form.is_form("eval") {
+        let is_show = form.is_form("show");
+        let count = shown(form).len();
+        if !walk::contains_error(form) {
+            if is_show && count == 0 {
+                diags.push(
+                    Diag::error(DiagCode::Arity, form.span, "nothing to show").with_help("write it as (show expr)"),
+                );
+            } else if !is_show && count != 1 {
+                diags.push(
+                    Diag::error(DiagCode::Arity, form.span, format!("`eval` takes one expression, found {count}"))
+                        .with_help("write it as (eval expr)"),
+                );
+            }
+        }
+        let NodeKind::List(items) = &mut form.kind else {
+            return;
+        };
+        for (i, item) in items.iter_mut().enumerate().skip(1) {
+            if is_show && i == 1 && item.is_form("tag") {
+                continue;
+            }
+            let mut expr = expand(item, macros, diags);
+            strip_nested_eval(&mut expr, diags);
+            *item = pass.substitute(&expr, diags);
+        }
+    } else if form.is_form("let") {
+        if let NodeKind::List(items) = &mut form.kind
+            && let [_, _, value] = items.as_mut_slice()
+        {
+            let mut expr = expand(value, macros, diags);
+            strip_nested_eval(&mut expr, diags);
+            *value = expr;
+        }
+        *form = pass.bind(form, macros, diags);
+    }
+}
+
+/// Reports every `(eval ...)` inside an expression and replaces it with an
+/// `Error` node, so the problem is reported once even if the expression is
+/// later substituted elsewhere through a `let`.
+fn strip_nested_eval(node: &mut Node, diags: &mut Diags) {
+    if node.is_form("eval") {
+        diags.push(
+            Diag::error(DiagCode::NestedEval, node.span, "`eval` cannot be used inside another form")
+                .with_help("put the (eval ...) in a paragraph or sentence of its own"),
+        );
+        *node = Node::error(node.span);
+        return;
+    }
+    if let NodeKind::List(items) = &mut node.kind {
+        for item in items {
+            strip_nested_eval(item, diags);
+        }
+    }
 }
 
 /// Produces output from an analysis. Evaluation (if an evaluator is
@@ -88,8 +278,11 @@ pub fn analyze(src: &str, name: &str) -> Analysis {
 /// the note renders normally. Problems found while rendering (for example
 /// `NoEvaluator`) are pushed to `diags`.
 pub fn render(analysis: &Analysis, opts: &mut Options, diags: &mut Diags) -> String {
-    let _ = (analysis, opts, diags);
-    todo!("step 2, document agent")
+    let body = html::body(analysis, opts.target, opts.evaluator.as_deref_mut(), diags);
+    match &opts.page {
+        Page::Fragment => html::fragment(&opts.name, &body),
+        Page::Full { title } => html::full_page(title, &opts.name, &body),
+    }
 }
 
 pub struct Output {
@@ -102,6 +295,17 @@ pub struct Output {
 /// [`analyze`] then [`render`]. Never fails: a broken note still returns HTML
 /// with inline error boxes, plus the diagnostics.
 pub fn compile(src: &str, opts: &mut Options) -> Output {
-    let _ = (src, opts);
-    todo!("step 2, document agent")
+    let analysis = analyze(src, &opts.name);
+    let mut extra = Diags::new();
+    let html = render(&analysis, opts, &mut extra);
+    let mut diags = analysis.diags.into_vec();
+    diags.extend(extra.into_vec());
+    Output {
+        html,
+        diags,
+        sources: analysis.sources,
+    }
 }
+
+#[cfg(test)]
+mod tests;
