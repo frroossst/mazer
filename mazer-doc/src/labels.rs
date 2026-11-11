@@ -165,14 +165,7 @@ pub(crate) fn tag_name(form: &Node) -> Option<Sym> {
 fn misplaced(nodes: &[Node], diags: &mut Diags) {
     for node in nodes {
         if node.is_form("tag") {
-            diags.push(
-                Diag::error(
-                    DiagCode::MisplacedTag,
-                    node.span,
-                    "a tag must be the first item of a display `show`",
-                )
-                .with_help("write it as (show (tag name) expr) in a paragraph of its own"),
-            );
+            diags.push(walk::misplaced_tag(node.span));
         }
         if let Some(items) = node.as_list() {
             misplaced(items, diags);

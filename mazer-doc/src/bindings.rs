@@ -44,14 +44,27 @@
 //! - **Size.** A substitution that would produce more than 100 000 nodes or
 //!   nest more than 320 levels deep (`(let x (+ x x))` forty times over) is
 //!   refused with a diagnostic: the `let` is not bound, or the shown expression
-//!   becomes an error box.
+//!   becomes an error box. Every substituted value is also charged to the
+//!   document-wide node budget (see the `walk` module): storing a value is
+//!   free, each use costs the value's size. When the budget runs out, the
+//!   expression becomes an error box, one diagnostic (`Other`) is reported
+//!   for the whole note, and a `let` refused this way makes its variable an
+//!   error from then on.
+//! - **Problems in a value.** The value of a `let` is checked once, where it
+//!   is bound (after substituting earlier variables), and its keyword
+//!   problems (`(let y (frac 1))`) are reported there. Each use of the
+//!   variable still renders the `<merror>`, but does not report the same
+//!   problem again. The `let` itself shows an error box, since it renders
+//!   nothing else. A value that is a single name is not checked at the
+//!   `let`: `(let f frac)` then `(show (f a b))` is fine.
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use mazer_syntax::{Diag, DiagCode, Diags, Node, NodeKind, Span, Sym};
 
 use crate::macros::Macros;
-use crate::walk::{self, Measure};
+use crate::walk::{self, Budget, Measure};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Binding {
@@ -112,6 +125,10 @@ pub fn substitute(node: &Node, env: &Bindings) -> Node {
     }
 }
 
+/// A keyword problem, without its place: what `mazer_math::check` reports
+/// for a value, so the same problem can be recognised at each use.
+type Problem = (DiagCode, String);
+
 /// The `let` pass: the variables bound so far, in document order.
 #[derive(Default)]
 pub(crate) struct LetPass {
@@ -119,14 +136,22 @@ pub(crate) struct LetPass {
     /// The size of each bound value, so a substitution can be measured before
     /// it is built.
     sizes: HashMap<Sym, Measure>,
+    /// The keyword problems of each bound value, found (and reported) once,
+    /// where it was bound.
+    problems: HashMap<Sym, Rc<[Problem]>>,
+    /// For each place a variable was substituted, the problems its value
+    /// carries, so a check of the surrounding expression does not report
+    /// them a second time.
+    known: HashMap<Span, Vec<Rc<[Problem]>>>,
     /// Every successful `let`, in document order.
     pub lets: Vec<Binding>,
 }
 
 impl LetPass {
     /// Substitutes the variables bound so far into `node`, unless the result
-    /// would be too large; then reports it and returns an `Error` node.
-    pub fn substitute(&self, node: &Node, diags: &mut Diags) -> Node {
+    /// would be too large or the document budget has run out; then reports
+    /// it (the budget only once per document) and returns an `Error` node.
+    pub fn substitute(&mut self, node: &Node, budget: &mut Budget, diags: &mut Diags) -> Node {
         if self.measure(node).too_big() {
             diags.push(Diag::error(
                 DiagCode::Other,
@@ -139,7 +164,41 @@ impl LetPass {
             ));
             return Node::error(node.span);
         }
-        substitute(node, &self.env)
+        let cost = self.cost(node);
+        if cost > 0 && !budget.try_spend(cost) {
+            budget.refuse(DiagCode::Other, node.span, None, diags);
+            return Node::error(node.span);
+        }
+        self.subst(node)
+    }
+
+    /// Whether `diag`, found by checking an expression, is a problem of a
+    /// substituted value that was already reported where it was bound.
+    pub fn already_reported(&self, diag: &Diag) -> bool {
+        self.known.get(&diag.span).is_some_and(|lists| {
+            lists
+                .iter()
+                .any(|list| list.iter().any(|(code, message)| *code == diag.code && *message == diag.message))
+        })
+    }
+
+    /// [`substitute`], recording the problems of every substituted value.
+    fn subst(&mut self, node: &Node) -> Node {
+        match &node.kind {
+            NodeKind::Ident(sym) => {
+                let Some(binding) = self.env.get(*sym) else {
+                    return node.clone();
+                };
+                let value = walk::respan(&binding.value, node.span);
+                if let Some(problems) = self.problems.get(sym).filter(|p| !p.is_empty()) {
+                    self.known.entry(node.span).or_default().push(Rc::clone(problems));
+                }
+                value
+            }
+            NodeKind::List(_) if node.is_form("quote") => node.clone(),
+            NodeKind::List(items) => Node::list(items.iter().map(|c| self.subst(c)).collect(), node.span),
+            NodeKind::Number(_) | NodeKind::Str(_) | NodeKind::Error => node.clone(),
+        }
     }
 
     /// What [`substitute`] would produce, measured without building it.
@@ -152,10 +211,22 @@ impl LetPass {
         }
     }
 
+    /// How many nodes [`substitute`] would create: the size of every value
+    /// it copies in.
+    fn cost(&self, node: &Node) -> usize {
+        match &node.kind {
+            NodeKind::Ident(sym) => self.sizes.get(sym).map_or(0, |m| m.size),
+            NodeKind::List(_) if node.is_form("quote") => 0,
+            NodeKind::List(items) => items.iter().fold(0, |acc, c| acc.saturating_add(self.cost(c))),
+            NodeKind::Number(_) | NodeKind::Str(_) | NodeKind::Error => 0,
+        }
+    }
+
     /// Processes one `(let name expr)` whose value is already macro-expanded:
-    /// checks it, substitutes the variables bound so far into the value and
-    /// binds it. Returns the form with the substituted value.
-    pub fn bind(&mut self, form: &Node, macros: &Macros, diags: &mut Diags) -> Node {
+    /// checks it, substitutes the variables bound so far into the value,
+    /// reports the value's keyword problems (once, here) and binds it.
+    /// Returns the form with the substituted value.
+    pub fn bind(&mut self, form: &Node, macros: &Macros, budget: &mut Budget, diags: &mut Diags) -> Node {
         let Some((name, value)) = let_parts(form, macros, diags) else {
             return form.clone();
         };
@@ -172,15 +243,41 @@ impl LetPass {
             ));
             return form.clone();
         }
-        let value = substitute(value, &self.env);
+        let cost = self.cost(value);
+        let (value, measure) = if cost > 0 && !budget.try_spend(cost) {
+            // Out of budget: the variable stands for an error from here on,
+            // so its uses are error boxes rather than the bare name.
+            budget.refuse(DiagCode::Other, value.span, None, diags);
+            (Node::error(value.span), Measure::LEAF)
+        } else {
+            (self.subst(value), measure)
+        };
+        let mut found = Diags::new();
+        // A bare name is not checked here: `(let f frac)` is fine when `f`
+        // is used as a head, and a bare use is reported where it is shown.
+        if value.as_ident().is_none() {
+            mazer_math::check(&value, &mut found);
+        }
+        let mut problems = Vec::new();
+        for diag in found.into_vec() {
+            problems.push((diag.code, diag.message.clone()));
+            if !self.already_reported(&diag) {
+                diags.push(diag);
+            }
+        }
+        self.problems.insert(name, problems.into());
         let binding = Binding {
             name,
             value: value.clone(),
             span: form.span,
         };
         self.sizes.insert(name, measure);
-        self.env.insert(binding.clone());
-        self.lets.push(binding);
+        if matches!(value.kind, NodeKind::Error) {
+            self.env.insert(binding);
+        } else {
+            self.env.insert(binding.clone());
+            self.lets.push(binding);
+        }
         let head = form.as_list().and_then(<[Node]>::first).cloned();
         let name_node = form.args().first().cloned();
         Node::list(head.into_iter().chain(name_node).chain([value]).collect(), form.span)

@@ -80,9 +80,28 @@ fn cursor_positions() {
         ("(show |(frac a b))", Arg("(show (frac a b))", 0)),
         ("(show | x)", Arg("(show  x)", 0)),
         ("(show (+ 1|2 x))", Arg("(+ 12 x)", 0)),
-        ("(show (+ \"s|t\" x))", Arg("(+ \"st\" x)", 0)),
+        ("(show (+ |\"st\" x))", Arg("(+ \"st\" x)", 0)),
+        ("(show (+ \"st\"| x))", Arg("(+ \"st\" x)", 0)),
         ("(show |'x)", Arg("(show 'x)", 0)),
-        ("(show (+ a ; note|\n b))", Arg("(+ a ; note\n b)", 1)),
+        ("(show (+ a |; note\n b))", Arg("(+ a ; note\n b)", 1)),
+        ("(show (+ a ; note\n |b))", Name("b")),
+        ("(show (+ a ; note\n| b))", Arg("(+ a ; note\n b)", 1)),
+        // Comments and strings are prose.
+        ("(show (+ a ; note|\n b))", Prose),
+        ("(show (+ a ;| note\n b))", Prose),
+        ("(show (+ a ; (fr|ac\n b))", Prose),
+        ("(show (+ a ; note|\r\n b))", Prose),
+        ("(show x ; trailing|", Prose),
+        ("(show (+ \"s|t\" x))", Prose),
+        ("(show (+ \"|st\" x))", Prose),
+        ("(show (+ \"st|\" x))", Prose),
+        ("(show \"a ; b|\")", Prose),
+        ("(show \"a ; b\" |x)", Name("x")),
+        ("(show \"a\\\"b|\")", Prose),
+        ("(show \"a\\\"b\"| x)", Arg("(show \"a\\\"b\" x)", 0)),
+        ("(show \"open|", Prose),
+        ("(show \"open|\n\nNext", Prose),
+        ("See (ref a ; c|\n).", Prose),
         ("(let x| 2)", Arg("(let x 2)", 0)),
         ("(let |x 2)", Name("x")),
         // References.
@@ -120,6 +139,31 @@ fn cursor_positions() {
         }
     }
     assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+}
+
+#[test]
+fn every_offset_is_safe() {
+    let inputs = [
+        "Text (show (+ a (frac b c))) and (ref x).\n\n(show (tag x) y)",
+        "(show (frac a",
+        "(show (+ a (frac b\n\nNext (ref ab",
+        "τ😭 (show (+ α β 'γ -δ)) ü (ref é) 🍁",
+        "(show (+ a ; note\r\n b))\r\n\r\n- (let x ; c\r\n 2)\r\n",
+        "(show (+ a ; \"quoted\" (\n b) ; end",
+        "(show \"a ; b\" \"c\\\"d\" \"e\\\\\" \"open\n(show x)",
+        "> (show (+ a\n> ;c\n> b))\n\n- (show '(-x \"y\"",
+        "(let x 2)(let y (+ x x))(show y)(eval y)(alias A b)(macro (f v...) (g v))",
+        "",
+        "(",
+        "\"",
+        ";",
+    ];
+    for src in inputs {
+        let analysis = analyze(src, "t.zr");
+        for at in (0..=src.len() + 1).filter(|&i| i > src.len() || src.is_char_boundary(i)) {
+            let _ = locate(&analysis, ByteOffset::from_usize(at));
+        }
+    }
 }
 
 #[test]
