@@ -35,6 +35,7 @@ use mazer_syntax::{Diag, DiagCode, Diags, Node, NodeKind, Span, Sym};
 
 use crate::call::try_bind;
 use crate::display::{Class, display_name};
+use crate::keyword::Keyword;
 use crate::registry::registry;
 
 /// A thin space (3/18 em), e.g. between an integrand and its `dx`.
@@ -127,7 +128,7 @@ pub(crate) enum Assoc {
 
 /// How tightly `node` holds together once rendered.
 pub(crate) fn precedence(node: &Node) -> Prec {
-    let node = unquote(node);
+    let node = see_through(node);
     match &node.kind {
         NodeKind::Number(text) if text.starts_with('-') => Prec::Prefix,
         NodeKind::List(_) => match declared(node) {
@@ -152,21 +153,28 @@ pub(crate) fn precedence(node: &Node) -> Prec {
 fn declared(node: &Node) -> Option<(Prec, &[Node])> {
     let (head, args) = node.as_list()?.split_first()?;
     let keyword = registry().get(head.as_ident()?)?;
+    if args.is_empty() && keyword.sign.is_some() {
+        // `(neq)` renders the sign itself, whatever the keyword's levels say.
+        return None;
+    }
     Some((crate::keywords::precedence(keyword.name, args.len()), args))
 }
 
-/// `(quote x)` renders exactly as `x`, so it holds together exactly as `x`.
-fn unquote(node: &Node) -> &Node {
-    if let Some([head, arg]) = node.as_list()
-        && head
-            .as_ident()
-            .and_then(|name| registry().get(name))
-            .is_some_and(|keyword| keyword.name == "quote")
-    {
-        unquote(arg)
-    } else {
-        node
-    }
+/// Strips the wrappers that render exactly as what they wrap, so the node
+/// holds together exactly as the wrapped one does: `(quote x)`, a font variant
+/// (`(bb (+ a b))` is a sum, so its parent parenthesises it like one), a
+/// funcapp or prime with nothing to add, and a call with a non-keyword head
+/// and no arguments (`((+ b c))` renders as `b + c`). See
+/// `keywords::see_through` for the keyword cases.
+fn see_through(node: &Node) -> &Node {
+    let Some((head, args)) = node.as_list().and_then(<[Node]>::split_first) else {
+        return node;
+    };
+    let inner = head.as_ident().and_then(|name| registry().get(name)).map_or_else(
+        || args.is_empty().then_some(head),
+        |keyword| crate::keywords::see_through(keyword.name, args),
+    );
+    inner.map_or(node, see_through)
 }
 
 /// Whether `node` renders starting with a `−` or `+` sign: a negative number,
@@ -178,7 +186,7 @@ fn unquote(node: &Node) -> &Node {
 /// [`MathMl::infix`] row (or [`MathMl::juxtapose`]) starting with their first
 /// argument.
 fn leads_with_sign(node: &Node) -> bool {
-    let node = unquote(node);
+    let node = see_through(node);
     match &node.kind {
         NodeKind::Number(text) => text.starts_with('-'),
         NodeKind::List(_) => match declared(node) {
@@ -196,7 +204,7 @@ fn leads_with_sign(node: &Node) -> bool {
 /// on into what follows: `−∑ a`. Such an expression cannot lead a product
 /// unparenthesised.
 fn opens_right(node: &Node) -> bool {
-    match declared(unquote(node)) {
+    match declared(see_through(node)) {
         Some((Prec::Prefix, [.., last])) => precedence(last) == Prec::BigOp && !leads_with_sign(last),
         _ => false,
     }
@@ -265,6 +273,10 @@ impl<'a> MathMl<'a> {
     /// - A keyword call with the wrong number of arguments renders as an
     ///   `<merror>` holding the `Arity` message.
     /// - The empty list `()` renders as an empty `<mrow>`.
+    /// - A keyword head with no arguments renders exactly like the bare
+    ///   keyword: `(neq)` is its sign `≠`, and `(frac)` reports `BareKeyword`.
+    ///   Only a keyword with no sign that accepts zero arguments (`(set)`,
+    ///   `(mat)`) runs its emitter.
     pub fn expr(&mut self, node: &Node) {
         match &node.kind {
             NodeKind::Number(text) => self.number(text),
@@ -439,12 +451,12 @@ impl MathMl<'_> {
     }
 
     /// A postfix operator: `<mrow>operand <mo>op</mo></mrow>`. The operand is
-    /// parenthesised unless it is an atom or itself postfix: `n!`, `f(x)!`,
-    /// `(n + 1)!`, `(x²)!`, `(a/b)!`.
+    /// parenthesised unless it is an atom: `n!`, `f(x)!`, `(n + 1)!`, `(x²)!`,
+    /// `(a/b)!`, and `(n!)!` (never `n!!`, which reads as a double factorial).
     #[allow(dead_code)] // first used by the step 2 keywords
     pub(crate) fn postfix(&mut self, op: &str, operand: &Node) {
         self.row(|o| {
-            o.operand(operand, Prec::Postfix);
+            o.operand(operand, Prec::Atom);
             o.mo(op);
         });
     }
@@ -564,10 +576,15 @@ impl MathMl<'_> {
     }
 
     fn ident(&mut self, name: Sym, span: Span) {
-        let Some(keyword) = registry().get(name) else {
-            self.name(name);
-            return;
-        };
+        match registry().get(name) {
+            Some(keyword) => self.bare(keyword, name, span),
+            None => self.name(name),
+        }
+    }
+
+    /// A keyword with no arguments: its sign if it has one, else the
+    /// `BareKeyword` diagnostic.
+    fn bare(&mut self, keyword: &Keyword, name: Sym, span: Span) {
         if let Some(sign) = keyword.sign {
             self.mo(sign);
         } else {
@@ -586,6 +603,11 @@ impl MathMl<'_> {
         };
         if let Some(name) = head.as_ident() {
             if let Some(keyword) = registry().get(name) {
+                // `(neq)` is `neq`; `(set)` and `(mat)` run their emitters.
+                if args.is_empty() && (keyword.sign.is_some() || keyword.min_args() > 0) {
+                    self.bare(keyword, name, node.span);
+                    return;
+                }
                 match try_bind(keyword, node) {
                     Ok(call) => (keyword.mathml)(&call, self),
                     Err(diag) => self.error(diag),
@@ -906,11 +928,151 @@ mod tests {
 /// it instead, so they also check the step 2 keywords.
 #[cfg(test)]
 mod parentheses {
-    use crate::testing::{visible, with_standins};
+    use mazer_syntax::{DiagCode, Diags};
+
+    use super::check;
+    use crate::testing::{mathml, read, render, visible, with_standins};
 
     #[track_caller]
     fn shows(src: &str, expected: &str) {
         assert_eq!(with_standins(|| visible(src)), expected, "{src}");
+    }
+
+
+    #[test]
+    fn font_variants_hold_together_like_their_argument() {
+        // A styled compound is parenthesised by its parent exactly when the
+        // unstyled compound would be.
+        shows("(- (rm (+ a b)))", "\u{2212}(a+b)");
+        shows("(^ (bb (+ a b)) 2)", "(a+b)2");
+        shows("(* c (bold (+ a b)))", "c\u{d7}(a+b)");
+        shows("(fact (cal (* a b)))", "(a\u{d7}b)!");
+        shows("(sum (bb (+ a b)) n)", "\u{2211}n(a+b)");
+        // A styled atom is still an atom, and a styled sign still starts with one.
+        shows("(- (bb x))", "\u{2212}\u{1d569}");
+        shows("(^ (bold x) 2)", "\u{1d431}2");
+        shows("(+ a (bb -2))", "a+(\u{2212}2)");
+        shows("(* (sum a n) (rm b))", "(\u{2211}na)\u{d7}b");
+    }
+
+    #[test]
+    fn zero_argument_application_takes_its_heads_level() {
+        shows("(* a ((+ b c)))", "a\u{d7}(b+c)");
+        shows("(^ (funcapp (+ f g)) 2)", "(f+g)2");
+        shows("(+ a ((* b c)))", "a+b\u{d7}c");
+        shows("(^ ((Gamma)) 2)", "\u{393}2");
+        // With arguments the head is parenthesised by `application` itself.
+        shows("(^ ((+ f g) x) 2)", "(f+g)(x)2");
+    }
+
+    #[test]
+    fn prime_with_count_zero_is_not_there() {
+        shows("(^ (prime (+ a b) 0) 2)", "(a+b)2");
+        shows("(- (prime (+ a b) 0))", "\u{2212}(a+b)");
+        shows("(prime (prime f 0))", "f\u{2032}");
+    }
+
+    #[test]
+    fn postfix_operands() {
+        shows("(fact (fact n))", "(n!)!");
+        shows("(prime (fact n))", "n!\u{2032}");
+        shows("(prime (prime f))", "f\u{2032}\u{2032}");
+        shows("(fact (* a b))", "(a\u{d7}b)!");
+    }
+
+    #[test]
+    fn big_operators_and_products() {
+        shows("(* (sum a n) b)", "(\u{2211}na)\u{d7}b");
+        shows("(* b (sum a n))", "b\u{d7}\u{2211}na");
+        shows("(* 2 (sum a n) b)", "2\u{d7}(\u{2211}na)\u{d7}b");
+        shows("(^ (derivative f x) 2)", "(ddxf)2");
+        shows("(- (frac a b))", "\u{2212}ab");
+    }
+
+    #[test]
+    fn quantifier_inside_and() {
+        shows("(and (forall x (= x y)) p)", "(\u{2200}x.x=y)\u{2227}p");
+        shows("(and p (forall x (= x y)))", "p\u{2227}(\u{2200}x.x=y)");
+        shows(
+            "(and (exists x (< x y)) (forall z (in z S)))",
+            "(\u{2203}x.x<y)\u{2227}(\u{2200}z.z\u{2208}S)",
+        );
+    }
+
+    #[test]
+    fn accents_and_primes_as_script_bases() {
+        let x = |accent: &str| format!("<mover><mi>x</mi><mo>{accent}</mo></mover>");
+        // An accent is an atom: no parentheses.
+        assert_eq!(
+            mathml("(^ (hat x) 2)"),
+            format!("<msup>{}<mn>2</mn></msup>", x("^"))
+        );
+        assert_eq!(
+            mathml("(^ (bar x) 2)"),
+            format!("<msup>{}<mn>2</mn></msup>", x("\u{af}"))
+        );
+        assert_eq!(
+            mathml("(subscript (hat x) i)"),
+            format!("<msub>{}<mi>i</mi></msub>", x("^"))
+        );
+        assert_eq!(
+            mathml("(subscript (bar x) i)"),
+            format!("<msub>{}<mi>i</mi></msub>", x("\u{af}"))
+        );
+        // A prime is postfix, so as a base it is parenthesised like `(n!)²`.
+        shows("(^ (prime f) 2)", "(f\u{2032})2");
+        shows("(subscript (prime f) i)", "(f\u{2032})i");
+    }
+
+    #[test]
+    fn text_and_fonts_as_operands() {
+        shows("(+ (text hi) a)", "hi+a");
+        shows("(* (text hi) a)", "hi\u{d7}a");
+        shows("(^ (text hi) 2)", "hi2");
+        shows("(+ (bb R) a)", "\u{211d}+a");
+        shows("(* (bb R) a)", "\u{211d}\u{d7}a");
+        shows("(^ (bb R) 2)", "\u{211d}2");
+    }
+
+    #[test]
+    fn grids_hold_any_expression_in_a_cell() {
+        shows(
+            "(cases ((+ a b) (text if p)) ((frac a b) q) ((- x) r))",
+            "{a+bif pabq\u{2212}xr",
+        );
+        shows("(mat ((+ a b) (frac a b)) ((- x) c))", "(a+bab\u{2212}xc)");
+        shows("(table (row (+ a b) (frac a b) (- x)))", "a+bab\u{2212}x");
+        shows("(table (header (+ a b) (- x)) (row (frac a b) c))", "a+b\u{2212}xabc");
+    }
+
+    #[test]
+    fn zero_argument_calls_are_the_bare_keyword() {
+        for (src, sign) in [
+            ("(in)", "\u{2208}"),
+            ("(arrow)", "\u{2192}"),
+            ("(forall)", "\u{2200}"),
+            ("(partial)", "\u{2202}"),
+            ("(neq)", "\u{2260}"),
+            ("(+)", "+"),
+            ("(prime)", "\u{2032}"),
+        ] {
+            assert_eq!(mathml(src), format!("<mo>{sign}</mo>"), "{src}");
+        }
+        // It is an atom, and `check` agrees with rendering.
+        shows("(^ (neq) 2)", "\u{2260}2");
+        shows("(* a (+))", "a\u{d7}+");
+        // No sign, but zero arguments is a valid call: the emitter runs.
+        assert_eq!(mathml("(set)"), "<mrow><mo>{</mo><mo>}</mo></mrow>");
+        // No sign and arguments required: the `BareKeyword` diagnostic.
+        for src in ["(frac)", "frac"] {
+            let (out, diags) = render(src);
+            assert!(out.starts_with("<merror>"), "{src}: {out}");
+            assert_eq!(diags.len(), 1, "{src}");
+            assert_eq!(diags.as_slice()[0].code, DiagCode::BareKeyword, "{src}");
+            let mut checked = Diags::new();
+            check(&read(src), &mut checked);
+            assert_eq!(checked, diags, "{src}");
+        }
     }
 
     #[test]

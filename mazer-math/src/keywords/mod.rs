@@ -100,6 +100,16 @@
 //! Decide what one operand and zero operands mean for an n-ary keyword and
 //! say so in the doc (`(+ a)` is unary plus, `(+)` is the sign itself).
 //!
+//! **Zero arguments are decided for you.** A call that is only the keyword,
+//! `(neq)`, renders exactly like the bare keyword `neq`, without running your
+//! emitter: its sign as an `<mo>` if it has one, else a `BareKeyword`
+//! diagnostic. The one exception is a keyword with no sign for which zero
+//! arguments is a valid call (only optional or rest parameters, like `set` or
+//! `mat`): then the emitter runs. So an emitter is never called with no
+//! arguments when the keyword has a sign, and a call with no arguments is an
+//! atom for precedence. The notes write symbols as `(turnstile)` and
+//! `(Gamma)` all the time, and this makes every keyword behave alike.
+//!
 //! ## Parentheses
 //!
 //! Never parenthesise by looking at a child's head, and never write `(` `)`
@@ -132,7 +142,7 @@
 //! | `Multiplicative` | `*` and `jux` with 1+ args; `intersect`; `/` with 3+ args (`a ÷ b ÷ c`) |
 //! | `Fraction` | `frac`; `/` with 1 or 2 args; `dd` |
 //! | `Power` | `^`, `superscript`, `exp` (`eˣ`) |
-//! | `Postfix` | `fact`, `prime`, `evalat` |
+//! | `Postfix` | `fact`, `prime`, `evalat`. `fact` still parenthesises a postfix operand, `(n!)!`; `prime` does not, `n!′` |
 //! | `Atom` (not listed) | everything else: names, numbers, `subscript`, `sqrt`, `root`, fences (`paren`, `bracket`, `brace`, `abs`, `floor`, `ceil`, `set`, `binom`), named functions (`sin`, `ln`, `log`, `arcsin`, ...), `funcapp`, accents (`bar`, `hat`, `dot`, `ddot`, `arrow`), `box`, `text`, font variants, `matrix`, `vec`, `det`, `table`, `cases`, `ty-judge`, `quote`, `limit` without a body, zero-argument calls that render the sign |
 //!
 //! Two rules ride on these levels, so keep to them: a keyword at `Additive`
@@ -152,8 +162,8 @@
 //! | sign: unary `-` (`−`), unary `+` | `Prefix` | `out.prefix(glyph, x, Prec::BigOp)` |
 //! | negation: `not` (`¬`) | `Not` | `out.prefix("¬", x, Prec::Not)` |
 //! | quantifier: `forall`, `exists` | `Binder` | `out.binder(glyph, var, body)` |
-//! | postfix: `fact` | `Postfix` | `out.postfix("!", x)` |
-//! | prime | `Postfix` | `out.tag("msup", \|o\| { o.operand(x, Prec::Postfix); o.mo(primes); })` |
+//! | postfix: `fact` | `Postfix` | `out.postfix("!", x)` (operand parenthesised unless an atom, so `(n!)!`) |
+//! | prime | `Postfix` | `out.tag("msup", \|o\| { o.operand(x, Prec::Postfix); o.mo(primes); })` (a postfix operand stays bare: `n!′`, `f′′`) |
 //! | evaluated at: `evalat` | `Postfix` | `out.tag("msub", \|o\| { o.row(\|o\| { o.operand(x, Prec::Fraction); o.mo("\|"); }); o.expr(at); })` |
 //! | big operator, limits under/over: `sum`, `prod` | `BigOp` | copy `sum`: `out.row(\|o\| { o.under_over(..) or o.under(..); o.operand(body, Prec::BigOp); })` |
 //! | big operator, scripts: `integral` | `BigOp` | the `integral` exemplar |
@@ -220,6 +230,12 @@ pub(crate) fn precedence(name: &str, args: usize) -> Prec {
     #[cfg(test)]
     let declared = declared.or_else(|| crate::testing::standin_precedence(name, args));
     declared.unwrap_or(Prec::Atom)
+}
+
+/// The argument that the call of the keyword `name` renders as, when it adds
+/// nothing of its own, so the call holds together exactly as that argument.
+pub(crate) fn see_through<'a>(name: &str, args: &'a [mazer_syntax::Node]) -> Option<&'a mazer_syntax::Node> {
+    notation::see_through(name, args)
 }
 
 #[cfg(test)]
@@ -385,7 +401,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "enable after step 2"]
     fn required_signs_all_present() {
         let missing: Vec<&str> = REQUIRED_SIGNS
             .iter()
