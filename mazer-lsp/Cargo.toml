@@ -2,6 +2,14 @@
 name = "mazer-lsp"
 version = "0.16.0"
 edition = "2024"
+description = "Language server for mazer notes (.zr)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mazer-lsp"
+path = "src/main.rs"
 
 [dependencies]
 mazer-doc = { path = "../mazer-doc" }
