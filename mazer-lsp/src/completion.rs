@@ -12,8 +12,13 @@
 //!   Nothing inside comments, string literals, fenced code or inline code.
 //!
 //! Ranking (`sortText`): what the note defines first, then display names
-//! and aliases, then keywords. Every item carries a `textEdit` over the word
-//! being typed, so names such as `+`, `->` or `f'` replace correctly.
+//! and aliases, then keywords. Every item carries a `textEdit` over the whole
+//! word under the cursor, so names such as `+`, `->` or `f'` replace
+//! correctly and completing in the middle of a word does not duplicate its
+//! tail. Calls are inserted as snippets (tab stops for the required
+//! arguments) only when the client supports them and nothing but a `)`
+//! follows on the line, so completing the head of an existing call does not
+//! add arguments it already has.
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit, Documentation,
@@ -48,7 +53,7 @@ pub fn complete(analysis: &Analysis, at: ByteOffset, config: Config) -> Vec<Comp
         Cursor::Prose => builder.prose(),
         Cursor::Ref { partial } => {
             let start = at.to_usize().saturating_sub(partial.len());
-            builder.labels(builder.range(start))
+            builder.labels(builder.range(start, builder.word_end()))
         }
         Cursor::Head { list } => builder.head(list),
         Cursor::Arg { list, .. } => builder.arg(Some(list)),
@@ -64,9 +69,33 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
-    /// The range from `start` to the cursor.
-    fn range(&self, start: usize) -> Range {
-        convert::note_range(&self.analysis.sources, ByteOffset::from_usize(start), self.at)
+    /// The range from `start` to `end`.
+    fn range(&self, start: usize, end: usize) -> Range {
+        convert::note_range(&self.analysis.sources, ByteOffset::from_usize(start), ByteOffset::from_usize(end))
+    }
+
+    /// The whole word under the cursor (see [`Self::word_start`]).
+    fn word_range(&self, floor: usize) -> Range {
+        self.range(self.word_start(floor), self.word_end())
+    }
+
+    /// The end of the word the cursor is in: forward over atom characters.
+    fn word_end(&self) -> usize {
+        self.end_while(|ch| !(ch.is_whitespace() || matches!(ch, '(' | ')' | '"' | ';')))
+    }
+
+    /// Forward from the cursor while `keep` holds.
+    fn end_while(&self, keep: impl Fn(char) -> bool) -> usize {
+        let at = self.at.to_usize();
+        let after = &self.text[at..];
+        at + after.find(|ch: char| !keep(ch)).unwrap_or(after.len())
+    }
+
+    /// Whether a snippet may be inserted for a word ending at `end`: the
+    /// client supports snippets and the line goes on with nothing but `)`.
+    fn snippet_fits(&self, end: usize) -> bool {
+        let rest = self.text[end..].split('\n').next().unwrap_or("").trim_start();
+        self.config.snippets && (rest.is_empty() || rest.starts_with(')'))
     }
 
     /// The start of the word being typed: back over atom characters, then
@@ -94,12 +123,13 @@ impl Builder<'_> {
     }
 
     fn head(&self, list: &Node) -> Vec<CompletionItem> {
-        let range = self.range(self.word_start(list.span.start.to_usize() + 1));
+        let range = self.word_range(list.span.start.to_usize() + 1);
+        let snippet = self.snippet_fits(self.word_end());
         let chain = tree::enclosing_lists(self.analysis, self.at);
         let parent = chain.len().checked_sub(2).and_then(|i| chain.get(i)).copied();
         let is_root = forms(self.analysis).iter().any(|(form, _)| form.span == list.span);
         if is_root {
-            return docs::RESERVED.iter().map(|(name, _)| self.reserved(name, range)).collect();
+            return docs::RESERVED.iter().map(|(name, _)| Self::reserved(name, range, snippet)).collect();
         }
         if parent.is_some_and(|p| p.is_form("macro") && p.args().first().is_some_and(|sig| sig.span == list.span)) {
             return Vec::new(); // naming a new macro
@@ -109,15 +139,15 @@ impl Builder<'_> {
             && parent.is_form("show")
             && parent.args().first().is_some_and(|first| first.span == list.span)
         {
-            items.push(self.reserved("tag", range));
+            items.push(Self::reserved("tag", range, snippet));
         }
         for keyword in registry() {
             for name in keyword.names() {
-                items.push(self.keyword(keyword, name, range, true));
+                items.push(self.keyword(keyword, name, range, Some(snippet)));
             }
         }
         for def in self.analysis.macros.iter() {
-            items.push(self.macro_item(def, range, true));
+            items.push(self.macro_item(def, range, Some(snippet)));
         }
         items
     }
@@ -136,7 +166,7 @@ impl Builder<'_> {
         if naming {
             return Vec::new(); // a new name is being written
         }
-        let range = self.range(self.word_start(list.span.start.to_usize() + 1));
+        let range = self.word_range(list.span.start.to_usize() + 1);
         let mut items = Vec::new();
         let in_definition = chain.iter().any(|l| l.is_form("alias") || l.is_form("macro"));
         if !in_definition && (root.is_form("show") || root.is_form("eval") || root.is_form("let")) {
@@ -187,11 +217,11 @@ impl Builder<'_> {
             });
         }
         for def in self.analysis.macros.iter().filter(|m| m.is_alias()) {
-            items.push(self.macro_item(def, range, false));
+            items.push(self.macro_item(def, range, None));
         }
         for keyword in registry() {
             for name in keyword.names() {
-                items.push(self.keyword(keyword, name, range, false));
+                items.push(self.keyword(keyword, name, range, None));
             }
         }
         items
@@ -233,7 +263,11 @@ impl Builder<'_> {
             let before = line[..colon].chars().next_back();
             let shortcode = tail.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'));
             if shortcode && tail.len() <= 16 && !before.is_some_and(char::is_alphanumeric) {
-                let range = self.range(line_start + colon);
+                let mut end = self.end_while(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-'));
+                if self.text[end..].starts_with(':') {
+                    end += 1;
+                }
+                let range = self.range(line_start + colon, end);
                 return EMOJI
                     .iter()
                     .map(|(name, ch)| {
@@ -258,14 +292,16 @@ impl Builder<'_> {
         let open = line.trim_end_matches(|c: char| c.is_ascii_lowercase()).len();
         let bytes = line.as_bytes();
         if open > 0 && bytes[open - 1] == b'(' && (open < 2 || bytes[open - 2] != b'\\') {
-            let range = self.range(line_start + open);
-            return docs::RESERVED.iter().map(|(name, _)| self.reserved(name, range)).collect();
+            let end = self.end_while(|c| c.is_ascii_lowercase());
+            let range = self.range(line_start + open, end);
+            let snippet = self.snippet_fits(end);
+            return docs::RESERVED.iter().map(|(name, _)| Self::reserved(name, range, snippet)).collect();
         }
         Vec::new()
     }
 
-    fn reserved(&self, name: &str, range: Range) -> CompletionItem {
-        let snippet = self.config.snippets;
+    /// A reserved word; `snippet` says whether to insert its parameters.
+    fn reserved(name: &str, range: Range, snippet: bool) -> CompletionItem {
         let new_text = if snippet { docs::reserved_snippet(name) } else { name.to_owned() };
         CompletionItem {
             label: name.to_owned(),
@@ -279,17 +315,21 @@ impl Builder<'_> {
         }
     }
 
-    /// A keyword under one of its names. At a head it is inserted with its
-    /// required parameters as tab stops; as an argument it is inserted bare
-    /// when it has a sign, else as a whole call.
-    fn keyword(&self, keyword: &Keyword, name: &str, range: Range, head: bool) -> CompletionItem {
+    /// A keyword under one of its names. At a head (`head` is `Some`, saying
+    /// whether a snippet fits there) it is inserted with its required
+    /// parameters as tab stops; as an argument it is inserted bare when it
+    /// has a sign, else as a whole call.
+    fn keyword(&self, keyword: &Keyword, name: &str, range: Range, head: Option<bool>) -> CompletionItem {
         let sig = docs::keyword_signature(keyword, name);
-        let snippet = self.config.snippets && sig.has_required();
+        let required = sig.has_required();
         let (new_text, format) = match (head, keyword.sign) {
-            (true, _) if snippet => (sig.snippet(name), Some(InsertTextFormat::SNIPPET)),
-            (false, None) if snippet => (format!("({})", sig.snippet(name)), Some(InsertTextFormat::SNIPPET)),
+            (Some(true), _) if required => (sig.snippet(name), Some(InsertTextFormat::SNIPPET)),
+            (None, None) if required && self.config.snippets => {
+                (format!("({})", sig.snippet(name)), Some(InsertTextFormat::SNIPPET))
+            }
             _ => (name.to_owned(), None),
         };
+        let head = head.is_some();
         let label = sig.label().0;
         let detail = match keyword.sign {
             Some(sign) => format!("{sign}  {label}"),
@@ -316,9 +356,11 @@ impl Builder<'_> {
         }
     }
 
-    fn macro_item(&self, def: &Macro, range: Range, head: bool) -> CompletionItem {
+    /// A macro or alias; `head` as for [`Self::keyword`].
+    fn macro_item(&self, def: &Macro, range: Range, head: Option<bool>) -> CompletionItem {
         let sig = docs::macro_signature(def);
-        let snippet = head && self.config.snippets && sig.has_required();
+        let snippet = head == Some(true) && sig.has_required();
+        let head = head.is_some();
         let new_text = if snippet { sig.snippet(def.name.as_str()) } else { def.name.as_str().to_owned() };
         let place = if def.span.file == convert::NOTE {
             let (line, _) = self.analysis.sources.line_col(def.span.file, def.span.start);

@@ -64,7 +64,11 @@ fn head_offers_keywords_and_macros() {
 #[test]
 fn head_mid_word_and_without_snippets() {
     assert_eq!(replaced("(show (int|", "integral"), "int");
-    assert_eq!(replaced("(show (fr|ac a b))", "frac"), "fr");
+    // The whole word is replaced, and an existing call gets no tab stops.
+    assert_eq!(replaced("(show (fr|ac a b))", "frac"), "frac");
+    assert_eq!(new_text(find(&items("(show (fr|ac a b))"), "frac")), "frac");
+    assert_eq!(new_text(find(&items("(show (fr|)"), "frac")), "frac ${1:num} ${2:den}");
+    assert_eq!(new_text(find(&items("(sh|ow x)"), "show")), "show");
     let (analysis, at) = marked("(show (fr|");
     let plain = complete(&analysis, at, Config { snippets: false });
     let frac = find(&plain, "frac");
@@ -108,7 +112,7 @@ fn unclosed_and_nested() {
     assert!(labels("(show (frac (sqrt al|").contains(&"alpha".to_owned()));
     assert_eq!(replaced("(show (frac (sqrt al|", "alpha"), "al");
     // On a name (Cursor::Name), mid-word.
-    assert_eq!(replaced("(show (+ al|pha b))", "alpha"), "al");
+    assert_eq!(replaced("(show (+ al|pha b))", "alpha"), "alpha");
     // After a quote mark or a minus, only the name is replaced.
     assert_eq!(replaced("(show (+ 'al|", "alpha"), "al");
     assert_eq!(replaced("(show (+ -al|", "alpha"), "al");
@@ -164,6 +168,10 @@ fn prose() {
     assert_eq!(items("τ😭 :|").len(), 13);
     // `(` then a word: the reserved words.
     assert_eq!(replaced("Text (sh|", "show"), "sh");
+    assert_eq!(replaced("Text (sh|ow x)", "show"), "show");
+    assert_eq!(new_text(find(&items("Text (sh|ow x)"), "show")), "show");
+    assert_eq!(new_text(find(&items("Text (sh|)"), "show")), "show ${1:expr}");
+    assert_eq!(replaced("So :so|b: sad", ":sob:"), ":sob:");
     assert_eq!(new_text(find(&items("Text (|"), "let")), "let ${1:name} ${2:value}");
     assert_eq!(labels("Text \\(sh|"), NONE, "an escaped paren is prose");
     assert_eq!(labels("plain wor|ds"), NONE);
