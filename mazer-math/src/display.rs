@@ -27,7 +27,7 @@ pub struct DisplayName {
     /// Mandatory. Shown in LSP completion and hover.
     pub doc: &'static str,
     pub class: Class,
-    /// The LaTeX spelling, e.g. `\tau`. Empty if none has been given yet.
+    /// The LaTeX spelling, e.g. `\tau`. Every built-in row has one; empty only for a row that omits `.latex(...)`.
     #[cfg(feature = "latex")]
     pub latex: &'static str,
 }

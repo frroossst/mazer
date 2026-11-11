@@ -87,6 +87,6 @@ mod tests {
         assert_ne!(a, c);
         assert_eq!(a.as_str(), "integral");
         assert_eq!(format!("{a:?}"), "integral");
-        assert!(c == "tau");
+        assert_eq!(c, "tau");
     }
 }

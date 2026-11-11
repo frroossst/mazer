@@ -2044,9 +2044,6 @@ dependencies = [
 [[package]]
 name = "mazer-syntax"
 version = "0.16.0"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "mazer-types"

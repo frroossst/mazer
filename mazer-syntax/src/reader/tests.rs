@@ -62,12 +62,18 @@ fn minus_glued_to_a_name_is_negation() {
 
     assert_eq!(read_ok("-alpha").to_string(), "(- alpha)");
     assert_eq!(read_ok("-τ").to_string(), "(- τ)");
-    assert_eq!(read_ok("--x").to_string(), "(- (- x))");
+    assert_eq!(read_ok("-tau").to_string(), "(- tau)");
+    assert_eq!(read_ok("(-> a b)").to_string(), "(-> a b)");
+    for src in ["->", "-->", "--", "->>", "--x"] {
+        assert_eq!(read_ok(src).as_ident().map(Sym::as_str), Some(src), "{src}");
+    }
     // `-` before a digit is a number, a lone `-` is a name.
+    assert_eq!(read_ok("-3.5e2").kind, NodeKind::Number("-3.5e2".into()));
     assert_eq!(read_ok("-3").kind, NodeKind::Number("-3".into()));
     assert_eq!(read_ok("(- a b)").to_string(), "(- a b)");
     assert_eq!(read_ok("-").as_ident().map(Sym::as_str), Some("-"));
-    // A paren after the minus is a delimiter: `-(x)` is `-` then `(x)`.
+    // A paren after the minus is a delimiter: `-(+ a b)` is `-` then a list.
+    assert_eq!(read_ok("(-(+ a b))").to_string(), "(- (+ a b))");
     assert_eq!(read_ok("(-(x))").to_string(), "(- (x))");
 }
 
@@ -239,7 +245,7 @@ fn deep_nesting_is_cut_off_with_a_diagnostic() {
     let src = format!("{}x", "-".repeat(depth));
     let (node, diags) = read(&src);
     assert!(diags.is_empty());
-    assert!(node.is_form("-"));
+    assert_eq!(node.as_ident().map(Sym::as_str), Some(src.as_str()));
     // Exactly at the limit is fine.
     let src = format!("{}x{}", "(".repeat(MAX_NESTING), ")".repeat(MAX_NESTING));
     let (_, diags) = read(&src);

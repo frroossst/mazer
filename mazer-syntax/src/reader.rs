@@ -4,7 +4,8 @@
 //! - `(` and `)` are the only delimiters; a paren always ends an atom.
 //! - Number: starts with a digit, or `-` directly followed by a digit; optional
 //!   fraction and exponent; stored exactly as written.
-//! - `-name` (minus glued to a non-digit) reads as `(- name)`.
+//! - `-name` (a minus directly followed by a letter) reads as `(- name)`;
+//!   any other atom starting with `-` is an ordinary identifier.
 //! - `'x` reads as `(quote x)`.
 //! - `"..."` is a `Str` node; escapes are `\"` and `\\`.
 //! - `;` to end of line is a comment.
@@ -17,10 +18,13 @@
 //!   paren. It is a `Number` only if the *whole* run matches
 //!   `-?digits(.digits)?([eE][+-]?digits)?` (ASCII digits); otherwise it is an
 //!   `Ident`. So `2x` and `1.` are identifiers, not a number glued to a name.
-//! - `-name`: an atom that starts with `-` followed by something other than a
-//!   digit reads as `(- rest)`, where `rest` is read by the same atom rules. So
-//!   `--x` is `(- (- x))` and a lone `-` is the identifier `-`. The synthesized
-//!   `-` has the span of the minus sign; the list spans the whole atom.
+//! - `-name`: an atom that starts with `-` followed directly by an alphabetic
+//!   character (a Unicode letter) reads as `(- rest)`, where `rest` is the atom
+//!   without its minus. Every other atom is an ordinary identifier, so `-`,
+//!   `->`, `-->`, `->>`, `--x` and `-_` stay single identifiers. `-3` and
+//!   `-3.5e2` are numbers. `-(+ a b)` is the identifier `-` followed by a
+//!   list. The synthesized `-` has the span of the minus sign; the list spans
+//!   the whole atom.
 //! - An atom also ends before a `"` (which starts a string) and before a `'`
 //!   that is followed by something to quote, so `(show'x)` is
 //!   `(show (quote x))`. A run of `'` at the very end of an atom is part of it,
@@ -466,28 +470,17 @@ fn quote(mark: Span, inner: Node) -> Node {
 /// Builds the node for one atom `tok` that starts at byte `start`.
 fn atom_node(tok: &str, start: usize, file: FileId) -> Node {
     let span = |a: usize, b: usize| Span::new(file, ByteOffset::from_usize(a), ByteOffset::from_usize(b));
-    // Count the leading minus signs that each wrap the rest as `(- rest)`.
-    let mut minus = 0;
-    while let Some(rest) = tok[minus..].strip_prefix('-') {
-        match rest.chars().next() {
-            Some(c) if !c.is_ascii_digit() && minus < MAX_NESTING => minus += 1,
-            _ => break,
-        }
+    // `-name` is `(- name)` only when the minus is directly followed by a letter.
+    if tok.strip_prefix('-').and_then(|rest| rest.chars().next()).is_some_and(char::is_alphabetic) {
+        let name = Node::ident(&tok[1..], span(start + 1, start + tok.len()));
+        let sign = Node::ident("-", span(start, start + 1));
+        return Node::list(vec![sign, name], span(start, start + tok.len()));
     }
-    let core_tok = &tok[minus..];
-    let core_start = start + minus;
-    let core_span = span(core_start, start + tok.len());
-    let mut node = if is_number(core_tok) {
-        Node::number(core_tok, core_span)
+    if is_number(tok) {
+        Node::number(tok, span(start, start + tok.len()))
     } else {
-        Node::ident(core_tok, core_span)
-    };
-    for i in (0..minus).rev() {
-        let at = start + i;
-        let sign = Node::ident("-", span(at, at + 1));
-        node = Node::list(vec![sign, node], span(at, start + tok.len()));
+        Node::ident(tok, span(start, start + tok.len()))
     }
-    node
 }
 
 /// `-?digits(.digits)?([eE][+-]?digits)?`, ASCII digits only.

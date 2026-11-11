@@ -7,7 +7,7 @@ This document is the agreed design for the Mazer rewrite. The public types and f
 ### Crate layout
 
 ```
-mazer-syntax   Span, SourceMap, Diag, Sym, Node + reader, Block/Inline + markdown parser   (dep: unicode-segmentation only)
+mazer-syntax   Span, SourceMap, Diag, Sym, Node + reader, Block/Inline + markdown parser   (no dependencies)
 mazer-math     Keyword registry, DisplayName table, MathMl emitter, Latex emitter (feature `latex`)
 mazer-doc      alias/macro expansion, let substitution, labels, analyze/render/compile, locate, HTML output, Evaluator trait
 mazer-cli / mazer-wasm / mazer-lsp     front ends; each depends only on mazer-doc
@@ -66,7 +66,7 @@ pub struct Sym(u32);       // GLOBAL interner (rustc-style): Sym::new(&str), sym
 Reader rules:
 - `(` `)` are the only delimiters; a paren always ends an atom.
 - Number: starts with a digit, or `-` directly followed by a digit; optional fraction and exponent; stored as written.
-- `-name` (minus glued to a non-digit) reads as `(- name)`.
+- `-name` reads as `(- name)` only when the `-` is directly followed by an alphabetic character (a Unicode letter). Any other atom is an ordinary identifier: `->`, `-->`, `--`, `-` alone, `->>` stay single identifiers; `-3` and `-3.5e2` are numbers.
 - `'x` reads as `(quote x)`.
 - `"..."` is a `Str` node, escapes `\"` and `\\`. New; verify no fixture note has a `"` inside a show block.
 - `;` to end of line is a comment, inside code only.
@@ -299,6 +299,15 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 - `(eval ...)` is standalone only (a block or inline of its own); nested inside `show` is a diagnostic. `show` never evaluates.
 - Evaluation runs during `render`, in document order; the evaluator keeps its own state and sees fully expanded, substituted trees.
 - No evaluator present: `(eval ...)` gives a diagnostic and an inline error box.
+
+### Decisions made during step 1
+
+1. A single newline inside a paragraph is a soft break, kept as `\n` in `Text`; `mazer-doc` renders it as `<br/>` to match the old output. Two trailing spaces or a trailing backslash make a `LineBreak`.
+2. `BlockKind::Code` is produced only for a reserved-head form that is alone in a top-level paragraph (blank lines around it). A form on its own line directly under text is `InlineKind::Code`.
+3. Every `MathMl::expr` call writes exactly one element.
+4. Parentheses are decided by precedence levels (`Prec`, `MathMl::operand`), not by inspecting a child's head.
+5. Twelve old symbol names are keywords now and are not display names, so each of these keywords MUST have a `.sign(...)` so bare use still renders the symbol: `partial` ∂, `approx` ≈, `neq` ≠, `leq` ≤, `geq` ≥, `subset` ⊂, `in` ∈, `notin` ∉, `union` ∪, `forall` ∀, `exists` ∃, `arrow` →.
+6. Did-you-mean thresholds: names of 3 characters or fewer get no suggestion, 4 to 7 allow 1 edit, 8 or more allow 2.
 
 ### Helper APIs in the skeleton
 

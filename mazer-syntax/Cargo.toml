@@ -4,7 +4,6 @@ version = "0.16.0"
 edition = "2024"
 
 [dependencies]
-unicode-segmentation = "1.12"
 
 [lints]
 workspace = true
