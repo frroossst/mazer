@@ -150,7 +150,7 @@ pub(crate) fn precedence(node: &Node) -> Prec {
 
 /// The level a keyword file declares for the call `node`, and its arguments.
 /// `None` if `node` is not a keyword call (then it is an atom).
-fn declared(node: &Node) -> Option<(Prec, &[Node])> {
+pub(crate) fn declared(node: &Node) -> Option<(Prec, &[Node])> {
     let (head, args) = node.as_list()?.split_first()?;
     let keyword = registry().get(head.as_ident()?)?;
     if args.is_empty() && keyword.sign.is_some() {
@@ -166,7 +166,7 @@ fn declared(node: &Node) -> Option<(Prec, &[Node])> {
 /// funcapp or prime with nothing to add, and a call with a non-keyword head
 /// and no arguments (`((+ b c))` renders as `b + c`). See
 /// `keywords::see_through` for the keyword cases.
-fn see_through(node: &Node) -> &Node {
+pub(crate) fn see_through(node: &Node) -> &Node {
     let Some((head, args)) = node.as_list().and_then(<[Node]>::split_first) else {
         return node;
     };
@@ -185,7 +185,7 @@ fn see_through(node: &Node) -> &Node {
 /// Relies on the rule that keywords at those two levels render as an
 /// [`MathMl::infix`] row (or [`MathMl::juxtapose`]) starting with their first
 /// argument.
-fn leads_with_sign(node: &Node) -> bool {
+pub(crate) fn leads_with_sign(node: &Node) -> bool {
     let node = see_through(node);
     match &node.kind {
         NodeKind::Number(text) => text.starts_with('-'),
@@ -203,7 +203,7 @@ fn leads_with_sign(node: &Node) -> bool {
 /// Whether a signed expression ends in a big operator whose body would run
 /// on into what follows: `−∑ a`. Such an expression cannot lead a product
 /// unparenthesised.
-fn opens_right(node: &Node) -> bool {
+pub(crate) fn opens_right(node: &Node) -> bool {
     match declared(see_through(node)) {
         Some((Prec::Prefix, [.., last])) => precedence(last) == Prec::BigOp && !leads_with_sign(last),
         _ => false,
@@ -212,7 +212,7 @@ fn opens_right(node: &Node) -> bool {
 
 /// Whether operand `index` of `count` in an infix row at level `prec` needs
 /// parentheses. See [`MathMl::infix`].
-fn chain_needs_parens(node: &Node, index: usize, count: usize, prec: Prec, assoc: Assoc) -> bool {
+pub(crate) fn chain_needs_parens(node: &Node, index: usize, count: usize, prec: Prec, assoc: Assoc) -> bool {
     let min = match assoc {
         // A big operator may end a product: `b × ∑ a`.
         Assoc::Both if prec == Prec::Multiplicative && index + 1 == count => Prec::BigOp,
@@ -609,24 +609,15 @@ impl MathMl<'_> {
                     return;
                 }
                 match try_bind(keyword, node) {
-                    Ok(call) => (keyword.mathml)(&call, self),
+                    Ok(call) => {
+                        crate::lint::call_warnings(&call, self.diags);
+                        (keyword.mathml)(&call, self);
+                    }
                     Err(diag) => self.error(diag),
                 }
                 return;
             }
-            if display_name(name).is_none()
-                && let Some(suggestion) = registry().suggest(name.as_str())
-            {
-                // A hint, not a warning: the name may well be deliberate.
-                self.report(
-                    Diag::hint(
-                        DiagCode::UnknownForm,
-                        head.span,
-                        format!("`{name}` is not a keyword, so this is shown as a function application"),
-                    )
-                    .with_help(format!("did you mean `{suggestion}`?")),
-                );
-            }
+            crate::lint::unknown_head(name, head, self.diags);
         }
         self.application(head, args);
     }

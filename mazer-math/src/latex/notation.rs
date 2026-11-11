@@ -40,7 +40,7 @@ pub(super) fn emitters() -> Vec<(&'static str, LatexFn)> {
         }),
         e("prime", prime),
         e("funcapp", |call, out| out.application(call.req(0), call.rest())),
-        e("mat", |call, out| grid(call, out, "pmatrix")),
+        e("mat", |call, out| grid(call, out, "pmatrix", "(", ")")),
         e("vec", |call, out| {
             out.environment("pmatrix", |o| {
                 for (i, item) in call.rest().iter().enumerate() {
@@ -51,14 +51,14 @@ pub(super) fn emitters() -> Vec<(&'static str, LatexFn)> {
                 }
             });
         }),
-        e("det", |call, out| grid(call, out, "vmatrix")),
+        e("det", |call, out| grid(call, out, "vmatrix", "|", "|")),
         e("table", table),
         e("ty-judge", ty_judge),
-        e("bb", |call, out| font(call.req(0), out, "\\mathbb")),
-        e("cal", |call, out| font(call.req(0), out, "\\mathcal")),
-        e("frak", |call, out| font(call.req(0), out, "\\mathfrak")),
-        e("bold", |call, out| font(call.req(0), out, "\\mathbf")),
-        e("rm", |call, out| font(call.req(0), out, "\\mathrm")),
+        e("bb", |call, out| font(call.req(0), out, "bb", "\\mathbb")),
+        e("cal", |call, out| font(call.req(0), out, "cal", "\\mathcal")),
+        e("frak", |call, out| font(call.req(0), out, "frak", "\\mathfrak")),
+        e("bold", |call, out| font(call.req(0), out, "bold", "\\mathbf")),
+        e("rm", |call, out| font(call.req(0), out, "rm", "\\mathrm")),
         e("cases", cases),
     ]
 }
@@ -97,7 +97,7 @@ fn accent(call: &Call<'_>, out: &mut Latex<'_>, narrow: &str, wide: &str) {
 fn prime(call: &Call<'_>, out: &mut Latex<'_>) {
     let x = call.req(0);
     let Some(count) = call.opt(1) else {
-        out.operand(x, Prec::Postfix);
+        out.braced_operand(x, Prec::Postfix, b'\'');
         out.raw("'");
         return;
     };
@@ -105,11 +105,11 @@ fn prime(call: &Call<'_>, out: &mut Latex<'_>) {
         // No primes at all: just the operand, exactly as if `prime` were not there.
         Some(0) => out.expr(x),
         Some(n) => {
-            out.operand(x, Prec::Postfix);
+            out.braced_operand(x, Prec::Postfix, b'\'');
             out.raw(&"'".repeat(n));
         }
         None => {
-            out.operand(x, Prec::Postfix);
+            out.braced_operand(x, Prec::Postfix, b'^');
             out.raw("^");
             out.group(|o| {
                 o.raw("(");
@@ -144,15 +144,32 @@ fn cell_row(out: &mut Latex<'_>, cells: &[Node]) {
     }
 }
 
-/// `mat` and `det`: an environment with one row per argument.
-fn grid(call: &Call<'_>, out: &mut Latex<'_>, env: &str) {
-    out.environment(env, |o| {
+/// The most columns amsmath's `pmatrix` and `vmatrix` take (`MaxMatrixCols`).
+const MAX_MATRIX_COLS: usize = 10;
+
+/// `mat` and `det`: an environment with one row per argument. A matrix wider
+/// than amsmath allows (`MaxMatrixCols`) becomes an `array` between
+/// `\left` / `\right` delimiters.
+fn grid(call: &Call<'_>, out: &mut Latex<'_>, env: &str, open: &str, close: &str) {
+    let rows = |o: &mut Latex<'_>| {
         for (i, row) in call.rest().iter().enumerate() {
             if i > 0 {
                 o.raw(" \\\\ ");
             }
             cell_row(o, cells_of(row));
         }
+    };
+    let columns = call.rest().iter().map(|row| cells_of(row).len()).max().unwrap_or(0);
+    if columns <= MAX_MATRIX_COLS {
+        out.environment(env, rows);
+        return;
+    }
+    out.fence(open, close, |o| {
+        o.raw("\\begin{array}{");
+        o.out.push_str(&"c".repeat(columns));
+        o.out.push_str("} ");
+        rows(o);
+        o.out.push_str(" \\end{array}");
     });
 }
 
@@ -246,7 +263,7 @@ fn table(call: &Call<'_>, out: &mut Latex<'_>) {
                     o.raw(" & ");
                 }
                 if header {
-                    font(cell, o, "\\mathbf");
+                    font(cell, o, "bold", "\\mathbf");
                 } else {
                     o.expr(cell);
                 }
@@ -327,24 +344,50 @@ fn cases(call: &Call<'_>, out: &mut Latex<'_>) {
     });
 }
 
+/// Which arguments an alphabet command can typeset. `\mathbb` and `\mathcal`
+/// have capital Latin letters only, `\mathfrak` Latin letters; `\mathbf` and
+/// `\mathrm` set anything. (`\mathbb{1}` is not blackboard bold with amssymb:
+/// msbm has no digits, so the glyph is a different character entirely.)
+fn supports(command: &str, x: &Node) -> bool {
+    let letter = match &x.kind {
+        NodeKind::Ident(name) if display_name(*name).is_none() => {
+            let mut chars = name.as_str().chars();
+            chars.next().filter(|_| chars.next().is_none())
+        }
+        _ => None,
+    };
+    match command {
+        "\\mathbb" | "\\mathcal" => letter.is_some_and(|c| c.is_ascii_uppercase()),
+        "\\mathfrak" => letter.is_some_and(|c| c.is_ascii_alphabetic()),
+        _ => true,
+    }
+}
+
 /// A font variant for `bb`, `cal`, `frak`, `bold` and `rm`: `command{...}`,
-/// with a plain name or number written bare inside.
-fn font(x: &Node, out: &mut Latex<'_>, command: &str) {
+/// with a plain name or number written bare inside. An alphabet command is
+/// applied only to a single token it can typeset (see [`supports`]); anything
+/// else is shown unstyled with a warning, since `\mathbb{a + b}` would print
+/// the wrong glyphs without any error.
+fn font(x: &Node, out: &mut Latex<'_>, keyword: &str, command: &str) {
+    if !supports(command, x) {
+        let help = match command {
+            "\\mathfrak" => "LaTeX can only set a single Latin letter in fraktur",
+            _ => "LaTeX can only set a single capital Latin letter in this alphabet",
+        };
+        out.report(
+            Diag::warning(
+                DiagCode::UnsupportedTarget,
+                x.span,
+                format!("LaTeX has no `{keyword}` glyph for `{x}`, so it is shown in the ordinary font"),
+            )
+            .with_help(help),
+        );
+        out.expr(x);
+        return;
+    }
     out.raw(command);
     out.group(|o| match &x.kind {
-        NodeKind::Ident(name) if display_name(*name).is_none() => {
-            let text = name.as_str();
-            if text.chars().any(char::is_alphanumeric) {
-                let plain = if text.chars().count() == 1 {
-                    signs::plain_name(text)
-                } else {
-                    signs::escape_math(text)
-                };
-                o.raw(&plain);
-            } else {
-                o.name(*name);
-            }
-        }
+        NodeKind::Ident(name) if display_name(*name).is_none() => o.raw(&signs::spell(name.as_str())),
         NodeKind::Number(text) if !text.starts_with('-') => o.raw(text),
         _ => o.expr(x),
     });

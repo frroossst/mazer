@@ -3,9 +3,7 @@
 //! `precedence(name, args) -> Option<Prec>`.
 //!
 //! The inventory (names, second names, argument order, what was removed and
-//! what is new) is in `docs/ARCHITECTURE.md`, "Keyword inventory". The old
-//! names, arities and docs are in `mazer-types/src/implfuncs.rs`; the old
-//! `MathML` is in `mazer-render/src/lib.rs`.
+//! what is new) is in `docs/ARCHITECTURE.md`, "Keyword inventory".
 //!
 //! # Writing a keyword
 //!

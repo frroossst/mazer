@@ -10,6 +10,7 @@ pub mod call;
 pub mod display;
 pub mod keyword;
 pub mod keywords;
+mod lint;
 pub mod mathml;
 pub mod registry;
 

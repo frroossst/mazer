@@ -455,7 +455,7 @@ fn sum(call: &Call<'_>, out: &mut MathMl<'_>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::{mathml, render, visible, with_standins};
+    use crate::testing::{mathml, render, visible, visible_with_diags, with_standins};
 
     #[test]
     fn integral() {
@@ -604,8 +604,11 @@ mod tests {
             "<mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>x</mi></mrow></mfrac>\
              <mfrac><mn>1</mn><mi>x</mi></mfrac></mrow>"
         );
-        // A compound variable gets parentheses, also under the order.
-        assert_eq!(visible("(derivative f (+ a b) 2)"), "d2d(a+b)2f");
+        // A compound variable gets parentheses, also under the order (and a
+        // warning: it is not a name).
+        let (text, diags) = visible_with_diags("(derivative f (+ a b) 2)");
+        assert_eq!(text, "d2d(a+b)2f");
+        assert_eq!(diags.len(), 1);
         let (_, diags) = render("derivative");
         assert_eq!(diags.as_slice()[0].message, "`derivative` needs arguments");
     }
@@ -643,7 +646,9 @@ mod tests {
             "<mfrac><mrow><mi>d</mi><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow>\
              <mrow><mi>d</mi><mi>t</mi></mrow></mfrac>"
         );
-        assert_eq!(visible("(dd y (frac a b))"), "dyd(ab)");
+        let (text, diags) = visible_with_diags("(dd y (frac a b))");
+        assert_eq!(text, "dyd(ab)");
+        assert_eq!(diags.len(), 1);
         let (_, diags) = render("dd");
         assert_eq!(diags.as_slice()[0].message, "`dd` needs arguments");
     }

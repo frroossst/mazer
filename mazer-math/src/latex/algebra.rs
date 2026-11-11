@@ -12,7 +12,7 @@ pub(super) fn emitters() -> Vec<(&'static str, LatexFn)> {
     vec![
         e("+", add),
         e("-", subtract),
-        e("*", |call, out| nary("\\times", "*", Prec::Multiplicative, Assoc::Both, call, out)),
+        e("*", |call, out| nary("\\times", Prec::Multiplicative, Assoc::Both, call, out)),
         e("/", divide),
         e("^", |call, out| out.sup(call.req(0), call.req(1))),
         e("sqrt", |call, out| {
@@ -22,18 +22,19 @@ pub(super) fn emitters() -> Vec<(&'static str, LatexFn)> {
         }),
         e("root", |call, out| {
             let (index, radicand) = (call.req(0), call.req(1));
+            // Braced, so a `]` inside the index does not end the optional argument.
             out.raw("\\sqrt[");
-            out.expr(index);
+            out.group(|o| o.expr(index));
             out.raw("]");
             out.group(|o| o.expr(radicand));
         }),
         e("jux", |call, out| out.juxtapose(call.rest())),
-        e("=", |call, out| nary("=", "=", Prec::Relation, Assoc::Neither, call, out)),
+        e("=", |call, out| nary("=", Prec::Relation, Assoc::Neither, call, out)),
         e("!=", |call, out| relation("\\neq", call, out)),
-        e("<", |call, out| nary("<", "<", Prec::Relation, Assoc::Neither, call, out)),
-        e(">", |call, out| nary(">", ">", Prec::Relation, Assoc::Neither, call, out)),
-        e("<=", |call, out| nary("\\leq", "\\leq", Prec::Relation, Assoc::Neither, call, out)),
-        e(">=", |call, out| nary("\\geq", "\\geq", Prec::Relation, Assoc::Neither, call, out)),
+        e("<", |call, out| nary("<", Prec::Relation, Assoc::Neither, call, out)),
+        e(">", |call, out| nary(">", Prec::Relation, Assoc::Neither, call, out)),
+        e("<=", |call, out| nary("\\leq", Prec::Relation, Assoc::Neither, call, out)),
+        e(">=", |call, out| nary("\\geq", Prec::Relation, Assoc::Neither, call, out)),
         e("approx", |call, out| relation("\\approx", call, out)),
         e("set", |call, out| {
             let elements = call.rest();
@@ -43,10 +44,10 @@ pub(super) fn emitters() -> Vec<(&'static str, LatexFn)> {
         e("notin", |call, out| relation("\\notin", call, out)),
         e("subset", |call, out| relation("\\subseteq", call, out)),
         e("superset", |call, out| relation("\\supseteq", call, out)),
-        e("union", |call, out| nary("\\cup", "\\cup", Prec::Additive, Assoc::Both, call, out)),
-        e("intersect", |call, out| nary("\\cap", "\\cap", Prec::Multiplicative, Assoc::Both, call, out)),
-        e("and", |call, out| nary("\\land", "\\land", Prec::And, Assoc::Both, call, out)),
-        e("or", |call, out| nary("\\lor", "\\lor", Prec::Or, Assoc::Both, call, out)),
+        e("union", |call, out| nary("\\cup", Prec::Additive, Assoc::Both, call, out)),
+        e("intersect", |call, out| nary("\\cap", Prec::Multiplicative, Assoc::Both, call, out)),
+        e("and", |call, out| nary("\\land", Prec::And, Assoc::Both, call, out)),
+        e("or", |call, out| nary("\\lor", Prec::Or, Assoc::Both, call, out)),
         e("not", |call, out| out.prefix("\\lnot", call.req(0), Prec::Not)),
         e("implies", |call, out| {
             out.binary("\\implies", Prec::Implication, Assoc::Neither, call.req(0), call.req(1));
@@ -77,17 +78,14 @@ fn relation(op: &str, call: &Call<'_>, out: &mut Latex<'_>) {
     out.binary(op, Prec::Relation, Assoc::Neither, call.req(0), call.req(1));
 }
 
-/// An n-ary infix row of `op`; with no operands the bare `bare` sign.
-fn nary(op: &str, bare: &str, prec: Prec, assoc: Assoc, call: &Call<'_>, out: &mut Latex<'_>) {
-    match call.rest() {
-        [] => out.raw(bare),
-        terms => out.infix(op, prec, assoc, terms),
-    }
+/// An n-ary infix row of `op`. Never called with no operands: every keyword that
+/// uses it has a sign, so the dispatcher renders `(and)` as the bare sign.
+fn nary(op: &str, prec: Prec, assoc: Assoc, call: &Call<'_>, out: &mut Latex<'_>) {
+    out.infix(op, prec, assoc, call.rest());
 }
 
 fn add(call: &Call<'_>, out: &mut Latex<'_>) {
     match call.rest() {
-        [] => out.raw("+"),
         [term] => out.prefix("+", term, Prec::BigOp),
         terms => out.infix("+", Prec::Additive, Assoc::Both, terms),
     }
@@ -95,7 +93,6 @@ fn add(call: &Call<'_>, out: &mut Latex<'_>) {
 
 fn subtract(call: &Call<'_>, out: &mut Latex<'_>) {
     match call.rest() {
-        [] => out.raw("-"),
         [term] => out.prefix("-", term, Prec::BigOp),
         terms => out.infix("-", Prec::Additive, Assoc::Left, terms),
     }
@@ -103,7 +100,6 @@ fn subtract(call: &Call<'_>, out: &mut Latex<'_>) {
 
 fn divide(call: &Call<'_>, out: &mut Latex<'_>) {
     match call.rest() {
-        [] => out.raw("\\div"),
         [den] => {
             out.raw("\\frac{1}");
             out.group(|o| o.expr(den));
