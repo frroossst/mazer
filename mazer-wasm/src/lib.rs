@@ -15,7 +15,9 @@ extern "C" {
 /// One console line for a diagnostic:
 /// `mazer: <name>:<line>:<col>: <severity>[<code>]: <message>`, followed by
 /// `; help: <text>` when there is a suggestion. Line and column are 1-based
-/// (the column counts bytes, as in the terminal).
+/// and the column counts characters, as the command-line tool does. (The
+/// language server counts UTF-16 units, as its protocol requires, and spans
+/// themselves are byte offsets.)
 // Only the wasm build prints to the console; host builds just run the tests.
 #[cfg_attr(not(any(target_arch = "wasm32", test)), allow(dead_code))]
 fn format_diag(diag: &Diag, sources: &SourceMap) -> String {
@@ -23,7 +25,12 @@ fn format_diag(diag: &Diag, sources: &SourceMap) -> String {
         || (String::from("?"), 1, 1),
         |file| {
             let (line, col) = sources.line_col(diag.span.file, diag.span.start);
-            (file.name.clone(), line.0 + 1, col.0 + 1)
+            // The line's text before the offset; its length in characters is
+            // the 0-based character column.
+            let at = diag.span.start.to_usize().min(file.text.len());
+            let from = at.saturating_sub(col.0 as usize);
+            let before = file.text.get(from..at).unwrap_or("");
+            (file.name.clone(), line.0 + 1, before.chars().count() + 1)
         },
     );
     let severity = match diag.severity {
@@ -107,6 +114,20 @@ mod tests {
         let line = format_diag(diag, &out.sources);
         assert!(line.starts_with("mazer: note.zr:3:"), "{line}");
         assert!(line.contains(": error[arity]: "), "{line}");
+    }
+
+    #[test]
+    fn column_counts_characters_not_bytes() {
+        // Greek letters (2 bytes each) and an emoji (4 bytes) before the error.
+        let src = "ok\n\u{3b1}\u{3b2}\u{3b3} \u{1f600} (show (frac 1))\n";
+        let mut opts = Options::new("g.zr");
+        let out = compile(src, &mut opts);
+        let diag = out.diags.first().expect("a diagnostic");
+        let line = format_diag(diag, &out.sources);
+        // "αβγ 😀 (show " is 12 characters, so the `(frac` form starts at column 13;
+        // counting bytes it would be column 19.
+        assert!(line.starts_with("mazer: g.zr:2:13: "), "{line}");
+        assert_eq!(out.sources.line_col(diag.span.file, diag.span.start).1.0, 18);
     }
 
     #[test]

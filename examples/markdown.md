@@ -40,7 +40,7 @@ A backslash makes any punctuation literal: \*not italic\*.
 
 ## Spoilers
 
-Wrap text in `||two bars||` to hide it until it is clicked: I dont want to tell you my ||secret||.
+Wrap text in `||two bars||` to hide it behind a dark box. The text shows while the mouse pointer is over the box and hides again when the pointer leaves; the reveal is hover only and has no click handler. I dont want to tell you my ||secret||.
 
 ## Links and images
 
@@ -167,7 +167,7 @@ The quadratic formula:
 
 An integral with respect to x: (show (integral (^ x 2) x)). A definite one: (show (integral (exp (- (^ x 2))) x 0 infinity)).
 
-A sum: (show (sum (^ i 2) i (= i 1) n)). A derivative: (show (derivative f x)).
+A sum: (show (sum (^ i 2) i 1 n)). A derivative: (show (derivative f x)).
 
 A Greek identity: (show (= (+ alpha beta) gamma)).
 
@@ -179,11 +179,11 @@ A matrix:
 
 Logic: (show (implies p q)) and (show (forall x (exists y (= x y)))).
 
-A table with a bold header row, in the default grid style:
+A table with a bold header row, in the default `grid` style, which draws an outer frame and a line between every row and column (`clean` draws the frame and a rule under the header, `plain` no lines). A note on browsers: Chromium-based browsers currently ignore the table lines and the bold header that MathML asks for, so in them a table shows without rules (a browser limitation, not a mazer one).
 
 (show (table (header Name Age City) (row Alice 30 NYC) (row Bob 25 LA)))
 
-A clean table, with a rule under the header only, right-aligned values and math in the cells:
+A `clean` table, with an outer frame and a rule under the header, right-aligned values and math in the cells:
 
 (show (table (style clean) (align left right) (header n (frac 1 n)) (row 1 1) (row 2 (frac 1 2))))
 

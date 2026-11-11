@@ -61,19 +61,45 @@ notes stay as ordinary `.zr` files; the page inherits your site's styling.
 - **Console diagnostics.** Every diagnostic is also written to the browser
   console, one line each, `console.error` for errors and `console.warn` for
   warnings and hints:
-  `mazer: <name>:<line>:<col>: <severity>[<code>]: <message>` (1-based; `<name>`
-  is the `data-mazer` path), followed by `; help: ...` when there is a
-  suggestion.
+  `mazer: <name>:<line>:<col>: <severity>[<code>]: <message>` (line and column
+  are 1-based and the column counts characters, as the `mazer` command-line
+  tool does; `<name>` is the `data-mazer` path), followed by `; help: ...` when
+  there is a suggestion.
 - **Styling.** Besides the ordinary HTML elements, the output uses these
   classes: `mazer-equation` (display equation), `mazer-eqno` (its number),
   `mazer-ref` (a `(ref name)` link), `mazer-checklist` (a task list) and
   `mazer-error`. [`docs/site-styles.css`](../docs/site-styles.css) has ready
-  rules for all of them except `mazer-error`; the CLI's full-page output
-  carries a small default style for `mazer-error`.
+  rules for the first four, and a `.note pre.mazer-error` override for sites
+  whose `.note pre` rule would otherwise strip the block error box; the CLI's
+  full-page output carries a small default style for `mazer-error`.
 - **Trust model.** The loader sets `innerHTML` from the compiled output. That
   output is your own first-party `.zr` content, which is exactly what you want
   rendered as HTML. Don't point `data-mazer` at `.zr` files from untrusted third
   parties.
+
+## Deploying
+
+1. **Always deploy `mazer_wasm_bg.wasm` and `mazer_wasm.js` together.** The
+   glue is generated for one exact build of the module. If a browser (or a CDN)
+   has an old `mazer_wasm.js` cached and fetches the new `.wasm`, instantiation
+   fails and every block stays at "Loading note...". Two precautions, both on
+   the site side (this repository does not edit `mazer.js`):
+   - Wrap the loader's `init()` call in `try`/`catch` and, on failure, put a
+     visible message in each block (for example "mazer failed to load, try a
+     hard refresh") instead of leaving the placeholder.
+   - Add a version query string to the glue import, for example
+     `import init, { run_mazer } from './pkg/mazer_wasm.js?v=0.16.0';`, and
+     change it on every deploy so the browser fetches the new glue. The glue
+     finds its `.wasm` by a URL that drops the query string, so also pass the
+     versioned address to the initialiser, `await init('./pkg/mazer_wasm_bg.wasm?v=0.16.0')`,
+     to get a matching pair.
+2. **Migrate old notes before the new wasm goes live.** Notes written for the
+   old mazer must be updated first: `integral`, `sum` and `prod` now take the
+   body and the variable first and the bounds last, and the `string` form is
+   gone (write a quoted string instead). `make deploy` runs
+   `mazer --check --strict` on every `*.zr` under the site's `notes/`
+   directory and refuses to copy anything if one of them fails; it never
+   modifies a note.
 
 ## Try the demo
 

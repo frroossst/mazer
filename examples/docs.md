@@ -102,11 +102,11 @@ With no arguments the list renders just the name.
 
 (show (dirac))
 
-A head that is one typo away from a keyword gets a hint in the editor, since the name may be deliberate.
+A head that is one typo away from a keyword gets a hint (in the editor and on the command line), not a warning, since the name may be deliberate.
 
 ## Arithmetic and fractions
 
-`+`, `-`, `*`, `/` and `^` take any number of operands where that makes sense. `*` is shown as a cross, a lone `-` negates, and `jux` writes its arguments side by side.
+`+`, `-`, `*` and `/` take any number of operands, and `^` takes a base and an exponent. `*` is shown as a cross, a lone `-` negates, and `jux` writes its arguments side by side.
 
 ```scheme
 (show (+ a b c))
@@ -326,7 +326,7 @@ The lower bound may also be a condition or a set that the variable ranges over.
 
 (show (lim x 0 (f x) +))
 
-`derivative` takes the function and the variable, and optionally the order. `partial` is the same with the partial sign, and `dd` writes a bare ratio of differentials.
+`derivative` takes the function and the variable, and optionally the order. `partial` takes only the function and the variable and writes the partial sign (it has no order). `dd` writes a Leibniz ratio of differentials, dy/dx, and also takes an optional order.
 
 ```scheme
 (show (derivative (sin x) x))
@@ -564,7 +564,7 @@ Each clause is a list holding a value and, optionally, a condition.
 
 ## Tables
 
-`table` takes a `header` row and `row` rows, and optionally `style` and `align` directives. The styles are `grid` (the default), `clean` (a rule under the header only) and `plain`.
+`table` takes a `header` row and `row` rows, and optionally `style` and `align` directives. The styles are `grid` (the default: an outer frame and a line between every row and column), `clean` (an outer frame and a rule under the header) and `plain` (no lines at all). A note on browsers: Chromium-based browsers currently ignore the table lines and the bold header that MathML asks for, so in them a table shows without rules (a browser limitation, not a mazer one).
 
 ```scheme
 (show (table (header Name Age) (row Alice 30) (row Bob 25)))
@@ -604,7 +604,7 @@ Each clause is a list holding a value and, optionally, a condition.
 
 ## Quote
 
-`quote`, written `'x`, shows a name as itself and stops it being treated as a keyword, a macro or a variable. This matters mostly for words that are also keywords.
+`quote`, written `'x`, does two things. It shows a keyword's name instead of its sign, which matters for words that are also keywords, and it stops `let` substitution, so a variable is shown by its name instead of its value. It does not stop notation: an alias or a macro inside a quote is still expanded.
 
 ```scheme
 (show (= 'sum (+ 1 2)))
@@ -617,6 +617,68 @@ Each clause is a list holding a value and, optionally, a condition.
 ```
 
 (show 'integral)
+
+Here the alias `Field` is defined, and `zq` is bound with `let`. The quoted `'Field` is still replaced by the alias body, while the quoted `'zq` keeps its name and the unquoted one shows its value.
+
+```scheme
+(alias Field (bb F))
+```
+
+(alias Field (bb F))
+
+```scheme
+(let zq 5)
+```
+
+(let zq 5)
+
+```scheme
+(show (= 'Field Field))
+```
+
+(show (= 'Field Field))
+
+```scheme
+(show (= 'zq zq))
+```
+
+(show (= 'zq zq))
+
+## Strings
+
+A double-quoted string is shown as upright text, exactly as written: spaces and punctuation are kept, and a string is never read as a keyword or a variable. Use one as an argument anywhere, or inside `text`, which joins its words with single spaces.
+
+```scheme
+(show (= x "hello world"))
+```
+
+(show (= x "hello world"))
+
+```scheme
+(show (text "if x > 0, then"))
+```
+
+(show (text "if x > 0, then"))
+
+```scheme
+(show (cases (1 "x is even") (0 "x is odd")))
+```
+
+(show (cases (1 "x is even") (0 "x is odd")))
+
+```scheme
+(show (set "sum" "in" sum))
+```
+
+(show (set "sum" "in" sum))
+
+The strings `"sum"` and `"in"` stay words, while the bare `sum` is the sign. A string is also how to keep a semicolon or parenthesis: inside quotes they are not code.
+
+```scheme
+(show (= "a;b" "(x)"))
+```
+
+(show (= "a;b" "(x)"))
 
 ## A bare keyword shows its sign
 
@@ -630,23 +692,25 @@ A keyword written without parentheses renders its symbol. Operators, relations, 
 
 ## Comments
 
-A semicolon starts a comment that runs to the end of the line. Comments are only recognised inside code, so a semicolon in prose is just a character; and a comment ends an atom.
+A semicolon inside a form starts a comment that runs to the end of the line, and it also ends the atom before it. A comment exists only inside a code form, so it must come before the form's closing parenthesis, and the parenthesis then goes on a later line. Outside a form, in prose, a semicolon is just a character. In the form below both comments are inside it, and neither appears in the output.
 
 ```scheme
 (show
     (+ a    ; the first term
-       b))  ; the second
+       b    ; the second term
+    ))
 ```
 
 (show
     (+ a    ; the first term
-       b))  ; the second
+       b    ; the second term
+    ))
 
 ## Notation: alias and macro
 
 `alias` gives a name to an expression. `macro` takes parameters, and may have a doc string right after the signature, which the editor shows on hover. A parameter spelled `name...` as the last one collects the remaining arguments; in the body it is written without the dots and must stand inside a list. Definitions produce no output.
 
-Definitions apply to the whole note, wherever they are written, and a macro may use other macros. Substitution is by text: nothing is evaluated.
+Definitions apply to the whole note, wherever they are written, and a macro may use other macros. Substitution is structural: the arguments go into the body exactly as written, and nothing is evaluated.
 
 ```scheme
 (alias Nat (bb N))
@@ -706,7 +770,7 @@ As shown in (ref euler), ...
 
 (show (tag euler) (= (^ e (* i pi)) (- 1)))
 
-Equations are numbered in document order, and only the tagged ones. A second tagged equation, which uses the first: (ref euler) is Euler's identity and (ref sqrt2) is below.
+Equations are numbered in document order, and only the tagged ones. A second tagged equation follows. Here (ref euler) is Euler's identity and (ref sqrt2) is the equation below.
 
 ```scheme
 (show (tag sqrt2) (= (^ (sqrt 2) 2) 2))
