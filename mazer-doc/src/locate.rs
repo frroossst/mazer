@@ -80,17 +80,12 @@ struct Finder<'t> {
 }
 
 impl<'t> Finder<'t> {
-    /// Whether `node` is a list written with parentheses (not the `'x` or
-    /// `-x` shorthand the reader expands into a list).
     fn is_paren_list(&self, node: &Node) -> bool {
-        matches!(node.kind, NodeKind::List(_)) && self.text.as_bytes().get(node.span.start.to_usize()) == Some(&b'(')
+        is_paren_list(self.text, node)
     }
 
-    /// Whether the cursor is between the parentheses of a paren list.
     fn inside(&self, node: &Node) -> bool {
-        self.is_paren_list(node)
-            && node.span.start < self.at
-            && (self.at < node.span.end || (self.at == node.span.end && is_unclosed(node)))
+        is_inside(self.text, node, self.at)
     }
 
     fn in_list<'a>(&self, list: &'a Node) -> Cursor<'a>
@@ -230,16 +225,33 @@ impl<'t> Finder<'t> {
     }
 }
 
-/// Whether a list was left open: its last child reaches its end (the reader's
-/// `Error` placeholder, or an unclosed inner list).
-fn is_unclosed(node: &Node) -> bool {
+/// Whether `node` is a list written with parentheses in `text` (the note),
+/// rather than the `'x` or `-x` shorthand the reader expands into a list.
+#[must_use]
+pub fn is_paren_list(text: &str, node: &Node) -> bool {
+    matches!(node.kind, NodeKind::List(_)) && text.as_bytes().get(node.span.start.to_usize()) == Some(&b'(')
+}
+
+/// Whether the cursor at `at` is inside the paren list `node`, by the rule of
+/// [`locate`]: from just after its `(` to just before its `)`; an unclosed
+/// list (typed mid-edit) also contains the position at its very end.
+#[must_use]
+pub fn is_inside(text: &str, node: &Node, at: ByteOffset) -> bool {
+    is_paren_list(text, node) && node.span.start < at && (at < node.span.end || (at == node.span.end && is_unclosed(node)))
+}
+
+/// Whether a list was left open (typed mid-edit): its last child reaches its
+/// end and is the reader's `Error` placeholder or an unclosed inner list.
+#[must_use]
+pub fn is_unclosed(node: &Node) -> bool {
     node.as_list()
         .and_then(<[Node]>::last)
         .is_some_and(|last| last.span.end == node.span.end && (matches!(last.kind, NodeKind::Error) || is_unclosed(last)))
 }
 
-/// The spans of every string literal in `node`.
-fn string_spans(node: &Node, out: &mut Vec<mazer_syntax::Span>) {
+/// Appends the spans of every string literal in `node` to `out`, in tree
+/// order.
+pub fn string_spans(node: &Node, out: &mut Vec<mazer_syntax::Span>) {
     match &node.kind {
         NodeKind::Str(_) => out.push(node.span),
         NodeKind::List(items) => {
@@ -251,8 +263,10 @@ fn string_spans(node: &Node, out: &mut Vec<mazer_syntax::Span>) {
     }
 }
 
-/// The children of a list without the reader's trailing `Error` placeholder.
-fn real_items(list: &Node) -> &[Node] {
+/// The children of a list without the reader's trailing `Error` placeholder
+/// (the empty `Error` node an unclosed list ends with). Not a list: empty.
+#[must_use]
+pub fn real_items(list: &Node) -> &[Node] {
     let items = list.as_list().unwrap_or(&[]);
     match items.split_last() {
         Some((placeholder, before))

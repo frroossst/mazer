@@ -272,12 +272,11 @@ impl LetPass {
             span: form.span,
         };
         self.sizes.insert(name, measure);
-        if matches!(value.kind, NodeKind::Error) {
-            self.env.insert(binding);
-        } else {
-            self.env.insert(binding.clone());
-            self.lets.push(binding);
-        }
+        // A `let` refused by the node budget is recorded too, with its
+        // `Error` value: its variable is an error from here on, and editors
+        // asking which binding is in scope must see that.
+        self.env.insert(binding.clone());
+        self.lets.push(binding);
         let head = form.as_list().and_then(<[Node]>::first).cloned();
         let name_node = form.args().first().cloned();
         Node::list(head.into_iter().chain(name_node).chain([value]).collect(), form.span)

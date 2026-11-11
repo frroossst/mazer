@@ -93,7 +93,9 @@ use crate::bindings::{Binding, LetPass};
 use crate::eval::Evaluator;
 use crate::html;
 use crate::labels::{Labels, collect_labels};
-use crate::macros::{Macros, collect_macros, expand_with};
+use crate::locate::is_unclosed;
+use crate::macros::{Macros, check_definitions, collect_macros, expand_with};
+use crate::origins::{self, ClosedKey, Expansions};
 use crate::walk::{self, Budget};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -146,9 +148,13 @@ pub struct Analysis {
     pub resolved: Document,
     pub macros: Macros,
     pub labels: Labels,
-    /// Every `let` in the note, in document order (a name may appear more than
-    /// once). The LSP uses this for completion and go-to-definition: the
-    /// binding in scope at a cursor is the last one that starts before it.
+    /// Every `let` that bound its variable, in document order (a name may
+    /// appear more than once), with the value as substituted. A `let` refused
+    /// by the document's node budget is included with an `Error` value (its
+    /// variable is an error from then on); a malformed `let` is not. The
+    /// binding in scope at a cursor is the last `let` of that name whose form
+    /// *ends* at or before it ([`crate::binding_at`]), so in
+    /// `(let x (+ x 1))` the inner `x` is the earlier binding.
     pub lets: Vec<Binding>,
     pub diags: Diags,
 }
@@ -179,16 +185,20 @@ fn analyze_with(src: &str, name: &str, prelude: &Prelude) -> Analysis {
 
     let mut macros = prelude.macros.clone();
     collect_macros(&written, &mut macros, &mut diags);
+    let closed = check_definitions(&macros, &mut diags);
 
     let mut resolved = written.clone();
     let mut stage = Resolver {
         macros: &macros,
         pass: LetPass::default(),
         budget: Budget::new(),
+        expansions: Expansions::default(),
         diags: &mut diags,
     };
     walk::for_each_code_mut(&mut resolved, &mut |form, _| stage.form(form));
-    let pass = stage.pass;
+    let Resolver {
+        pass: mut lets, expansions, ..
+    } = stage;
 
     let labels = collect_labels(&written, &mut diags);
 
@@ -197,12 +207,20 @@ fn analyze_with(src: &str, name: &str, prelude: &Prelude) -> Analysis {
             let mut found = Diags::new();
             mazer_math::check(expr, &mut found);
             for diag in found.into_vec() {
-                if !pass.already_reported(&diag) {
+                if !lets.already_reported(&diag) {
                     diags.push(diag);
                 }
             }
         }
     });
+
+    let diags = finish(diags, &written, &resolved, &expansions, &closed.keys);
+    if !expansions.is_empty() {
+        walk::for_each_code_mut(&mut resolved, &mut |form, _| expansions.respan(form));
+        for binding in &mut lets.lets {
+            expansions.respan(&mut binding.value);
+        }
+    }
 
     Analysis {
         sources,
@@ -210,9 +228,70 @@ fn analyze_with(src: &str, name: &str, prelude: &Prelude) -> Analysis {
         resolved,
         macros,
         labels,
-        lets: pass.lets,
+        lets: lets.lets,
         diags: dedup(diags),
     }
+}
+
+/// The last step of `analyze` on the diagnostics: those found inside
+/// expansions are translated to real spans with a label at the template
+/// (see the `origins` module), problems a definition check already reported
+/// at the definition are dropped at the uses, and argument-count problems of
+/// lists left unclosed by a reader error are dropped (the unclosed paren is
+/// the real problem; the count is only short because the form is cut off).
+fn finish(
+    diags: Diags,
+    written: &Document,
+    resolved: &Document,
+    expansions: &Expansions,
+    closed: &HashSet<ClosedKey>,
+) -> Diags {
+    let unclosed = unclosed_lists(written);
+    let mut calls = None;
+    let mut out = Diags::new();
+    for diag in diags.into_vec() {
+        if matches!(diag.code, DiagCode::Arity | DiagCode::MacroArity) && unclosed.contains(&diag.span) {
+            continue;
+        }
+        let provisional =
+            origins::is_provisional(diag.span) || diag.labels.iter().any(|(s, _)| origins::is_provisional(*s));
+        if !provisional {
+            out.push(diag);
+            continue;
+        }
+        if expansions.is_closed(&diag, closed) {
+            continue;
+        }
+        let calls = calls.get_or_insert_with(|| {
+            let mut forms = Vec::new();
+            walk::for_each_code(resolved, &mut |form, _| forms.push(form));
+            origins::index_calls(forms)
+        });
+        out.push(expansions.translate(&diag, false, &|span| calls.get(&span).copied()));
+    }
+    out
+}
+
+/// The spans of the lists left open in the code forms that hold a reader
+/// error.
+fn unclosed_lists(doc: &Document) -> HashSet<Span> {
+    fn collect(node: &Node, out: &mut HashSet<Span>) {
+        if let Some(items) = node.as_list() {
+            if is_unclosed(node) {
+                out.insert(node.span);
+            }
+            for item in items {
+                collect(item, out);
+            }
+        }
+    }
+    let mut out = HashSet::new();
+    walk::for_each_code(doc, &mut |form, _| {
+        if walk::contains_error(form) {
+            collect(form, &mut out);
+        }
+    });
+    out
 }
 
 /// A prelude, read as file 1: its definitions, and any problems with it.
@@ -270,6 +349,8 @@ struct Resolver<'a> {
     macros: &'a Macros,
     pass: LetPass,
     budget: Budget,
+    /// Provisional spans of the nodes instantiated from templates.
+    expansions: Expansions,
     diags: &'a mut Diags,
 }
 
@@ -311,14 +392,14 @@ impl Resolver<'_> {
         for item in items.iter_mut().skip(first) {
             let mut expr = item.clone();
             walk::strip_reserved(&mut expr, outer, self.diags);
-            let expr = expand_with(&expr, self.macros, &mut self.budget, self.diags);
+            let expr = expand_with(&expr, self.macros, &mut self.budget, Some(&mut self.expansions), self.diags);
             *item = self.pass.substitute(&expr, &mut self.budget, self.diags);
         }
         // `(show a b c)` is `(show (jux a b c))`.
         if is_show && items.len() > first + 1 {
             let exprs: Vec<Node> = items.drain(first..).collect();
             let span = match (exprs.first(), exprs.last()) {
-                (Some(a), Some(b)) => a.span.to(b.span),
+                (Some(a), Some(b)) => self.expansions.real(a.span).to(self.expansions.real(b.span)),
                 _ => form.span,
             };
             let mut jux = Vec::with_capacity(exprs.len() + 1);
@@ -333,7 +414,7 @@ impl Resolver<'_> {
     fn expression(&mut self, value: &Node, outer: &str) -> Node {
         let mut expr = value.clone();
         walk::strip_reserved(&mut expr, outer, self.diags);
-        expand_with(&expr, self.macros, &mut self.budget, self.diags)
+        expand_with(&expr, self.macros, &mut self.budget, Some(&mut self.expansions), self.diags)
     }
 }
 

@@ -25,6 +25,20 @@
 //!   Nesting deeper than [`MAX_DEPTH`] is `MacroDepth`.
 //! - Expanded nodes take the span of the place the macro was *used*; the
 //!   definition span is attached to diagnostics as a secondary label.
+//! - In `analyze`, a problem found inside an expansion (a keyword call of the
+//!   template with the wrong number of arguments, say) keeps its primary
+//!   span at the use, gets a secondary label at the template form inside the
+//!   definition ("in the expansion of `tuple`, defined here", plus one per
+//!   enclosing definition of a nested expansion) and a help naming the
+//!   definition ("the template of `tuple` calls `paren` with 4 arguments;
+//!   (paren body)"). How the template form is found: the `origins` module.
+//! - In `analyze`, every alias and macro of the note is also checked once on
+//!   its own. A problem that does not depend on the arguments (any problem
+//!   of an alias; a problem of a macro whose faulty form holds no parameter)
+//!   is reported there, at the template form, and not again at each use;
+//!   the uses still render their `<merror>` or error box, and the broken
+//!   definition shows an error box like a broken `let`. A body that is a
+//!   single name is not checked on its own. See [`check_definitions`].
 //! - `(quote ...)` contents are still expanded; quoting only stops `let`
 //!   substitution, not notation.
 //! - A template may not contain a list headed by a reserved word (`show`,
@@ -88,10 +102,11 @@
 //! (250 000 nodes per `analyze`). [`expand`] on its own starts a fresh
 //! budget; `analyze` shares one across the whole note and the `let` pass.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use mazer_syntax::{Diag, DiagCode, Diags, Document, Node, NodeKind, Span, Sym};
+use mazer_syntax::{Diag, DiagCode, Diags, Document, FileId, Node, NodeKind, Span, Sym};
 
+use crate::origins::{self, ClosedKey, Expansions, Origin};
 use crate::walk::{self, Budget, Measure};
 
 /// Maximum macro expansion depth before giving up with a diagnostic.
@@ -121,8 +136,9 @@ impl Macro {
     }
 
     /// How the definition is called, e.g. `(laplace f s)` or `(pair a rest...)`;
-    /// for an alias, just its name.
-    fn signature(&self) -> String {
+    /// for an alias, just its name. Used in diagnostics' help and by editors.
+    #[must_use]
+    pub fn signature(&self) -> String {
         if self.is_alias() {
             return self.name.to_string();
         }
@@ -334,11 +350,20 @@ fn definition_name(node: &Node, diags: &mut Diags) -> Option<Sym> {
 
 /// Expands every macro and alias use in one code tree.
 pub fn expand(node: &Node, macros: &Macros, diags: &mut Diags) -> Node {
-    expand_with(node, macros, &mut Budget::new(), diags)
+    expand_with(node, macros, &mut Budget::new(), None, diags)
 }
 
-/// [`expand`], charging created nodes to a shared document budget.
-pub(crate) fn expand_with(node: &Node, macros: &Macros, budget: &mut Budget, diags: &mut Diags) -> Node {
+/// [`expand`], charging created nodes to a shared document budget. With
+/// `provenance`, every node instantiated from a template gets a provisional
+/// span recorded there (see the `origins` module); without, it takes the
+/// use-site span directly.
+pub(crate) fn expand_with(
+    node: &Node,
+    macros: &Macros,
+    budget: &mut Budget,
+    provenance: Option<&mut Expansions>,
+    diags: &mut Diags,
+) -> Node {
     if macros.is_empty() {
         return node.clone();
     }
@@ -346,6 +371,9 @@ pub(crate) fn expand_with(node: &Node, macros: &Macros, budget: &mut Budget, dia
         macros,
         diags,
         budget,
+        provenance,
+        quiet: false,
+        limited: false,
         depth: 0,
         produced: 0,
         stopped: false,
@@ -354,7 +382,7 @@ pub(crate) fn expand_with(node: &Node, macros: &Macros, budget: &mut Budget, dia
 }
 
 /// One instantiation of a template: which definition, its (already expanded)
-/// arguments, and the span every template node takes.
+/// arguments, and the span of the use.
 struct Inst<'a> {
     def: &'a Macro,
     args: &'a [Node],
@@ -383,6 +411,12 @@ struct Expander<'m, 'd> {
     diags: &'d mut Diags,
     /// The document-wide budget for created nodes.
     budget: &'d mut Budget,
+    /// Where provisional spans are recorded, if they are used.
+    provenance: Option<&'d mut Expansions>,
+    /// Checking a definition on its own: running into a size limit or the
+    /// budget is not reported, only noted in `limited`.
+    quiet: bool,
+    limited: bool,
     /// Instantiations currently open.
     depth: usize,
     /// Nodes produced so far, against [`walk::MAX_NODES`].
@@ -392,22 +426,30 @@ struct Expander<'m, 'd> {
 }
 
 impl Expander<'_, '_> {
+    /// The span of a node instantiated from the template node at `template`.
+    fn created_span(&mut self, template: Span, inst: &Inst<'_>) -> Span {
+        let origin = Origin {
+            template: Some(template),
+            def: inst.def.name,
+            used_at: inst.use_span,
+        };
+        self.provenance.as_deref_mut().map_or(inst.use_span, |table| table.fresh(origin))
+    }
+
     /// Expands `node`. `inst` is set when `node` is part of a template being
     /// instantiated. `level` is the depth of the result in the output tree.
     fn node(&mut self, node: &Node, inst: Option<&Inst<'_>>, level: usize) -> Node {
-        let span = inst.map_or(node.span, |i| i.use_span);
+        if let (NodeKind::Ident(sym), Some(i)) = (&node.kind, inst)
+            && let Some(arg) = i.param(*sym)
+        {
+            return self.frozen(arg, i.use_span, level);
+        }
+        let span = inst.map_or(node.span, |i| self.created_span(node.span, i));
         match &node.kind {
-            NodeKind::Ident(sym) => {
-                if let Some(arg) = inst.and_then(|i| i.param(*sym)) {
-                    return self.frozen(arg, span, level);
-                }
-                match self.macros.get(*sym) {
-                    Some(def) if def.is_alias() && !inst.is_some_and(|i| i.blocks(*sym)) => {
-                        self.call(def, &[], span, level)
-                    }
-                    _ => self.leaf(node, inst.is_some(), span),
-                }
-            }
+            NodeKind::Ident(sym) => match self.macros.get(*sym) {
+                Some(def) if def.is_alias() && !inst.is_some_and(|i| i.blocks(*sym)) => self.call(def, &[], span, level),
+                _ => self.leaf(node, inst.is_some(), span),
+            },
             NodeKind::List(items) => {
                 if level > walk::MAX_TREE_DEPTH {
                     return self.too_big(span, None);
@@ -522,13 +564,18 @@ impl Expander<'_, '_> {
     /// then every later use is refused silently.
     fn over_budget(&mut self, span: Span, def: Option<&Macro>) -> Node {
         self.stopped = true;
-        self.budget.refuse(DiagCode::MacroDepth, span, def.map(|d| d.span), self.diags);
+        if self.quiet {
+            self.limited = true;
+        } else {
+            self.budget.refuse(DiagCode::MacroDepth, span, def.map(|d| d.span), self.diags);
+        }
         Node::error(span)
     }
 
     fn too_big(&mut self, span: Span, def: Option<&Macro>) -> Node {
-        if !self.stopped {
-            self.stopped = true;
+        if self.quiet {
+            self.limited = true;
+        } else if !self.stopped {
             let mut diag = Diag::error(
                 DiagCode::MacroDepth,
                 span,
@@ -543,8 +590,142 @@ impl Expander<'_, '_> {
             }
             self.diags.push(diag);
         }
+        self.stopped = true;
         Node::error(span)
     }
+}
+
+/// The problems of the note's definitions that do not depend on their
+/// arguments, found by checking each definition on its own.
+#[derive(Debug, Default)]
+pub(crate) struct Closed {
+    /// The problems, to recognise them again at each use.
+    pub keys: HashSet<ClosedKey>,
+}
+
+/// One closed problem found while checking a definition.
+struct Found {
+    key: ClosedKey,
+    diag: Diag,
+}
+
+/// Checks every alias and macro of the note (file 0) on its own, once.
+///
+/// The body is expanded as if the definition were used, with a stand-in
+/// name for each parameter (one for a rest parameter), and then checked like
+/// a shown expression. A problem whose faulty form contains no parameter
+/// (an alias, or a macro whose body is wrong whatever its arguments) is
+/// *closed*: it is reported here, at the template form with its real span,
+/// and uses of the definition do not report it again (they still render
+/// their `<merror>` or error box). A problem that involves a parameter is
+/// left to the uses, where it is reported with a label at the template
+/// (`origins` module). A problem that lies in another definition the body
+/// uses is reported only at that other definition.
+///
+/// A body that is a single name is not checked (`(alias F frac)` is fine as
+/// a head). These checks have a node budget of their own; once it runs out
+/// (or one expansion is too large) the remaining definitions are left to
+/// their uses, silently.
+pub(crate) fn check_definitions(macros: &Macros, diags: &mut Diags) -> Closed {
+    let mut defs: Vec<&Macro> = macros.iter().filter(|d| d.span.file == FileId(0)).collect();
+    defs.sort_by_key(|d| d.span.start);
+    let mut budget = Budget::new();
+    let mut found: Vec<Found> = Vec::new();
+    for def in defs {
+        if def.body.as_ident().is_some() {
+            continue;
+        }
+        let Some(problems) = check_definition(def, macros, &mut budget) else {
+            break; // out of budget: leave the rest to their uses
+        };
+        found.extend(problems);
+    }
+    let mut closed = Closed::default();
+    closed.keys.extend(found.iter().map(|f| f.key.clone()));
+    for f in found {
+        // Reported at the innermost definition it belongs to.
+        let spans = &f.key.2;
+        let inner = (1..spans.len()).any(|n| closed.keys.contains(&(f.key.0, f.key.1.clone(), spans[..n].to_vec())));
+        if !inner {
+            diags.push(f.diag);
+        }
+    }
+    closed
+}
+
+/// The closed problems of one definition; `None` when a limit was reached.
+fn check_definition(def: &Macro, macros: &Macros, budget: &mut Budget) -> Option<Vec<Found>> {
+    let mut table = Expansions::default();
+    let stand_in = |name: Sym, table: &mut Expansions| {
+        let span = table.fresh(Origin {
+            template: None,
+            def: def.name,
+            used_at: def.span,
+        });
+        Node::ident(name.as_str(), span)
+    };
+    let mut args: Vec<Node> = def.params.iter().map(|&p| stand_in(p, &mut table)).collect();
+    if let Some(rest) = def.rest {
+        args.push(stand_in(rest, &mut table));
+    }
+    let mut raw = Diags::new();
+    let out = {
+        let mut expander = Expander {
+            macros,
+            diags: &mut raw,
+            budget,
+            provenance: Some(&mut table),
+            quiet: true,
+            limited: false,
+            depth: 0,
+            produced: 0,
+            stopped: false,
+        };
+        let out = expander.call(def, &args, def.span, 1);
+        if expander.limited {
+            return None;
+        }
+        out
+    };
+    mazer_math::check(&out, &mut raw);
+    let has_rest = |chain: &[Origin]| chain.iter().any(|o| macros.get(o.def).is_some_and(|m| m.rest.is_some()));
+    let calls = origins::index_calls([&out]);
+    let mut problems = Vec::new();
+    for diag in raw.into_vec() {
+        let chain = table.chain(diag.span);
+        if !origins::is_provisional(diag.span) || chain.is_empty() {
+            continue;
+        }
+        // A faulty form that cannot be found counts as depending on the
+        // arguments. A macro call with the wrong count was replaced by an
+        // `Error` node, so its arguments are gone: it is closed only when no
+        // rest parameter is involved.
+        let depends = find_span(&out, diag.span).is_none_or(|node| has_stand_in(node, &table))
+            || (matches!(diag.code, DiagCode::MacroArity) && has_rest(&chain));
+        if depends {
+            continue;
+        }
+        let key = (diag.code, diag.message.clone(), Expansions::key_spans(&chain));
+        let diag = table.translate(&diag, true, &|span| calls.get(&span).copied());
+        problems.push(Found { key, diag });
+    }
+    Some(problems)
+}
+
+/// The outermost node of `node` (itself included) whose span is `span`.
+fn find_span(node: &Node, span: Span) -> Option<&Node> {
+    if node.span == span {
+        return Some(node);
+    }
+    node.as_list()?.iter().find_map(|child| find_span(child, span))
+}
+
+/// Whether `node` holds a parameter stand-in of a definition check.
+fn has_stand_in(node: &Node, table: &Expansions) -> bool {
+    if table.origin(node.span).is_some_and(|o| o.template.is_none()) {
+        return true;
+    }
+    node.as_list().is_some_and(|items| items.iter().any(|item| has_stand_in(item, table)))
 }
 
 fn plural(count: &str) -> &'static str {

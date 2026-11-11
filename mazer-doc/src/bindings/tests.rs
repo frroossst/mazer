@@ -82,8 +82,10 @@ fn storing_a_value_costs_nothing_using_it_does() {
     let analysis = analyze(&src, "t.zr");
     assert_eq!(codes_of(&analysis), [DiagCode::Other]);
     assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), "big");
-    let bound = analysis.lets.len();
+    let bound = analysis.lets.iter().filter(|b| !matches!(b.value.kind, NodeKind::Error)).count();
     assert!((250..300).contains(&bound), "{bound} lets bound before the budget ran out");
+    // The refused ones are recorded too, as errors, so editors see them.
+    assert_eq!(analysis.lets.len(), 301);
 }
 
 #[test]
