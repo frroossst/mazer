@@ -8,7 +8,7 @@ use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode, Stdio};
 
-use mazer_doc::{Diag, DiagCode, Diags, Options, Page, Severity, SourceMap, Target};
+use mazer_doc::{Diag, Options, Page, Severity, SourceMap, Target};
 
 use args::{Command, CompileArgs, TargetArg, USAGE};
 
@@ -55,8 +55,50 @@ fn color_wanted() -> bool {
 }
 
 fn read_note(path: &Path) -> Result<String, ExitCode> {
+    if is_stdin(path) {
+        return io::read_to_string(io::stdin())
+            .map_err(|e| io_failure("cannot read standard input", &e));
+    }
     std::fs::read_to_string(path)
         .map_err(|e| io_failure(&format!("cannot read `{}`", path.display()), &e))
+}
+
+/// The input `-` means standard input.
+fn is_stdin(path: &Path) -> bool {
+    path.as_os_str() == "-"
+}
+
+/// Whether writing to `dest` would overwrite `input`: the same file reached by
+/// another spelling (`./x`, an absolute path, `a/../x`), a symlink or a hard
+/// link. An output that does not exist yet is judged by its directory and name.
+fn same_file(input: &Path, dest: &Path) -> bool {
+    let (Ok(src_canon), Ok(src_meta)) = (std::fs::canonicalize(input), std::fs::metadata(input))
+    else {
+        return false;
+    };
+    if let Ok(dest_meta) = std::fs::metadata(dest) {
+        if std::fs::canonicalize(dest).is_ok_and(|c| c == src_canon) {
+            return true;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            return dest_meta.dev() == src_meta.dev() && dest_meta.ino() == src_meta.ino();
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (dest_meta, src_meta);
+            return false;
+        }
+    }
+    let parent = match dest.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
+    match (std::fs::canonicalize(parent), dest.file_name()) {
+        (Ok(dir), Some(name)) => dir.join(name) == src_canon,
+        _ => false,
+    }
 }
 
 const fn target_of(t: TargetArg) -> Target {
@@ -72,36 +114,57 @@ fn output_path(c: &CompileArgs) -> Option<PathBuf> {
     match &c.output {
         Some(p) if p.as_os_str() == "-" => None,
         Some(p) => Some(p.clone()),
+        None if is_stdin(&c.input) => None,
         None => Some(c.input.with_extension("html")),
     }
 }
 
-fn print_diags(diags: &[Diag], sources: &SourceMap) {
+fn print_diags(diags: &[Diag], sources: &SourceMap, strict: bool) {
     let color = color_wanted();
-    let mut err = io::stderr().lock();
     // In reading order, the note's own file before the embedded prelude.
     let mut sorted: Vec<&Diag> = diags.iter().collect();
     sorted.sort_by_key(|d| (d.span.file.0, d.span.start));
+    let mut text = String::new();
     for d in sorted {
-        // A closed stderr leaves nowhere to complain, so ignore write errors.
-        let _ = writeln!(err, "{}\n", report::render_diag(d, sources, color));
+        text.push_str(&report::render_diag(d, sources, color));
+        text.push_str("\n\n");
     }
-    if let Some(line) = report::summary(diags) {
-        let _ = writeln!(err, "{line}");
+    if let Some(line) = report::summary(diags, strict) {
+        text.push_str(&line);
+        text.push('\n');
     }
+    // A closed stderr leaves nowhere to complain, so ignore write errors.
+    let _ = io::stderr().lock().write_all(text.as_bytes());
 }
 
 fn compile_command(c: &CompileArgs) -> ExitCode {
+    let stdin = is_stdin(&c.input);
+    let name = if stdin { "<stdin>".to_owned() } else { c.input.display().to_string() };
+    let dest = if c.check { None } else { output_path(c) };
+    if let Some(path) = &dest
+        && !stdin
+        && same_file(&c.input, path)
+    {
+        eprintln!(
+            "mazer: refusing to overwrite the input `{}` (the output `{}` is the same file); \
+             choose another output with -o",
+            c.input.display(),
+            path.display()
+        );
+        return ExitCode::from(EXIT_FATAL);
+    }
     let src = match read_note(&c.input) {
         Ok(s) => s,
         Err(code) => return code,
     };
-    let name = c.input.display().to_string();
-    let stem = c
-        .input
-        .file_stem()
-        .map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
-    let mut opts = Options::new(name.clone());
+    let stem = if stdin {
+        "stdin".to_owned()
+    } else {
+        c.input
+            .file_stem()
+            .map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned())
+    };
+    let mut opts = Options::new(name);
     opts.target = target_of(c.target);
     opts.page = if c.fragment {
         Page::Fragment
@@ -109,24 +172,14 @@ fn compile_command(c: &CompileArgs) -> ExitCode {
         Page::Full { title: stem }
     };
 
-    if c.check {
-        let (diags, sources) = check(&src, &name, &mut opts);
-        print_diags(&diags, &sources);
-        return exit_for(&diags);
-    }
-
-    let dest = output_path(c);
-    if dest.as_deref() == Some(c.input.as_path()) {
-        eprintln!(
-            "mazer: refusing to overwrite the input `{}`; choose another output with -o",
-            c.input.display()
-        );
-        return ExitCode::from(EXIT_FATAL);
-    }
-
+    // `--check` is a full compile whose HTML is thrown away, so it reports
+    // exactly what a normal run reports.
     let out = mazer_doc::compile(&src, &mut opts);
-    print_diags(&out.diags, &out.sources);
-    let code = exit_for(&out.diags);
+    print_diags(&out.diags, &out.sources, c.strict);
+    let code = exit_for(&out.diags, c.strict);
+    if c.check {
+        return code;
+    }
 
     let written = match &dest {
         None => write_stdout(&out.html).map_err(|e| ("cannot write to stdout".to_owned(), e)),
@@ -145,24 +198,14 @@ fn compile_command(c: &CompileArgs) -> ExitCode {
     code
 }
 
-/// `analyze` plus the one problem only `render` can find: `(eval ...)` with no
-/// evaluator. Nothing else `render` reports is kept.
-fn check(src: &str, name: &str, opts: &mut Options) -> (Vec<Diag>, SourceMap) {
-    let analysis = mazer_doc::analyze(src, name);
-    let mut diags = analysis.diags.clone().into_vec();
-    let mut rendered = Diags::new();
-    let _ = mazer_doc::render(&analysis, opts, &mut rendered);
-    diags.extend(
-        rendered
-            .into_vec()
-            .into_iter()
-            .filter(|d| d.code == DiagCode::NoEvaluator),
-    );
-    (diags, analysis.sources)
-}
-
-fn exit_for(diags: &[Diag]) -> ExitCode {
-    if diags.iter().any(|d| d.severity == Severity::Error) {
+/// 1 when the note has errors, or warnings under `--strict`; hints never fail.
+fn exit_for(diags: &[Diag], strict: bool) -> ExitCode {
+    let fails = |d: &Diag| match d.severity {
+        Severity::Error => true,
+        Severity::Warning => strict,
+        Severity::Hint => false,
+    };
+    if diags.iter().any(fails) {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS

@@ -5,33 +5,50 @@ use std::path::PathBuf;
 pub const USAGE: &str = "\
 Usage:
     mazer <file.zr> [options]
+    mazer - [options]                    (read the note from standard input)
     mazer query <text...> [--file <note.zr>]
     mazer --help | -h
     mazer --version | -V
 
-Compile a .zr note (markdown with embedded Lisp math) to HTML.
+Compile a .zr note (markdown with embedded Lisp math) to HTML. The input `-`
+is standard input; its name in diagnostics is `<stdin>` and the default output
+is stdout.
 
 Options:
     -o, --output <path>   Where to write (default: next to the input, same name
-                          with .html; `-o -` writes to stdout)
-        --open            Open the result in the default browser
+                          with .html; `-o -` writes to stdout). Refused, exit 2,
+                          if it is the same file as the input (also through a
+                          symlink, a hard link or a different spelling)
+        --open            Open the result in the default browser (not with
+                          standard input or `-o -`)
         --fragment        Inner HTML only, no page wrapper (default is a full
                           page whose title is the file stem)
         --target <t>      `mathml` (default) or `latex`; `latex` needs a build
                           with `--features latex`
-        --check           Report diagnostics only and write nothing. Exit code 1
-                          if there are errors. Also reports `(eval ...)` forms,
-                          since no evaluator is built in
+        --check           Compile, print every diagnostic a real compile would
+                          print, and write no file. Exit code 1 if there are
+                          errors. `(eval ...)` is an error, since no evaluator
+                          is built in
+        --strict          Warnings also make the exit code 1 (hints never do).
+                          Works with and without `--check`
     -h, --help            Show this help
     -V, --version         Show the version
+
+Flags take no `=value` (`--check=no` is an error); options that take a value
+accept `--name value` or `--name=value`.
 
 Query:
     mazer query <text...>   Search keywords, display names and docs
                             (case-insensitive). `-q` / `--query` also work.
+                            `--` ends the options, for a search text that
+                            starts with `-`
         --file <note.zr>    Also search that note's macros and aliases
 
-Diagnostics go to stderr. Exit codes: 0 success (warnings do not fail),
-1 the note has errors (the HTML is still written), 2 usage or I/O error.
+Diagnostics go to stderr, followed by a summary such as
+`1 error, 2 warnings, 1 hint` whenever anything was reported. Columns are
+characters. Exit codes: 0 success (warnings do not fail unless `--strict`),
+1 the note has errors (the HTML is still written) or, with `--strict`,
+warnings, 2 usage or I/O error.
 ";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -42,6 +59,8 @@ pub enum TargetArg {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
+// The fields are the command-line flags, one to one.
+#[allow(clippy::struct_excessive_bools)]
 pub struct CompileArgs {
     pub input: PathBuf,
     /// `Some("-")` is stdout.
@@ -50,6 +69,7 @@ pub struct CompileArgs {
     pub fragment: bool,
     pub target: TargetArg,
     pub check: bool,
+    pub strict: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -91,8 +111,14 @@ fn parse_query(args: &[String]) -> Result<Command, UsageError> {
     let mut words: Vec<&str> = Vec::new();
     let mut file = None;
     let mut it = args.iter();
+    let mut only_words = false;
     while let Some(arg) = it.next() {
+        if only_words {
+            words.push(arg);
+            continue;
+        }
         match arg.as_str() {
+            "--" => only_words = true,
             "--file" => match it.next() {
                 Some(v) => file = Some(PathBuf::from(v)),
                 None => return err("`--file` needs a path"),
@@ -134,6 +160,7 @@ fn parse_compile(args: &[String]) -> Result<Command, UsageError> {
     let mut open = false;
     let mut fragment = false;
     let mut check = false;
+    let mut strict = false;
     let mut target = TargetArg::MathMl;
     let mut only_positional = false;
 
@@ -158,15 +185,25 @@ fn parse_compile(args: &[String]) -> Result<Command, UsageError> {
             input = Some(PathBuf::from(arg));
             continue;
         }
+        if inline.is_some() && matches!(flag, "--open" | "--fragment" | "--check" | "--strict") {
+            return err(format!("`{flag}` does not take a value"));
+        }
         match flag {
             "--" => only_positional = true,
             "-h" | "--help" => return Ok(Command::Help),
             "-V" | "--version" => return Ok(Command::Version),
-            "-o" | "--output" => output = Some(PathBuf::from(value(flag)?)),
+            "-o" | "--output" => {
+                let v = value(flag)?;
+                if v.is_empty() {
+                    return err(format!("`{flag}` needs a non-empty path"));
+                }
+                output = Some(PathBuf::from(v));
+            }
             "--target" => target = parse_target(&value(flag)?)?,
             "--open" => open = true,
             "--fragment" => fragment = true,
             "--check" => check = true,
+            "--strict" => strict = true,
             _ => return err(format!("unknown option `{arg}`")),
         }
     }
@@ -180,6 +217,9 @@ fn parse_compile(args: &[String]) -> Result<Command, UsageError> {
     if check && open {
         return err("`--check` writes nothing, so it cannot be combined with `--open`");
     }
+    if open && input.as_os_str() == "-" {
+        return err("`--open` needs a file, so it cannot be combined with standard input (`-`)");
+    }
     if open && output.as_deref().is_some_and(|p| p.as_os_str() == "-") {
         return err("`--open` needs a file, so it cannot be combined with `-o -`");
     }
@@ -190,6 +230,7 @@ fn parse_compile(args: &[String]) -> Result<Command, UsageError> {
         fragment,
         target,
         check,
+        strict,
     }))
 }
 
@@ -274,6 +315,38 @@ mod tests {
     }
 
     #[test]
+    fn flags_reject_inline_values() {
+        for f in ["--check", "--strict", "--open", "--fragment"] {
+            let e = usage_err(&["a.zr", &format!("{f}=no")]);
+            assert!(e.contains("does not take a value"), "{f}: {e}");
+            let e = usage_err(&["a.zr", &format!("{f}=")]);
+            assert!(e.contains("does not take a value"), "{f}: {e}");
+        }
+    }
+
+    #[test]
+    fn empty_output_is_an_error() {
+        assert!(usage_err(&["a.zr", "--output="]).contains("non-empty"));
+        assert!(usage_err(&["a.zr", "-o", ""]).contains("non-empty"));
+    }
+
+    #[test]
+    fn strict_flag() {
+        assert!(!compile(&["a.zr"]).strict);
+        assert!(compile(&["a.zr", "--strict"]).strict);
+        let c = compile(&["--check", "--strict", "a.zr"]);
+        assert!(c.check && c.strict);
+    }
+
+    #[test]
+    fn dash_is_stdin() {
+        let c = compile(&["-"]);
+        assert_eq!(c.input, PathBuf::from("-"));
+        assert!(usage_err(&["-", "--open"]).contains("standard input"));
+        assert_eq!(compile(&["-", "-o", "x.html"]).output, Some("x.html".into()));
+    }
+
+    #[test]
     fn double_dash_allows_odd_names() {
         assert_eq!(compile(&["--", "-weird.zr"]).input, PathBuf::from("-weird.zr"));
     }
@@ -297,5 +370,7 @@ mod tests {
         assert!(usage_err(&["query", "--file"]).contains("needs a path"));
         assert!(usage_err(&["query", "x", "--bad"]).contains("unknown option"));
         assert_eq!(p(&["query", "--help"]), Ok(Command::Help));
+        assert_eq!(q(&["query", "--", "-x", "--file"]), ("-x --file".into(), None));
+        assert_eq!(q(&["query", "a", "--", "--b"]).0, "a --b");
     }
 }
