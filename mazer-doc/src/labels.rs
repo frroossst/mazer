@@ -16,10 +16,23 @@
 //! - HTML: the equation gets `id="<anchor>"` and shows its number; a reference
 //!   is a link to `#<anchor>` with the text `(n)`.
 //! - LaTeX: `\label` / `\eqref`.
+//!
+//! # Details
+//!
+//! - Tags and references are read from the tree as written: neither the tag
+//!   name nor the reference name is ever macro-expanded or substituted.
+//! - A `(tag ...)` anywhere other than the first item of a display `show`
+//!   (inside an expression, in a `let`, an `eval`, a definition) is
+//!   `MisplacedTag`; so is a tag on an inline `show`.
+//! - The anchor is `eq-` followed by the name as written; it is escaped when
+//!   written into HTML.
+//! - A duplicate tag gets no number; the first one keeps it.
 
 use std::collections::HashMap;
 
-use mazer_syntax::{Diags, Document, Span, Sym};
+use mazer_syntax::{Diag, DiagCode, Diags, Document, Node, Span, Sym};
+
+use crate::walk::{self, Place};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Label {
@@ -70,7 +83,127 @@ impl Labels {
 
 /// Finds every tagged display equation, numbers them in document order, and
 /// reports duplicate tags, misplaced tags and unresolved references.
+///
+/// Also checks the shape of each `(tag name)` and `(ref name)`: both take
+/// exactly one name (`BadDefinition` for a malformed tag, `Arity` /
+/// `UnresolvedRef` for a malformed reference). Forms holding a reader error
+/// are skipped; the reader already reported them.
 pub fn collect_labels(doc: &Document, diags: &mut Diags) -> Labels {
-    let _ = (doc, diags);
-    todo!("step 2, document agent")
+    let mut labels = Labels::new();
+    let mut refs: Vec<&Node> = Vec::new();
+    walk::for_each_code(doc, &mut |form, place| {
+        if form.is_form("ref") {
+            refs.push(form);
+            return;
+        }
+        let args = form.args();
+        let tagged = form.is_form("show") && args.first().is_some_and(|a| a.is_form("tag"));
+        if tagged {
+            let tag = &args[0];
+            if place == Place::Block {
+                define(tag, &mut labels, diags);
+            } else {
+                diags.push(
+                    Diag::error(DiagCode::MisplacedTag, tag.span, "only a display equation can be tagged")
+                        .with_help("put the `(show (tag ...) ...)` in a paragraph of its own"),
+                );
+            }
+            misplaced(tag.args(), diags);
+            misplaced(&args[1..], diags);
+        } else {
+            misplaced(args, diags);
+        }
+    });
+    for form in refs {
+        resolve(form, &labels, diags);
+    }
+    labels
 }
+
+/// Registers one `(tag name)` of a display show.
+fn define(tag: &Node, labels: &mut Labels, diags: &mut Diags) {
+    if walk::contains_error(tag) {
+        return;
+    }
+    let Some(name) = tag_name(tag) else {
+        diags.push(
+            Diag::error(DiagCode::BadDefinition, tag.span, "a tag needs exactly one name")
+                .with_help("write it as (tag name)"),
+        );
+        return;
+    };
+    if let Some(first) = labels.get(name) {
+        diags.push(
+            Diag::error(DiagCode::DuplicateTag, tag.span, format!("the tag `{name}` is already used"))
+                .with_label(first.span, "first used here"),
+        );
+        return;
+    }
+    let number = u32::try_from(labels.len() + 1).unwrap_or(u32::MAX);
+    labels.insert(Label {
+        name,
+        number,
+        anchor: anchor(name).into_boxed_str(),
+        span: tag.span,
+    });
+}
+
+/// The HTML id of the equation tagged `name`.
+pub(crate) fn anchor(name: Sym) -> String {
+    format!("eq-{name}")
+}
+
+/// The name in `(tag name)` / `(ref name)`, if the form is well shaped.
+pub(crate) fn tag_name(form: &Node) -> Option<Sym> {
+    match form.args() {
+        [name] => name.as_ident(),
+        _ => None,
+    }
+}
+
+/// Reports every `(tag ...)` anywhere inside `nodes`.
+fn misplaced(nodes: &[Node], diags: &mut Diags) {
+    for node in nodes {
+        if node.is_form("tag") {
+            diags.push(
+                Diag::error(
+                    DiagCode::MisplacedTag,
+                    node.span,
+                    "a tag must be the first item of a display `show`",
+                )
+                .with_help("write it as (show (tag name) expr) in a paragraph of its own"),
+            );
+        }
+        if let Some(items) = node.as_list() {
+            misplaced(items, diags);
+        }
+    }
+}
+
+/// Checks one `(ref name)`.
+fn resolve(form: &Node, labels: &Labels, diags: &mut Diags) {
+    if walk::contains_error(form) {
+        return;
+    }
+    match form.args() {
+        [name] => match name.as_ident() {
+            Some(sym) if labels.get(sym).is_some() => {}
+            Some(sym) => diags.push(
+                Diag::error(DiagCode::UnresolvedRef, name.span, format!("no equation is tagged `{sym}`"))
+                    .with_help(format!("tag one with (show (tag {sym}) ...)")),
+            ),
+            None => diags.push(Diag::error(
+                DiagCode::UnresolvedRef,
+                name.span,
+                "a reference needs the name of a tag",
+            )),
+        },
+        _ => diags.push(
+            Diag::error(DiagCode::Arity, form.span, "a reference takes exactly one tag name")
+                .with_help("write it as (ref name)"),
+        ),
+    }
+}
+
+#[cfg(test)]
+mod tests;
