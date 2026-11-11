@@ -189,18 +189,75 @@ fn http_get(url: &str) -> String {
     out
 }
 
-#[test]
-fn a_whole_session() {
-    let mut client = Client::spawn();
-    let init = initialize(&mut client);
+/// The capabilities `initialize` advertises.
+fn check_capabilities(init: &Value) {
     let caps = &init["capabilities"];
     assert_eq!(caps["positionEncoding"], "utf-16");
     assert_eq!(caps["textDocumentSync"]["change"], 1);
     assert!(caps["semanticTokensProvider"]["legend"]["tokenTypes"].as_array().is_some_and(|t| !t.is_empty()));
     assert_eq!(init["serverInfo"]["name"], "mazer-lsp");
+    // Space is not a completion trigger (it is one for signature help).
+    assert_eq!(caps["completionProvider"]["triggerCharacters"], json!(["(", ":", "'"]));
+    assert_eq!(caps["completionProvider"]["resolveProvider"], true);
+    assert_eq!(caps["signatureHelpProvider"]["triggerCharacters"], json!([" ", "("]));
+}
+
+/// Completion items at the head of `(integral` resolve to full docs; the
+/// `let` variable and the integration variable of `text`.
+fn completion_and_variables(client: &mut Client, text: &str, items: &Value) {
+    let items = items.as_array().expect("an array of items");
+    let integral = items.iter().find(|i| i["label"] == "integral").expect("integral");
+    assert!(
+        integral["documentation"].is_string(),
+        "the list carries a one-line doc only: {integral}"
+    );
+    // The full docs come on resolve.
+    let resolved = client.ok("completionItem/resolve", integral.clone());
+    let doc = resolved["documentation"]["value"].as_str().unwrap();
+    assert!(doc.contains("**Parameters**"), "{doc}");
+
+    // Hover on the `let` variable inside the integral: its value. The
+    // integration variable is not let-bound, so it stays a plain name.
+    let (y_line, y_col) = find(text, "(sin y)", 5);
+    let hover = client.ok("textDocument/hover", position(y_line, y_col));
+    let value = hover["contents"]["value"].as_str().unwrap();
+    assert!(value.contains("`let` variable `y`, shown as:"), "{value}");
+    let (x_line, x_col) = find(text, "(sin y) x", 8);
+    let def = client.ok("textDocument/definition", position(x_line, x_col));
+    assert_eq!(def, Value::Null, "the integration variable is not bound");
+}
+
+/// Garbage: the server answers with errors and stays alive.
+fn garbage_is_answered(client: &mut Client) {
+    let unknown = client.request("mazer/nope", json!({}));
+    assert_eq!(unknown["error"]["code"], -32601, "{unknown}");
+    let wrong = client.request("textDocument/hover", json!({"what": 1}));
+    assert_eq!(wrong["error"]["code"], -32602, "{wrong}");
+    let wrong = client.request("textDocument/completion", json!([1, 2, 3]));
+    assert_eq!(wrong["error"]["code"], -32602, "{wrong}");
+    client.notify("$/somethingUnknown", json!({"x": 1}));
+    client.notify("textDocument/didChange", json!({"bogus": true}));
+    let far = client.request("textDocument/hover", position(99_999, 99_999));
+    assert!(far.get("error").is_none(), "{far}");
+    let far = client.request("textDocument/completion", position(u32::MAX, u32::MAX));
+    assert!(far.get("error").is_none(), "{far}");
+    let other = client.request(
+        "textDocument/hover",
+        json!({"textDocument": {"uri": "file:///not/open.zr"}, "position": {"line": 0, "character": 0}}),
+    );
+    assert_eq!(other["result"], Value::Null);
+    let bad_command = client.request("workspace/executeCommand", json!({"command": "mazer.preview", "arguments": [42]}));
+    assert!(bad_command.get("error").is_some());
+}
+
+#[test]
+fn a_whole_session() {
+    let mut client = Client::spawn();
+    let init = initialize(&mut client);
+    check_capabilities(&init);
 
     // A note with an error.
-    let text = "# τ notes 😭\n\n(show (frac 1))\n\n(let x 2)\n\n(show (tag e) (integral (sin x) x))\n\nSee (ref e).\n";
+    let text = "# τ notes 😭\n\n(show (frac 1))\n\n(let y 2)\n\n(show (tag e) (integral (sin y) x))\n\nSee (ref e).\n";
     client.notify(
         "textDocument/didOpen",
         json!({"textDocument": {"uri": URI, "languageId": "zr", "version": 1, "text": text}}),
@@ -216,8 +273,7 @@ fn a_whole_session() {
     // Completion at the head of `(integral`.
     let (line, col) = find(text, "(integral", 4);
     let items = client.ok("textDocument/completion", position(line, col));
-    let items = items.as_array().expect("an array of items");
-    assert!(items.iter().any(|i| i["label"] == "integral"), "no integral");
+    completion_and_variables(&mut client, text, &items);
 
     // Hover on it.
     let hover = client.ok("textDocument/hover", position(line, col));
@@ -225,7 +281,7 @@ fn a_whole_session() {
     assert!(value.contains("(integral body var [lower] [upper])"), "{value}");
 
     // Signature help on its second argument.
-    let (line, col) = find(text, "(sin x) x)", 8);
+    let (line, col) = find(text, "(sin y) x)", 8);
     let help = client.ok("textDocument/signatureHelp", position(line, col));
     assert_eq!(help["signatures"][0]["label"], "(integral body var [lower] [upper])");
     assert_eq!(help["activeParameter"], 1);
@@ -269,7 +325,7 @@ fn a_whole_session() {
     let version = http_get(&format!("{url}/version"));
     assert!(version.ends_with("\r\n\r\n1"), "{version}");
     // A change updates what the preview serves.
-    let changed = fixed.replace("(sin x)", "(cos x)");
+    let changed = fixed.replace("(sin y)", "(cos y)");
     client.notify(
         "textDocument/didChange",
         json!({"textDocument": {"uri": URI, "version": 3}, "contentChanges": [{"text": changed}]}),
@@ -278,35 +334,26 @@ fn a_whole_session() {
     assert!(http_get(&format!("{url}/version")).ends_with("\r\n\r\n2"));
     assert!(http_get(&url).contains("cos"));
 
-    // Garbage: the server answers with errors and stays alive.
-    let unknown = client.request("mazer/nope", json!({}));
-    assert_eq!(unknown["error"]["code"], -32601, "{unknown}");
-    let wrong = client.request("textDocument/hover", json!({"what": 1}));
-    assert_eq!(wrong["error"]["code"], -32602, "{wrong}");
-    let wrong = client.request("textDocument/completion", json!([1, 2, 3]));
-    assert_eq!(wrong["error"]["code"], -32602, "{wrong}");
-    client.notify("$/somethingUnknown", json!({"x": 1}));
-    client.notify("textDocument/didChange", json!({"bogus": true}));
-    let far = client.request("textDocument/hover", position(99_999, 99_999));
-    assert!(far.get("error").is_none(), "{far}");
-    let far = client.request("textDocument/completion", position(u32::MAX, u32::MAX));
-    assert!(far.get("error").is_none(), "{far}");
-    let other = client.request(
-        "textDocument/hover",
-        json!({"textDocument": {"uri": "file:///not/open.zr"}, "position": {"line": 0, "character": 0}}),
-    );
-    assert_eq!(other["result"], Value::Null);
-    let bad_command = client.request("workspace/executeCommand", json!({"command": "mazer.preview", "arguments": [42]}));
-    assert!(bad_command.get("error").is_some());
+    garbage_is_answered(&mut client);
     // Still answering properly.
     let (line, col) = find(&changed, "(cos", 2);
     let hover = client.ok("textDocument/hover", position(line, col));
     assert!(hover["contents"]["value"].as_str().unwrap().contains("cos"));
 
-    // Close: diagnostics are cleared.
+    // The preview refuses a request with two Host headers.
+    let host = url.strip_prefix("http://").unwrap().split('/').next().unwrap().to_owned();
+    let mut stream = TcpStream::connect(&host).unwrap();
+    stream.set_read_timeout(Some(TIMEOUT)).unwrap();
+    write!(stream, "GET /doc/1 HTTP/1.1\r\nHost: {host}\r\nHost: evil.example\r\n\r\n").unwrap();
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).unwrap();
+    assert!(answer.starts_with("HTTP/1.1 400"), "{answer}");
+
+    // Close: diagnostics are cleared, and the preview stops serving it.
     client.notify("textDocument/didClose", json!({"textDocument": {"uri": URI}}));
     let diags = client.notification("textDocument/publishDiagnostics");
     assert_eq!(diags["params"]["diagnostics"], json!([]));
+    assert!(http_get(&url).starts_with("HTTP/1.1 404"), "a closed note is not served");
 
     // Shutdown and exit cleanly.
     let shutdown = client.request("shutdown", Value::Null);
@@ -315,6 +362,29 @@ fn a_whole_session() {
     client.notify("exit", Value::Null);
     let status = client.wait();
     assert!(status.success(), "{status}");
+}
+
+#[test]
+fn an_absurd_content_length_ends_the_session_cleanly() {
+    let mut client = Client::spawn();
+    initialize(&mut client);
+    // Far larger than any message: refused before allocating, not an abort.
+    let stdin = client.stdin.as_mut().unwrap();
+    stdin.write_all(b"Content-Length: 99999999999999\r\n\r\n{}").unwrap();
+    stdin.flush().unwrap();
+    let status = client.wait();
+    assert_eq!(status.code(), Some(1), "{status}");
+}
+
+#[test]
+fn malformed_framing_ends_the_session() {
+    let mut client = Client::spawn();
+    initialize(&mut client);
+    let stdin = client.stdin.as_mut().unwrap();
+    stdin.write_all(b"Content-Length: 2\n\n{}").unwrap();
+    stdin.flush().unwrap();
+    let status = client.wait();
+    assert_eq!(status.code(), Some(1), "{status}");
 }
 
 #[test]

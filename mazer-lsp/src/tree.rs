@@ -1,75 +1,18 @@
-//! Walking the tree as written ([`Analysis::written`]) and deciding what each
-//! name in it *is*: the shared ground of hover, definition, references,
-//! semantic tokens and signature help.
+//! Deciding what each name in the tree as written ([`Analysis::written`])
+//! *is*: the shared ground of hover, definition, references, semantic
+//! tokens and signature help.
 //!
-//! `mazer_doc` keeps its own document walker private, so the walk over
-//! blocks and inlines is repeated here (it is short and follows the same
-//! order: document order, block and inline code at any nesting).
+//! Walking the document, cursor geometry (enclosing lists, argument index),
+//! `let` scope, comments and the spans of definition names come from
+//! `mazer_doc` itself ([`mazer_doc::code_forms`], [`mazer_doc::binding_at`]
+//! and the rest of its query API), so the editor and the renderer cannot
+//! disagree about them.
 
 use mazer_doc::math::{DisplayName, Keyword, display_name, registry};
-use mazer_doc::syntax::{Block, BlockKind, Document, Inline, InlineKind, Node, NodeKind, RESERVED_HEADS};
-use mazer_doc::{Analysis, Binding, ByteOffset, Label, Macro, Span, Sym};
+use mazer_doc::syntax::{Block, BlockKind, Document, Inline, InlineKind, Node, RESERVED_HEADS};
+use mazer_doc::{Analysis, Binding, ByteOffset, Label, Macro, Sym, binding_at, code_forms, is_paren_list};
 
 use crate::convert::{NOTE, note_text};
-
-/// Where a code form stands: alone as a block, or inside a sentence.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Place {
-    Block,
-    Inline,
-}
-
-/// Calls `f` on every code form of `doc` in document order.
-pub fn for_each_code<'a>(doc: &'a Document, f: &mut impl FnMut(&'a Node, Place)) {
-    blocks(&doc.blocks, f);
-}
-
-fn blocks<'a>(list: &'a [Block], f: &mut impl FnMut(&'a Node, Place)) {
-    for block in list {
-        match &block.kind {
-            BlockKind::Heading { content, .. } | BlockKind::Paragraph(content) => inlines(content, f),
-            BlockKind::List { items, .. } => {
-                for item in items {
-                    blocks(&item.content, f);
-                }
-            }
-            BlockKind::BlockQuote(inner) => blocks(inner, f),
-            BlockKind::Code(node) => f(node, Place::Block),
-            BlockKind::CodeBlock { .. } | BlockKind::Image { .. } | BlockKind::Rule => {}
-        }
-    }
-}
-
-fn inlines<'a>(list: &'a [Inline], f: &mut impl FnMut(&'a Node, Place)) {
-    for inline in list {
-        match &inline.kind {
-            InlineKind::Bold(inner)
-            | InlineKind::Italic(inner)
-            | InlineKind::Underline(inner)
-            | InlineKind::Strike(inner)
-            | InlineKind::Spoiler(inner)
-            | InlineKind::Link { content: inner, .. } => inlines(inner, f),
-            InlineKind::Code(node) => f(node, Place::Inline),
-            InlineKind::Text(_)
-            | InlineKind::Image { .. }
-            | InlineKind::InlineCode(_)
-            | InlineKind::Emoji(_)
-            | InlineKind::LineBreak => {}
-        }
-    }
-}
-
-/// The code forms of the note (file 0), in document order.
-#[must_use]
-pub fn forms(analysis: &Analysis) -> Vec<(&Node, Place)> {
-    let mut out = Vec::new();
-    for_each_code(&analysis.written, &mut |form, place| {
-        if form.span.file == NOTE {
-            out.push((form, place));
-        }
-    });
-    out
-}
 
 /// Whether `at` lies in a fenced code block or an inline code span, where
 /// nothing is ever interpreted.
@@ -97,100 +40,6 @@ pub fn in_verbatim(doc: &Document, at: ByteOffset) -> bool {
         })
     }
     in_blocks(&doc.blocks, at)
-}
-
-/// Whether `node` is a list written with parentheses (not the `'x` or `-x`
-/// shorthand the reader expands into a list).
-#[must_use]
-pub fn is_paren_list(text: &str, node: &Node) -> bool {
-    matches!(node.kind, NodeKind::List(_)) && text.as_bytes().get(node.span.start.to_usize()) == Some(&b'(')
-}
-
-/// Whether a list was left open (typed mid-edit): its last child reaches its
-/// end and is the reader's `Error` placeholder or an unclosed list.
-#[must_use]
-pub fn is_unclosed(node: &Node) -> bool {
-    node.as_list()
-        .and_then(<[Node]>::last)
-        .is_some_and(|last| last.span.end == node.span.end && (matches!(last.kind, NodeKind::Error) || is_unclosed(last)))
-}
-
-/// Whether `at` is between the parentheses of the paren list `node` (the
-/// same rule as `mazer_doc::locate`).
-#[must_use]
-pub fn inside(text: &str, node: &Node, at: ByteOffset) -> bool {
-    is_paren_list(text, node)
-        && node.span.start < at
-        && (at < node.span.end || (at == node.span.end && is_unclosed(node)))
-}
-
-/// The children of a list without the reader's trailing `Error` placeholder.
-#[must_use]
-pub fn real_items(list: &Node) -> &[Node] {
-    let items = list.as_list().unwrap_or(&[]);
-    match items.split_last() {
-        Some((placeholder, before))
-            if matches!(placeholder.kind, NodeKind::Error)
-                && placeholder.span.is_empty()
-                && placeholder.span.end == list.span.end =>
-        {
-            before
-        }
-        _ => items,
-    }
-}
-
-/// The paren lists containing `at`, outermost first. Empty in prose.
-#[must_use]
-pub fn enclosing_lists(analysis: &Analysis, at: ByteOffset) -> Vec<&Node> {
-    let text = note_text(&analysis.sources);
-    let mut chain = Vec::new();
-    let Some((root, _)) = forms(analysis).into_iter().find(|(form, _)| inside(text, form, at)) else {
-        return chain;
-    };
-    let mut node = root;
-    loop {
-        chain.push(node);
-        let next = real_items(node).iter().find_map(|child| descend(text, child, at));
-        match next {
-            Some(child) => node = child,
-            None => return chain,
-        }
-    }
-}
-
-/// The paren list at or below `node` (through `'x` / `-x` shorthand) that
-/// contains `at`.
-fn descend<'a>(text: &str, node: &'a Node, at: ByteOffset) -> Option<&'a Node> {
-    if inside(text, node, at) {
-        return Some(node);
-    }
-    if matches!(node.kind, NodeKind::List(_))
-        && !is_paren_list(text, node)
-        && node.span.start <= at
-        && at <= node.span.end
-    {
-        return real_items(node).iter().find_map(|child| descend(text, child, at));
-    }
-    None
-}
-
-/// The argument position of `at` in `list` (0-based, not counting the head),
-/// or `None` when the cursor is on or before the head. The rule is the one
-/// `mazer_doc::locate` uses for `Cursor::Arg`.
-#[must_use]
-pub fn arg_index(list: &Node, at: ByteOffset) -> Option<usize> {
-    let items = real_items(list);
-    let (head, args) = items.split_first()?;
-    if at <= head.span.end {
-        return None;
-    }
-    for (index, arg) in args.iter().enumerate() {
-        if at <= arg.span.end {
-            return Some(index);
-        }
-    }
-    Some(args.len())
 }
 
 /// Where a node stands in its code form.
@@ -371,29 +220,6 @@ pub fn macro_params(form: &Node) -> Vec<Sym> {
     })
 }
 
-/// The `let` binding of `name` in scope at `at`: the last one whose `let`
-/// form ends at or before `at`. (A `let` takes effect after it is written,
-/// so inside `(let x (+ x 1))` the `x` in the value is the earlier one.)
-#[must_use]
-pub fn binding_at(analysis: &Analysis, name: Sym, at: ByteOffset) -> Option<&Binding> {
-    analysis
-        .lets
-        .iter()
-        .rev()
-        .find(|b| b.name == name && b.span.file == NOTE && b.span.end <= at)
-}
-
-/// Every binding in scope at `at`: for each name, the last `let` that ends
-/// at or before `at`. In document order of those bindings.
-#[must_use]
-pub fn bindings_in_scope(analysis: &Analysis, at: ByteOffset) -> Vec<&Binding> {
-    let mut out: Vec<&Binding> = Vec::new();
-    for binding in analysis.lets.iter().filter(|b| b.span.file == NOTE && b.span.end <= at) {
-        out.retain(|b| b.name != binding.name);
-        out.push(binding);
-    }
-    out
-}
 
 /// An identifier of the written tree, with its context.
 #[derive(Clone, Copy, Debug)]
@@ -409,7 +235,7 @@ pub fn ident_at(analysis: &Analysis, at: ByteOffset) -> Option<Found<'_>> {
     let text = note_text(&analysis.sources);
     let mut on = None;
     let mut after = None;
-    for (form, _) in forms(analysis) {
+    for (form, _) in code_forms(analysis) {
         if at < form.span.start || form.span.end < at {
             continue;
         }
@@ -435,7 +261,7 @@ pub fn ident_at(analysis: &Analysis, at: ByteOffset) -> Option<Found<'_>> {
 pub fn idents(analysis: &Analysis) -> Vec<Found<'_>> {
     let text = note_text(&analysis.sources);
     let mut out = Vec::new();
-    for (form, _) in forms(analysis) {
+    for (form, _) in code_forms(analysis) {
         visit(text, form, &mut |node, ctx| {
             if node.as_ident().is_some() && node.span.file == NOTE && !node.span.is_empty() {
                 out.push(Found { node, ctx: *ctx });
@@ -445,74 +271,3 @@ pub fn idents(analysis: &Analysis) -> Vec<Found<'_>> {
     out
 }
 
-/// The spans of the `;` comments in the code form `root`. The reader drops
-/// comments, so they are found in the text: a `;` outside a string literal
-/// up to the end of its line (without the line break).
-#[must_use]
-pub fn comment_spans(text: &str, root: &Node) -> Vec<Span> {
-    let mut strings = Vec::new();
-    string_spans(root, &mut strings);
-    strings.sort_by_key(|s| s.start);
-    let bytes = text.as_bytes();
-    let end = root.span.end.to_usize().min(bytes.len());
-    let mut pos = root.span.start.to_usize();
-    let mut next = strings.iter().peekable();
-    let mut out = Vec::new();
-    while pos < end {
-        if let Some(span) = next.next_if(|s| s.start.to_usize() <= pos) {
-            pos = pos.max(span.end.to_usize());
-            continue;
-        }
-        if bytes[pos] == b';' {
-            let mut stop = bytes[pos..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |n| pos + n);
-            if stop > pos && bytes[stop - 1] == b'\r' {
-                stop -= 1;
-            }
-            out.push(Span::new(NOTE, ByteOffset::from_usize(pos), ByteOffset::from_usize(stop)));
-            pos = stop.max(pos + 1);
-            continue;
-        }
-        pos += 1;
-    }
-    out
-}
-
-/// The spans of every string literal in `node`.
-pub fn string_spans(node: &Node, out: &mut Vec<Span>) {
-    match &node.kind {
-        NodeKind::Str(_) => out.push(node.span),
-        NodeKind::List(items) => {
-            for item in items {
-                string_spans(item, out);
-            }
-        }
-        NodeKind::Ident(_) | NodeKind::Number(_) | NodeKind::Error => {}
-    }
-}
-
-/// The display `show` form tagged by `label`, if it is in the note.
-#[must_use]
-pub fn tagged_equation<'a>(analysis: &'a Analysis, label: &Label) -> Option<&'a Node> {
-    forms(analysis)
-        .into_iter()
-        .map(|(form, _)| form)
-        .find(|form| form.is_form("show") && form.args().first().is_some_and(|tag| tag.span == label.span))
-}
-
-/// The name node of a definition form: the `x` of `(let x v)` or
-/// `(alias x v)`, the `name` of `(macro (name ...) ...)`.
-#[must_use]
-pub fn definition_name(form: &Node) -> Option<&Node> {
-    let first = form.args().first()?;
-    if form.is_form("macro") {
-        first.as_list()?.first().filter(|n| n.as_ident().is_some())
-    } else {
-        Some(first).filter(|n| n.as_ident().is_some())
-    }
-}
-
-/// The written form whose span is `span` (a definition's form).
-#[must_use]
-pub fn form_at_span(analysis: &Analysis, span: Span) -> Option<&Node> {
-    forms(analysis).into_iter().map(|(form, _)| form).find(|form| form.span == span)
-}

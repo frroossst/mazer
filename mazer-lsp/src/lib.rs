@@ -18,9 +18,11 @@
 //! - [`semantic`]: semantic-token colouring of code;
 //! - [`preview`]: a live HTML preview served on a loopback port.
 //!
-//! The protocol loop is in [`server`]; position conversion in [`convert`];
-//! walking and classifying the written tree in [`tree`]; the hand-written docs
-//! shared by several features in [`docs`].
+//! The protocol loop is in [`server`], the stdio framing in [`transport`];
+//! position conversion in [`convert`]; classifying the names of the written
+//! tree in [`tree`] (walking the document, cursor geometry, `let` scope and
+//! definition names come from `mazer_doc`'s query API, so they agree with the
+//! renderer); the hand-written docs shared by several features in [`docs`].
 //!
 //! See `docs/ARCHITECTURE.md`, "Front ends".
 
@@ -35,6 +37,7 @@ pub mod semantic;
 pub mod server;
 pub mod signature;
 pub mod symbols;
+pub mod transport;
 pub mod tree;
 
 #[cfg(test)]

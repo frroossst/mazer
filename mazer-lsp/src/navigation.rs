@@ -11,7 +11,6 @@
 //! definition (the same `let` binding, the same macro, the same label name).
 
 use lsp_types::{Location, Uri};
-use mazer_doc::syntax::Node;
 use mazer_doc::{Analysis, ByteOffset, Span, Sym};
 
 use crate::convert::{self, NOTE};
@@ -73,8 +72,7 @@ fn name_in(analysis: &Analysis, form_span: Span) -> Option<Span> {
     if form_span.file != NOTE {
         return None;
     }
-    let form = tree::form_at_span(analysis, form_span);
-    Some(form.and_then(tree::definition_name).map_or(form_span, |n: &Node| n.span))
+    Some(mazer_doc::definition_name_span(analysis, form_span).unwrap_or(form_span))
 }
 
 /// Every occurrence in the note of what the name at `at` refers to, in

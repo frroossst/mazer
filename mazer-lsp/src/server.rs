@@ -17,11 +17,11 @@ use lsp_types::notification::{
     PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
-    Completion, DocumentSymbolRequest, ExecuteCommand, GotoDefinition, HoverRequest, References, Request as _,
+    Completion, DocumentSymbolRequest, ResolveCompletionItem, ExecuteCommand, GotoDefinition, HoverRequest, References, Request as _,
     SemanticTokensFullRequest, SignatureHelpRequest,
 };
 use lsp_types::{
-    CompletionOptions, CompletionParams, CompletionResponse, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    CompletionItem, CompletionOptions, CompletionParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
     DidOpenTextDocumentParams, DocumentSymbolParams, DocumentSymbolResponse, ExecuteCommandOptions,
     ExecuteCommandParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams, HoverProviderCapability,
     InitializeParams, MessageType, OneOf, Position, PositionEncodingKind, PublishDiagnosticsParams, ReferenceParams,
@@ -43,14 +43,19 @@ pub const PREVIEW_COMMAND: &str = "mazer.preview";
 /// Runs the server over stdin/stdout until `exit`. Returns whether the
 /// client shut it down properly (`shutdown` before `exit`).
 ///
+/// Malformed framing, or a message larger than [`crate::transport::MAX_MESSAGE`],
+/// ends the session (see [`crate::transport`]).
+///
 /// # Errors
 /// If the connection breaks during initialization or the I/O threads fail.
 pub fn run_stdio() -> Result<bool, Box<dyn Error + Send + Sync>> {
-    let (connection, io_threads) = Connection::stdio();
-    let clean = run(&connection)?;
+    let (connection, io_threads) = crate::transport::stdio()?;
+    let result = run(&connection);
     drop(connection);
+    // A transport failure (malformed or oversized input) is the reason the
+    // loop ended, so it is reported first.
     io_threads.join()?;
-    Ok(clean)
+    Ok(result?)
 }
 
 /// The capabilities the server implements, exactly.
@@ -66,8 +71,8 @@ pub fn capabilities() -> ServerCapabilities {
             save: Some(TextDocumentSyncSaveOptions::Supported(true)),
         })),
         completion_provider: Some(CompletionOptions {
-            trigger_characters: Some(["(", ":", "'", " "].map(str::to_owned).to_vec()),
-            resolve_provider: Some(false),
+            trigger_characters: Some(["(", ":", "'"].map(str::to_owned).to_vec()),
+            resolve_provider: Some(true),
             ..CompletionOptions::default()
         }),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -109,6 +114,14 @@ pub fn run(connection: &Connection) -> Result<bool, ProtocolError> {
         .and_then(|c| c.completion_item.as_ref())
         .and_then(|i| i.snippet_support)
         .unwrap_or(false);
+    let edit_range_defaults = params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.completion.as_ref())
+        .and_then(|c| c.completion_list.as_ref())
+        .and_then(|l| l.item_defaults.as_ref())
+        .is_some_and(|d| d.iter().any(|name| name == "editRange"));
     let result = serde_json::json!({
         "capabilities": capabilities(),
         "serverInfo": ServerInfo { name: "mazer-lsp".to_owned(), version: Some(env!("CARGO_PKG_VERSION").to_owned()) },
@@ -119,8 +132,10 @@ pub fn run(connection: &Connection) -> Result<bool, ProtocolError> {
         connection,
         notes: HashMap::new(),
         completion: completion::Config { snippets },
+        edit_range_defaults,
         preview: None,
         preview_ids: HashMap::new(),
+        next_preview_id: 1,
     };
     let clean = server.main_loop();
     if let Some(preview) = server.preview.take() {
@@ -141,9 +156,13 @@ struct Server<'c> {
     connection: &'c Connection,
     notes: HashMap<Uri, OpenNote>,
     completion: completion::Config,
+    /// The client takes a default edit range for a completion list.
+    edit_range_defaults: bool,
     preview: Option<Preview>,
     /// The preview page id of each note that has been previewed.
     preview_ids: HashMap<Uri, u32>,
+    /// The id the next previewed note gets; ids are never reused.
+    next_preview_id: u32,
 }
 
 /// A handler's failure: an LSP error code and message.
@@ -228,6 +247,11 @@ impl Server<'_> {
                 if let Ok(p) = serde_json::from_value::<DidCloseTextDocumentParams>(note.params) {
                     let uri = p.text_document.uri;
                     self.notes.remove(&uri);
+                    // A closed note is no longer served; previewing it again
+                    // after reopening it takes a new `mazer.preview`.
+                    if let (Some(id), Some(preview)) = (self.preview_ids.remove(&uri), &self.preview) {
+                        preview.remove(id);
+                    }
                     self.notify::<PublishDiagnostics>(PublishDiagnosticsParams::new(uri, Vec::new(), None));
                 }
             }
@@ -273,10 +297,20 @@ impl Server<'_> {
             Completion::METHOD => {
                 let p: CompletionParams = parse(params)?;
                 let pos = p.text_document_position;
-                let items = self.with_note(&pos.text_document.uri, pos.position, |a, at, config| {
-                    completion::complete(a, at, config)
-                });
-                to_value(items.map(CompletionResponse::Array))
+                let uri = pos.text_document.uri.clone();
+                let items = self.with_note(&uri, pos.position, completion::complete);
+                Ok(items.map_or(Value::Null, |items| completion::response(items, uri.as_str(), self.edit_range_defaults)))
+            }
+            ResolveCompletionItem::METHOD => {
+                let item: CompletionItem = parse(params)?;
+                let uri = item
+                    .data
+                    .as_ref()
+                    .and_then(|d| d.get("uri"))
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<Uri>().ok());
+                let analysis = uri.as_ref().and_then(|u| self.notes.get(u)).map(|n| &n.analysis);
+                to_value(completion::resolve(analysis, item))
             }
             HoverRequest::METHOD => {
                 let p: HoverParams = parse(params)?;
@@ -356,8 +390,14 @@ impl Server<'_> {
                 .map_err(|e| (ErrorCode::RequestFailed, format!("cannot start the preview server: {e}")))?;
             self.preview = Some(started);
         }
-        let next = u32::try_from(self.preview_ids.len() + 1).unwrap_or(u32::MAX);
-        let id = *self.preview_ids.entry(uri.clone()).or_insert(next);
+        let id = if let Some(id) = self.preview_ids.get(&uri) {
+            *id
+        } else {
+            let id = self.next_preview_id;
+            self.next_preview_id = self.next_preview_id.saturating_add(1);
+            self.preview_ids.insert(uri.clone(), id);
+            id
+        };
         let title = convert::note_title(&uri);
         let name = convert::note_name(&uri);
         let (html, _) = diagnostics::render_problems(&note.analysis, &name, Page::Full { title: title.clone() });
