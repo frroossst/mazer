@@ -1,201 +1,249 @@
-use std::env;
-use std::sync::LazyLock;
+//! `mazer`: compile `.zr` notes to HTML.
 
-use miette::{IntoDiagnostic, WrapErr};
+mod args;
+mod query;
+mod report;
 
-use mazer_atog::Atog;
-use mazer_html::document::{DocOutputType, Document, Metadata};
-use mazer_lisp::{environment::EnvironmentExt, interpreter::Interpreter};
-use mazer_parser::Parser;
-use mazer_types::Environment;
-use mazer_types::implfuncs::ShowFunc;
+use std::io::{self, IsTerminal, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Command as Process, ExitCode, Stdio};
 
-#[derive(Debug, Default)]
-struct Args {
-    filename: Option<String>,
-    open: bool,
-    verbose: bool,
-    help: bool,
-    help_topic: Option<String>,
-    doc_query: Option<String>,
-}
+use mazer_doc::{Diag, Options, Page, Severity, SourceMap, Target};
 
-// Global singleton for parsed arguments - initialized once on first access
-static PARSED_ARGS: LazyLock<Args> = LazyLock::new(parse);
+use args::{Command, CompileArgs, TargetArg, USAGE};
 
-fn parse() -> Args {
-    let mut args = env::args();
-    args.next(); // program name
+/// Exit code for usage and I/O errors.
+const EXIT_FATAL: u8 = 2;
 
-    let mut result = Args::default();
-    let mut seen_file = false;
-
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--query" | "-q" => {
-                let query = args.collect::<Vec<_>>().join(" ");
-                result.doc_query = Some(query);
-                return result;
-            }
-            "--open" | "-o" => result.open = true,
-            "--verbose" | "-v" => result.verbose = true,
-            "--help" | "-h" => {
-                result.help = true;
-                result.help_topic = args.next();
-                break;
-            }
-            val if val.starts_with('-') => {
-                eprintln!("Unknown flag: {val}");
-            }
-            val => {
-                if !seen_file {
-                    result.filename = Some(val.to_string());
-                    seen_file = true;
-                } else if result.help && result.help_topic.is_none() {
-                    result.help_topic = Some(val.to_string());
-                } else {
-                    eprintln!("Ignoring extra positional argument: {val}");
-                }
-            }
+fn main() -> ExitCode {
+    match args::parse(std::env::args().skip(1)) {
+        Ok(Command::Help) => stdout_or_exit(USAGE),
+        Ok(Command::Version) => stdout_or_exit(&format!("mazer {}\n", env!("CARGO_PKG_VERSION"))),
+        Ok(Command::Compile(c)) => compile_command(&c),
+        Ok(Command::Query { text, file }) => query_command(&text, file.as_deref()),
+        Err(e) => {
+            eprintln!("mazer: {e}");
+            eprintln!("Try `mazer --help` for usage.");
+            ExitCode::from(EXIT_FATAL)
         }
-    }
-
-    result
-}
-
-fn print_help_message() {
-    println!("Usage: mazer-cli <input-file> [options]");
-    println!();
-    println!("Options:");
-    println!("  --open, -o             Open the output in the default web browser");
-    println!("  --verbose, -v          Enable verbose logging");
-    println!("  --query, -q <search>   Search functions and symbols (e.g. `mazer -q real`)");
-    println!("  --help, -h             Show this help message");
-}
-
-/// Search functions and symbols, printing matches to stdout.
-fn run_doc_search(query: &str) {
-    let query_lower = query.to_lowercase();
-    // Collect all results into a unified list sorted by name
-    enum DocResult {
-        Func { name: String, doc: String, aliases: Vec<String> },
-        Symbol { name: String, symbol: String, doc: String },
-    }
-
-    let mut results: Vec<DocResult> = Vec::new();
-
-    // Gather matching functions
-    let functions = ShowFunc::all_functions();
-    for f in &functions {
-        let dominated = query.is_empty()
-            || f.names.iter().any(|n| n.to_lowercase().contains(&query_lower))
-            || f.doc.to_lowercase().contains(&query_lower)
-            || f.variant_name.to_lowercase().contains(&query_lower);
-        if dominated {
-            results.push(DocResult::Func {
-                name: f.canonical_name().to_string(),
-                doc: f.doc.to_string(),
-                aliases: f.names.iter().skip(1).map(|s| s.to_string()).collect(),
-            });
-        }
-    }
-
-    // Gather matching symbols
-    for (name, entry) in Atog::iter() {
-        let matches = query.is_empty()
-            || name.to_lowercase().contains(&query_lower)
-            || entry.doc.to_lowercase().contains(&query_lower)
-            || entry.symbol.contains(&query_lower);
-        if matches {
-            results.push(DocResult::Symbol {
-                name: name.to_string(),
-                symbol: entry.symbol.to_string(),
-                doc: entry.doc.to_string(),
-            });
-        }
-    }
-
-    results.sort_by(|a, b| {
-        let name_a = match a {
-            DocResult::Func { name, .. } | DocResult::Symbol { name, .. } => name,
-        };
-        let name_b = match b {
-            DocResult::Func { name, .. } | DocResult::Symbol { name, .. } => name,
-        };
-        name_a.to_lowercase().cmp(&name_b.to_lowercase())
-    });
-
-    if results.is_empty() {
-        eprintln!("No matches for '{query}'");
-        std::process::exit(1);
-    }
-
-    for result in &results {
-        match result {
-            DocResult::Func { name, doc, aliases } => {
-                println!("{}", name);
-                println!("  {}", doc);
-                if !aliases.is_empty() {
-                    println!("  Aliases: {}", aliases.join(", "));
-                }
-            }
-            DocResult::Symbol { name, symbol, doc } => {
-                println!("{} → {}", name, symbol);
-                println!("  {}", doc);
-            }
-        }
-        println!();
     }
 }
 
-fn main() -> miette::Result<()> {
-    // Access the global parsed args (initialized on first access)
-    let args = &*PARSED_ARGS;
-
-    // Handle `doc` subcommand
-    if let Some(ref query) = args.doc_query {
-        run_doc_search(query);
-        return Ok(());
+fn stdout_or_exit(text: &str) -> ExitCode {
+    match write_stdout(text) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => io_failure("cannot write to stdout", &e),
     }
+}
 
-    let Some(file_name) = args.filename.as_deref() else {
-        eprintln!("No input file specified.");
-        print_help_message();
-        std::process::exit(1);
+/// A closed pipe (`mazer query x | head`) is not an error.
+fn write_stdout(text: &str) -> io::Result<()> {
+    let mut out = io::stdout().lock();
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+        other => other,
+    }
+}
+
+fn io_failure(what: &str, e: &io::Error) -> ExitCode {
+    eprintln!("mazer: {what}: {e}");
+    ExitCode::from(EXIT_FATAL)
+}
+
+fn color_wanted() -> bool {
+    io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none_or(|v| v.is_empty())
+}
+
+fn read_note(path: &Path) -> Result<String, ExitCode> {
+    if is_stdin(path) {
+        return io::read_to_string(io::stdin())
+            .map_err(|e| io_failure("cannot read standard input", &e));
+    }
+    std::fs::read_to_string(path)
+        .map_err(|e| io_failure(&format!("cannot read `{}`", path.display()), &e))
+}
+
+/// The input `-` means standard input.
+fn is_stdin(path: &Path) -> bool {
+    path.as_os_str() == "-"
+}
+
+/// Whether writing to `dest` would overwrite `input`: the same file reached by
+/// another spelling (`./x`, an absolute path, `a/../x`), a symlink or a hard
+/// link. An output that does not exist yet is judged by its directory and name.
+fn same_file(input: &Path, dest: &Path) -> bool {
+    let (Ok(src_canon), Ok(src_meta)) = (std::fs::canonicalize(input), std::fs::metadata(input))
+    else {
+        return false;
+    };
+    if let Ok(dest_meta) = std::fs::metadata(dest) {
+        if std::fs::canonicalize(dest).is_ok_and(|c| c == src_canon) {
+            return true;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            return dest_meta.dev() == src_meta.dev() && dest_meta.ino() == src_meta.ino();
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (dest_meta, src_meta);
+            return false;
+        }
+    }
+    let parent = match dest.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
+    match (std::fs::canonicalize(parent), dest.file_name()) {
+        (Ok(dir), Some(name)) => dir.join(name) == src_canon,
+        _ => false,
+    }
+}
+
+const fn target_of(t: TargetArg) -> Target {
+    match t {
+        TargetArg::MathMl => Target::MathMl,
+        #[cfg(feature = "latex")]
+        TargetArg::Latex => Target::Latex,
+    }
+}
+
+/// Where the HTML goes: `Some(path)`, or `None` for stdout.
+fn output_path(c: &CompileArgs) -> Option<PathBuf> {
+    match &c.output {
+        Some(p) if p.as_os_str() == "-" => None,
+        Some(p) => Some(p.clone()),
+        None if is_stdin(&c.input) => None,
+        None => Some(c.input.with_extension("html")),
+    }
+}
+
+fn print_diags(diags: &[Diag], sources: &SourceMap, strict: bool) {
+    let color = color_wanted();
+    // In reading order, the note's own file before the embedded prelude.
+    let mut sorted: Vec<&Diag> = diags.iter().collect();
+    sorted.sort_by_key(|d| (d.span.file.0, d.span.start));
+    let mut text = String::new();
+    for d in sorted {
+        text.push_str(&report::render_diag(d, sources, color));
+        text.push_str("\n\n");
+    }
+    if let Some(line) = report::summary(diags, strict) {
+        text.push_str(&line);
+        text.push('\n');
+    }
+    // A closed stderr leaves nowhere to complain, so ignore write errors.
+    let _ = io::stderr().lock().write_all(text.as_bytes());
+}
+
+fn compile_command(c: &CompileArgs) -> ExitCode {
+    let stdin = is_stdin(&c.input);
+    let name = if stdin { "<stdin>".to_owned() } else { c.input.display().to_string() };
+    let dest = if c.check { None } else { output_path(c) };
+    if let Some(path) = &dest
+        && !stdin
+        && same_file(&c.input, path)
+    {
+        eprintln!(
+            "mazer: refusing to overwrite the input `{}` (the output `{}` is the same file); \
+             choose another output with -o",
+            c.input.display(),
+            path.display()
+        );
+        return ExitCode::from(EXIT_FATAL);
+    }
+    let src = match read_note(&c.input) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
+    let stem = if stdin {
+        "stdin".to_owned()
+    } else {
+        c.input
+            .file_stem()
+            .map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned())
+    };
+    let mut opts = Options::new(name);
+    opts.target = target_of(c.target);
+    opts.page = if c.fragment {
+        Page::Fragment
+    } else {
+        Page::Full { title: stem }
     };
 
-    let content = std::fs::read_to_string(file_name)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("failed to read input file '{file_name}'"))?;
+    // `--check` is a full compile whose HTML is thrown away, so it reports
+    // exactly what a normal run reports.
+    let out = mazer_doc::compile(&src, &mut opts);
+    print_diags(&out.diags, &out.sources, c.strict);
+    let code = exit_for(&out.diags, c.strict);
+    if c.check {
+        return code;
+    }
 
-    let o = compile(&content, file_name)?;
-
-    // write to /tmp/output.html
-    std::fs::write("/tmp/output.html", o)
-        .into_diagnostic()
-        .wrap_err("failed to write /tmp/output.html")?;
-
-    Ok(())
+    let written = match &dest {
+        None => write_stdout(&out.html).map_err(|e| ("cannot write to stdout".to_owned(), e)),
+        Some(path) => std::fs::write(path, out.html.as_bytes())
+            .map_err(|e| (format!("cannot write `{}`", path.display()), e)),
+    };
+    if let Err((what, e)) = written {
+        return io_failure(&what, &e);
+    }
+    if c.open
+        && let Some(path) = &dest
+        && let Err(e) = open_in_browser(path)
+    {
+        eprintln!("mazer: could not open `{}`: {e}", path.display());
+    }
+    code
 }
 
-fn compile(content: &str, file_name: &str) -> miette::Result<String> {
-    let p = Parser::new(content);
-    let r = p.parse()?;
-    let mut d = Document::new(r).dockind(DocOutputType::FullBody);
-    d.meta(Metadata {
-        source: file_name,
-        version: env!("CARGO_PKG_VERSION"),
-    });
-    d.build();
-
-    let ctx = Environment::new().with_native().with_prelude();
-    let frg = d.fragments();
-    let mut interp = Interpreter::new(frg, ctx);
-    interp.run()?;
-    let rst = interp.results();
-    d.inject(rst);
-    d.fmt(interp.env());
-
-    Ok(d.output())
+/// 1 when the note has errors, or warnings under `--strict`; hints never fail.
+fn exit_for(diags: &[Diag], strict: bool) -> ExitCode {
+    let fails = |d: &Diag| match d.severity {
+        Severity::Error => true,
+        Severity::Warning => strict,
+        Severity::Hint => false,
+    };
+    if diags.iter().any(fails) {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
+fn open_in_browser(path: &Path) -> io::Result<()> {
+    let program = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    Process::new(program)
+        .arg(path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+}
+
+fn query_command(text: &str, file: Option<&Path>) -> ExitCode {
+    let analysis = match file {
+        None => None,
+        Some(path) => match read_note(path) {
+            Ok(src) => Some(mazer_doc::analyze(&src, &path.display().to_string())),
+            Err(code) => return code,
+        },
+    };
+    let empty = SourceMap::new();
+    let hits = analysis.as_ref().map_or_else(
+        || query::search(text, [], &empty),
+        |a| query::search(text, a.macros.iter(), &a.sources),
+    );
+    if hits.is_empty() {
+        eprintln!("mazer: nothing matches `{text}`");
+        return ExitCode::from(1);
+    }
+    let body = hits
+        .iter()
+        .map(|h| h.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    stdout_or_exit(&body)
+}

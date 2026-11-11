@@ -1,13 +1,10 @@
 [package]
 name = "mazer-wasm"
-version = "0.0.0"
+version = "0.16.0"
 edition = "2024"
 
 [dependencies]
-mazer-parser = { path = "../mazer-parser" }
-mazer-html = { path = "../mazer-html" }
-mazer-lisp = { path = "../mazer-lisp" }
-mazer-types = { path = "../mazer-types" }
+mazer-doc = { path = "../mazer-doc" }
 wasm-bindgen = "0.2.108"
 
 [lib]
@@ -15,3 +12,6 @@ crate-type = ["cdylib"]
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
+
+[lints]
+workspace = true

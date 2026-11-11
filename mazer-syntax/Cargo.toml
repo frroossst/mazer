@@ -1,0 +1,9 @@
+[package]
+name = "mazer-syntax"
+version = "0.16.0"
+edition = "2024"
+
+[dependencies]
+
+[lints]
+workspace = true

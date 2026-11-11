@@ -1,0 +1,82 @@
+/* mazer note styles for the classes the site's stylesheet lacks, plus one
+   override it needs. Append to notes.css (adhyan.ca); rules are scoped under
+   .note like the rest.
+   - Equation, number, reference and checklist rules: the site has none.
+   - Block error boxes: the site's unscoped `.mazer-error` rule loses to
+     `.note pre` (higher specificity), so a `<pre class="mazer-error">` ends up
+     without its background and wrapping. `.note pre.mazer-error` below restores
+     the same colours (taken from the site's own `.mazer-error` rule).
+   - Checklists are matched as `.note ul.mazer-checklist > li`, direct children
+     only, so an ordinary bullet list nested inside a checklist item keeps its
+     bullets and indent, and a nested checklist still works.
+   Not tested in a browser; check a checklist with a nested bullet list, and a
+   block error box, after appending.
+   Markup produced by mazer:
+     <div class="mazer-equation"><math display="block">..</math></div>
+     <div class="mazer-equation" id="eq-x"><math display="block">..</math><span class="mazer-eqno">(1)</span></div>
+     <a class="mazer-ref" href="#eq-x">(1)</a>
+     <ul class="mazer-checklist"><li><input type="checkbox" [checked] disabled> text</li></ul>
+   The site has no CSS variables or dark mode: colours below are its literals
+   (#0066cc links, #666 muted) with a fallback to inherited/system colours. */
+
+/* Display equation: centred in the middle grid column, scrolls sideways when wide. */
+.note .mazer-equation {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin: 0.8em 0;
+    overflow-x: auto;
+    scroll-margin-top: 1rem;
+}
+.note .mazer-equation > math { grid-column: 2; grid-row: 1; }
+
+/* Equation number: right edge, same line, vertically centred, stays visible while scrolling. */
+.note .mazer-eqno {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    position: sticky;
+    right: 0;
+    padding-left: 0.75em;
+    background: Canvas;
+    color: #666;
+    user-select: text;
+    text-decoration: none;
+}
+
+/* Followed reference: faint static accent wash on the target equation. */
+.note .mazer-equation:target {
+    background-color: rgba(0, 102, 204, 0.1);
+    border-radius: 4px;
+}
+.note .mazer-equation:target .mazer-eqno { background: transparent; }
+
+/* Reference: inherits the site's link look, never wraps inside "(1)". */
+.note a.mazer-ref { white-space: nowrap; }
+
+/* Block error box: `.note pre` outranks the site's `.mazer-error`, so restore it. */
+.note pre.mazer-error {
+    color: #b00020;
+    background: #fff0f0;
+    padding: 0.5em;
+    border-radius: 4px;
+    white-space: pre-wrap;
+}
+
+/* Checklist: no bullets, list-indent of 1.5em like .note ul, box hangs beside first line.
+   Direct children only: a plain sub-list inside an item is left alone. */
+.note ul.mazer-checklist {
+    list-style: none;
+    padding-left: 1.5em;
+}
+.note ul.mazer-checklist > li { text-indent: -1.5em; padding-left: 1.5em; }
+.note ul.mazer-checklist > li > ul,
+.note ul.mazer-checklist > li > ol { text-indent: 0; }
+.note ul.mazer-checklist > li > input[type="checkbox"] {
+    width: 1em;
+    height: 1em;
+    margin: 0 0.5em 0 0;
+    vertical-align: -0.15em;
+    accent-color: #0066cc;
+    opacity: 1;
+}

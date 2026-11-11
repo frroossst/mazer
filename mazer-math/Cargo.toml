@@ -1,0 +1,15 @@
+[package]
+name = "mazer-math"
+version = "0.16.0"
+edition = "2024"
+
+[features]
+# LaTeX output. Off by default: MathML is the default target and the website
+# wasm build never enables this.
+latex = []
+
+[dependencies]
+mazer-syntax = { path = "../mazer-syntax" }
+
+[lints]
+workspace = true

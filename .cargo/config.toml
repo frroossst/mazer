@@ -1,15 +1,15 @@
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
-rustflags = ["-C", "link-arg=--ld-path=wild"]
+rustflags = ["-C", "link-arg=--ld-path=wild", "-Znext-solver=coherence"]
 
 # wasm uses rust-lld, which rejects the host's `-fuse-ld=lld`. Giving the wasm
 # target its own rustflags stops it from inheriting the `[build]` flags below.
 [target.wasm32-unknown-unknown]
-rustflags = ["-Zthreads=22"]
+rustflags = ["-Zthreads=22", "-Znext-solver=coherence"]
 
 [gc.auto]
 frequency = "never"
 
 [build]
-rustflags = ["-Zthreads=22", "-Clink-arg=-fuse-ld=lld"]
+rustflags = ["-Zthreads=22", "-Clink-arg=-fuse-ld=lld", "-Znext-solver=coherence"]
 
