@@ -527,7 +527,6 @@ fn error_boxes() {
 
 #[test]
 #[cfg(feature = "latex")]
-#[ignore = "enable after step 3 (latex emitter)"]
 fn latex_target() {
     let mut opts = Options::new("t.zr");
     opts.target = Target::Latex;

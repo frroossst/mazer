@@ -2,8 +2,8 @@
 
 Render mazer `.zr` notes **in the browser** and drop them into your own HTML
 (your blog, your CSS, your layout). The `.zr` → HTML compiler — the markdown
-parser, the Lisp interpreter, and the document builder — runs entirely as a
-WebAssembly module. A tiny JS auto-loader (`mazer.js`) does only the page
+parser, the math keyword renderer (Lisp forms to MathML), and the document
+builder — runs entirely as a WebAssembly module. A tiny JS auto-loader (`mazer.js`) does only the page
 wiring: find the blocks, fetch the files, swap in the rendered HTML.
 
 ## Build
@@ -50,9 +50,26 @@ notes stay as ordinary `.zr` files; the page inherits your site's styling.
   [Arborium](https://www.npmjs.com/package/@arborium/arborium) (from a CDN)
   after rendering. Opt out with `window.mazerHighlight = false` before the
   module loads. Math renders as native MathML and needs no script.
-- **Error isolation.** A missing file or a malformed note shows an inline error
-  box in that block only; the other blocks still render. (`run_mazer` returns an
-  error snippet instead of panicking, so a bad note can't poison the module.)
+- **Error isolation.** A missing file shows an inline error box in that block
+  only; the other blocks still render. `run_mazer` never fails and never
+  panics, so a bad note can't poison the module. A broken form inside a note
+  (a keyword with the wrong number of arguments, an unknown reference, an
+  unclosed paren, `(eval ...)`, which the website build cannot run) becomes
+  an error box for that one form, `<pre class="mazer-error">` for a display
+  and `<span class="mazer-error">` inside a sentence; the rest of the note
+  renders normally.
+- **Console diagnostics.** Every diagnostic is also written to the browser
+  console, one line each, `console.error` for errors and `console.warn` for
+  warnings and hints:
+  `mazer: <name>:<line>:<col>: <severity>[<code>]: <message>` (1-based; `<name>`
+  is the `data-mazer` path), followed by `; help: ...` when there is a
+  suggestion.
+- **Styling.** Besides the ordinary HTML elements, the output uses these
+  classes: `mazer-equation` (display equation), `mazer-eqno` (its number),
+  `mazer-ref` (a `(ref name)` link), `mazer-checklist` (a task list) and
+  `mazer-error`. [`docs/site-styles.css`](../docs/site-styles.css) has ready
+  rules for all of them except `mazer-error`; the CLI's full-page output
+  carries a small default style for `mazer-error`.
 - **Trust model.** The loader sets `innerHTML` from the compiled output. That
   output is your own first-party `.zr` content, which is exactly what you want
   rendered as HTML. Don't point `data-mazer` at `.zr` files from untrusted third

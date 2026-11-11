@@ -4,21 +4,27 @@ build:
 	cargo build
 
 clean:
-	cargo clean -p mazer-atog
+	cargo clean -p mazer-syntax
+	cargo clean -p mazer-math
+	cargo clean -p mazer-doc
 	cargo clean -p mazer-cli
+	cargo clean -p mazer-wasm
+	cargo clean -p mazer-lsp
 	cargo clean -p mazer-dbg
-	cargo clean -p mazer-html
-	cargo clean -p mazer-lisp
-	cargo clean -p mazer-parser
-	cargo clean -p mazer-render
-	cargo clean -p mazer-stdlib
-	cargo clean -p mazer-types
+
+check:
+	cargo test
+	cargo clippy --all-targets
 
 install:
 	cargo install --force --path ./mazer-cli/
 
 release:
 	cargo build --release
+
+# The CLI with LaTeX output (`mazer --target latex`).
+latex:
+	cargo build --release -p mazer-cli --features latex
 
 # Features the Rust toolchain emits that wasm-opt (v105) must be told to allow.
 WASM_OPT_FEATURES := --enable-bulk-memory --enable-sign-ext \
