@@ -1,16 +1,17 @@
-//! The mazer language server. Synchronous, over stdio, built on `lsp-server`.
+//! The `mazer-lsp` binary: the mazer language server over stdio.
 //!
-//! State is one [`mazer_doc::Analysis`] per open note, re-made by
-//! `mazer_doc::analyze` on every change (full-text sync). Every request is
-//! answered from the stored analysis plus `mazer_doc::locate`.
-//!
-//! Features, in the agreed order: diagnostics; completion (keywords, display
-//! names with their character, macros / aliases / `let` variables, labels
-//! inside `(ref ...)`, emoji shortcodes); hover; signature help. Then
-//! go-to-definition, semantic-token colouring, live preview on a local port.
-//!
-//! See `docs/ARCHITECTURE.md`, "Front ends".
+//! Everything lives in the library (`src/lib.rs`), so the feature logic can
+//! be unit-tested and the integration tests can use it directly.
 
-fn main() {
-    todo!("step 3, LSP agent")
+use std::process::ExitCode;
+
+fn main() -> ExitCode {
+    match mazer_lsp::server::run_stdio() {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(1),
+        Err(err) => {
+            eprintln!("mazer-lsp: {err}");
+            ExitCode::from(1)
+        }
+    }
 }
