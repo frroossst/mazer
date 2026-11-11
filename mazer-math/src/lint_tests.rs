@@ -118,10 +118,10 @@ fn each_occurrence_warns_once() {
 }
 
 #[test]
-fn removed_keywords_get_a_hint() {
+fn removed_keywords_get_a_warning() {
     let src = "(string w)";
     let d = only(src);
-    assert_eq!(d.severity, Severity::Hint);
+    assert_eq!(d.severity, Severity::Warning);
     assert_eq!(d.code, DiagCode::UnknownForm);
     assert_eq!(
         d.message,
@@ -135,6 +135,34 @@ fn removed_keywords_get_a_hint() {
     assert_silent("(strings w)");
     // Did-you-mean still works beside it.
     assert_eq!(only("(fracc a b)").help.as_deref(), Some("did you mean `frac`?"));
+    assert_eq!(only("(fracc a b)").severity, Severity::Hint);
+}
+
+#[test]
+fn a_constant_is_not_a_variable() {
+    let src = "(integral 0 infinity (f t) t)";
+    let d = only(src);
+    assert_eq!(d.severity, Severity::Warning);
+    assert_eq!(d.message, "the variable of `integral` should be a name, but `infinity` is a constant");
+    assert!(d.help.as_deref().unwrap().contains("the argument order changed"));
+    assert_eq!(&src[d.span.start.0 as usize..d.span.end.0 as usize], "infinity");
+    assert_eq!(diags_of("(integral (- infinity) infinity (f t) t)").len(), 1);
+    for name in ["emptyset", "reals", "Reals", "naturals", "integers", "rationals", "Complex", "complexes"] {
+        let d = only(&format!("(sum (f i) {name} 1 n)"));
+        assert_eq!(d.message, format!("the variable of `sum` should be a name, but `{name}` is a constant"));
+    }
+    assert!(only("(dd f infinity)").message.contains("`infinity` is a constant"));
+    assert!(only("(lim infinity 0 (f x))").message.contains("`infinity` is a constant"));
+}
+
+#[test]
+fn names_that_can_vary_stay_silent() {
+    assert_silent("(integral (f t) t 0 infinity)");
+    assert_silent("(integral (f t) t (- infinity) infinity)");
+    assert_silent("(integral (f theta) theta)");
+    assert_silent("(integral (f hbar) hbar)");
+    assert_silent("(lim x infinity (f x))");
+    assert_silent("(sum (f i) i 0 infinity)");
 }
 
 #[test]
