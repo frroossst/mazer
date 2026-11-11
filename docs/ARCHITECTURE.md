@@ -180,7 +180,7 @@ pub enum Class { Letter /* <mi> */, Operator /* <mo>, spaced */ }
 - Keyword definitions live in `mazer-math/src/keywords/{algebra,calculus,notation}.rs`; each file exposes `keywords() -> Vec<Keyword>`.
 - Binding: required parameters first, extra arguments fill optionals left to right; wrong count is a diagnostic and the emitter is not called.
 - `expr` dispatch: Number -> `<mn>`; Ident -> display table, else itself; List headed by a keyword -> that emitter.
-- List headed by a non-keyword is **function application**: `(gen (Gamma) tau)` -> gen(Γ, τ); zero arguments, e.g. `(Gamma)`, renders just the variable. Head one typo from a keyword adds a did-you-mean warning.
+- List headed by a non-keyword is **function application**: `(gen (Gamma) tau)` -> gen(Γ, τ); zero arguments, e.g. `(Gamma)`, renders just the variable. Head one typo from a keyword adds a did-you-mean hint (see decision 6 of step 1).
 - `Latex` mirrors `MathMl` method names where they make sense.
 - The built-in display-name table must be comprehensive (`hbar` and other common physics/math names). Notes add rare extras with `alias`.
 - Tests: `rest` is last, optionals after required, no duplicate names, no keyword/display-name clash, every keyword has an example that renders without diagnostics; a report lists keywords and display names lacking LaTeX.
@@ -343,6 +343,18 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
     - checklist item: `<li><input type="checkbox" disabled> text</li>` (`checked disabled` when ticked); a list of only checklist items is `<ul class="mazer-checklist">`.
 11. Dangerous URL schemes are neutralised. A link or image whose URL, trimmed, ASCII-lowercased and without ASCII whitespace and control characters, starts with `javascript:`, `vbscript:` or `data:` (except `data:image/` for an image) is written as its plain text (link) or alt text (image) with no `href`/`src`, and `render` reports one `Other` warning per occurrence at the link or image. `analyze` does not report it, so the LSP does not see it.
 
+### Decisions made during step 3
+
+1. **`--check`** is `compile` with the HTML thrown away: it prints the same diagnostics, deduplicated the same way, as a real compile of the same note (including the render-time ones: dangerous URLs, `(eval ...)` without an evaluator). It writes no file, and cannot be combined with `-o` or `--open`.
+2. **`--strict`** makes warnings fail the run too, with or without `--check`; hints never fail it. The summary line then says so.
+3. **Exit codes:** 0 success (warnings and hints do not fail); 1 the note has errors (the HTML is still written) or, under `--strict`, warnings; 2 usage or I/O error, including an output that is the same file as the input (found by canonical path, and on Unix by device and inode, so `./x.zr`, an absolute path, `a/../x.zr`, a symlink and a hard link are all refused). `query` exits 1 when nothing matches.
+4. **Summary line:** printed whenever anything at all was reported, counting hints too (`1 error, 2 warnings, 1 hint`; zero counts are left out).
+5. **Column conventions.** The CLI and the wasm console line report 1-based **character** columns. The LSP reports **UTF-16** units, as its protocol requires. Spans themselves are **byte** offsets. Never mix them: a column is converted from a span's byte offset at the edge.
+6. **LaTeX target scope.** `--target latex` changes only how math is emitted: `\( ... \)` inline and `\[ ... \]` for a display equation (no `\displaystyle` is added to inline math), inside the same HTML as before. A full page does not load a TeX renderer; whole-document `.tex` output is not built.
+7. **Editor scope of `let`.** A binding is in scope from the END of its `let` form, so a use inside the `let`'s own value sees the previous binding, and completion, hover and go-to-definition follow that rule.
+8. **Completion of reserved heads.** The reserved words (`show`, `eval`, `let`, `alias`, `macro`, and `tag` first in a `show`) are offered only at the head of a top-level form, never at the head of a nested list, where nesting them is an error.
+9. **Diagnostics printing** hands `annotate-snippets` only the lines a diagnostic's spans cover plus one line of context each side (with the real starting line number), so printing costs time proportional to the lines shown, not to the file.
+
 ### Helper APIs in the skeleton
 
 - `mazer_syntax::reader::{read_form, read_str}`: read one form at an offset (returns a `Read`), or read a whole string as one `Node`.
@@ -357,10 +369,10 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 - **wasm:** `run_mazer(content: &str, window_name: &str) -> String` keeps its exact signature so `mazer.js` and adhyan.ca need no edits. Body is `compile(...)` with `Target::MathMl`, `Page::Fragment`, no evaluator. Diagnostics also go to the browser console.
 - **CLI** (binary named `mazer`), hand-written argument parsing, diagnostics via `annotate-snippets`:
   ```
-  mazer <file.zr>  [-o|--output <path>] [--open] [--fragment] [--target latex] [--check]
-  mazer query <text>
+  mazer <file.zr | ->  [-o|--output <path>] [--open] [--fragment] [--target latex] [--check] [--strict]
+  mazer query <text...> [--file <note.zr>]
   ```
-  Default output is `<name>.html` next to the input. `--check` runs `analyze` only and exits 1 on errors. `query` searches keywords, display names and macros.
+  Default output is `<name>.html` next to the input (stdout for the input `-`, which is standard input and is named `<stdin>`). `--check` compiles exactly as a normal run does, prints every diagnostic that run would print, and writes nothing. `--strict` makes warnings fail the run as well. The output may never be the same file as the input. `query` searches keywords, display names and, with `--file`, that note's macros and aliases.
 - **LSP** (`mazer-lsp`, on `lsp-server`, stdio, full-text sync, editor: Neovim with a small Lua snippet):
   ```rust
   struct Server { connection: lsp_server::Connection, open: HashMap<Url, OpenNote> }
