@@ -55,6 +55,29 @@ fn stdlib_is_clean() {
 }
 
 #[test]
+fn prelude_definitions_are_visible_in_every_note() {
+    let prelude = Prelude::read("(alias RR (paren RR))\n\n(macro (half x) \"Half.\" (frac x 2))");
+    assert!(prelude.diags.is_empty(), "{:?}", prelude.diags);
+    let analysis = analyze_with("(show (half RR))", "t.zr", &prelude);
+    assert!(analysis.diags.is_empty(), "{:?}", analysis.diags);
+    assert_eq!(resolved_forms(&analysis), ["(show (frac (paren RR) 2))"]);
+    let half = analysis.macros.get(Sym::new("half")).unwrap();
+    assert_eq!(half.span.file, FileId(1));
+    assert_eq!(analysis.sources.text(half.span), "(macro (half x) \"Half.\" (frac x 2))");
+    // A note may not redefine a prelude name; the diagnostic points at both.
+    let analysis = analyze_with("(alias RR x)", "t.zr", &prelude);
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::DuplicateDefinition]);
+    let diag = &analysis.diags.as_slice()[0];
+    assert_eq!(diag.span.file, FileId(0));
+    assert_eq!(diag.labels[0].0.file, FileId(1));
+    // A broken prelude reports on file 1, once per note.
+    let broken = Prelude::read("(alias sin x)");
+    let analysis = analyze_with("hi", "t.zr", &broken);
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::ShadowsBuiltin]);
+    assert_eq!(analysis.diags.as_slice()[0].span.file, FileId(1));
+}
+
+#[test]
 fn diagnostics_are_reported_once() {
     let out = compile("(show (frac a))\n\nInline (show (frac b)) too.", &mut Options::new("t.zr"));
     assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::Arity]);

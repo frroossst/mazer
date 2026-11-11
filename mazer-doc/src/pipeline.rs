@@ -137,11 +137,15 @@ pub struct Analysis {
 /// written.
 #[must_use]
 pub fn analyze(src: &str, name: &str) -> Analysis {
+    analyze_with(src, name, &PRELUDE)
+}
+
+/// [`analyze`] with a given prelude (tests use their own).
+fn analyze_with(src: &str, name: &str, prelude: &Prelude) -> Analysis {
     let mut sources = SourceMap::new();
     let file = sources.add(name.to_owned(), src.to_owned());
-    sources.add("stdlib.zr".to_owned(), STDLIB.to_owned());
+    sources.add("stdlib.zr".to_owned(), prelude.text.to_owned());
 
-    let prelude = &*PRELUDE;
     let mut diags = prelude.diags.clone();
     let written = markdown::parse(src, file, &mut diags);
 
@@ -171,19 +175,25 @@ pub fn analyze(src: &str, name: &str) -> Analysis {
     }
 }
 
-/// The embedded prelude, read once per process.
+/// A prelude, read as file 1: its definitions, and any problems with it.
 struct Prelude {
+    text: &'static str,
     macros: Macros,
     diags: Diags,
 }
 
-static PRELUDE: LazyLock<Prelude> = LazyLock::new(|| {
-    let mut diags = Diags::new();
-    let doc = markdown::parse(STDLIB, FileId(1), &mut diags);
-    let mut macros = Macros::new();
-    collect_macros(&doc, &mut macros, &mut diags);
-    Prelude { macros, diags }
-});
+impl Prelude {
+    fn read(text: &'static str) -> Self {
+        let mut diags = Diags::new();
+        let doc = markdown::parse(text, FileId(1), &mut diags);
+        let mut macros = Macros::new();
+        collect_macros(&doc, &mut macros, &mut diags);
+        Self { text, macros, diags }
+    }
+}
+
+/// The embedded prelude, read once per process.
+static PRELUDE: LazyLock<Prelude> = LazyLock::new(|| Prelude::read(STDLIB));
 
 /// The expressions a form puts on the page (or hands to the evaluator): the
 /// items of a `show` after an optional leading tag, the arguments of an
