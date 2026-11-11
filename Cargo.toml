@@ -15,6 +15,29 @@ members = [
     "mazer-types",
     "mazer-wasm",
     "mazer-units",
+    # --- rewrite (see docs/ARCHITECTURE.md) ---
+    "mazer-syntax",
+    "mazer-math",
+    "mazer-doc",
+    "mazer-lsp",
+]
+# Plain `cargo build` / `cargo test` skip mazer-dbg (egui); build it with `-p mazer-dbg`.
+default-members = [
+    "mazer-atog",
+    "mazer-cli",
+    "mazer-html",
+    "mazer-lisp",
+    "mazer-macros",
+    "mazer-parser",
+    "mazer-render",
+    "mazer-stdlib",
+    "mazer-types",
+    "mazer-wasm",
+    "mazer-units",
+    "mazer-syntax",
+    "mazer-math",
+    "mazer-doc",
+    "mazer-lsp",
 ]
 resolver = "3"
 

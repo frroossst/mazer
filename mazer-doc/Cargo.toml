@@ -1,0 +1,14 @@
+[package]
+name = "mazer-doc"
+version = "0.16.0"
+edition = "2024"
+
+[features]
+latex = ["mazer-math/latex"]
+
+[dependencies]
+mazer-syntax = { path = "../mazer-syntax" }
+mazer-math = { path = "../mazer-math" }
+
+[lints]
+workspace = true

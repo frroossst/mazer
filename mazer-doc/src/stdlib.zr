@@ -1,0 +1,2 @@
+; The mazer prelude. Embedded in the binary and parsed once per process.
+; Only `alias` and `macro` definitions belong here; they apply to every note.
