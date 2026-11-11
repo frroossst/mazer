@@ -47,7 +47,8 @@ pub fn keywords() -> Vec<Keyword> {
         Keyword::new(
             "/",
             "Division. Two arguments are written as a fraction, one argument as 1 over it, \
-             and three or more are joined by `÷` and group to the left.",
+             and three or more are joined by `÷` and group to the left. With none it is the \
+             `÷` sign itself.",
             divide,
         )
         .alias("div")
@@ -91,7 +92,8 @@ pub fn keywords() -> Vec<Keyword> {
         Keyword::new(
             "jux",
             "Juxtaposition: the arguments written side by side with a thin space, as in implicit \
-             multiplication. With one argument it shows just that argument.",
+             multiplication. With one argument it shows just that argument; with none, \
+             nothing is written (there is no sign).",
             |call, out| out.juxtapose(call.rest()),
         )
         .alias("juxtapose")
@@ -101,8 +103,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(juxtapose f (paren x))"),
         Keyword::new(
             "=",
-            "Equality: the arguments joined by `=`, so `(= a b c)` is a chain. With none it is \
-             the `=` sign itself.",
+            "Equality: the arguments joined by `=`, so `(= a b c)` is a chain. With one argument \
+             it shows just that argument; with none it is the `=` sign itself.",
             |call, out| nary("=", "=", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("eq")
@@ -120,7 +122,7 @@ pub fn keywords() -> Vec<Keyword> {
         .sign("\u{2260}")
         .example("(!= a b)")
         .example("(neq x 0)"),
-        Keyword::new("<", "Less than: the arguments joined by `<`, so `(< a b c)` is a chain.", |call, out| {
+        Keyword::new("<", "Less than: the arguments joined by `<`, so `(< a b c)` is a chain. With one argument it shows just that argument; with none, the `<` sign.", |call, out| {
             nary("<", "<", Prec::Relation, Assoc::Neither, call, out);
         })
         .alias("lt")
@@ -128,7 +130,7 @@ pub fn keywords() -> Vec<Keyword> {
         .sign("<")
         .example("(< a b)")
         .example("(lt 0 x 1)"),
-        Keyword::new(">", "Greater than: the arguments joined by `>`, so `(> a b c)` is a chain.", |call, out| {
+        Keyword::new(">", "Greater than: the arguments joined by `>`, so `(> a b c)` is a chain. With one argument it shows just that argument; with none, the `>` sign.", |call, out| {
             nary(">", ">", Prec::Relation, Assoc::Neither, call, out);
         })
         .alias("gt")
@@ -138,7 +140,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(gt x 0)"),
         Keyword::new(
             "<=",
-            "Less than or equal: the arguments joined by `≤`, so `(<= a b c)` is a chain.",
+            "Less than or equal: the arguments joined by `≤`, so `(<= a b c)` is a chain. With one \
+             argument it shows just that argument; with none, the `≤` sign.",
             |call, out| nary("\u{2264}", "\u{2264}", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("leq")
@@ -148,7 +151,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(leq 0 x 1)"),
         Keyword::new(
             ">=",
-            "Greater than or equal: the arguments joined by `≥`, so `(>= a b c)` is a chain.",
+            "Greater than or equal: the arguments joined by `≥`, so `(>= a b c)` is a chain. With \
+             one argument it shows just that argument; with none, the `≥` sign.",
             |call, out| nary("\u{2265}", "\u{2265}", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("geq")
@@ -211,7 +215,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(superset (set a b) (set a))"),
         Keyword::new(
             "union",
-            "Union: the sets joined by `∪`. With none it is the `∪` sign itself.",
+            "Union: the sets joined by `∪`. With one set it shows just that set; with none it is \
+             the `∪` sign itself.",
             |call, out| nary("\u{222a}", "\u{222a}", Prec::Additive, Assoc::Both, call, out),
         )
         .rest("sets", "The sets to unite.")
@@ -220,7 +225,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(union A B C)"),
         Keyword::new(
             "intersect",
-            "Intersection: the sets joined by `∩`. With none it is the `∩` sign itself.",
+            "Intersection: the sets joined by `∩`. With one set it shows just that set; with none \
+             it is the `∩` sign itself.",
             |call, out| nary("\u{2229}", "\u{2229}", Prec::Multiplicative, Assoc::Both, call, out),
         )
         .rest("sets", "The sets to intersect.")
@@ -229,7 +235,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(intersect A (union B C))"),
         Keyword::new(
             "and",
-            "Logical and: the statements joined by `∧`. With none it is the `∧` sign itself.",
+            "Logical and: the statements joined by `∧`. With one statement it shows just that \
+             statement; with none it is the `∧` sign itself.",
             |call, out| nary("\u{2227}", "\u{2227}", Prec::And, Assoc::Both, call, out),
         )
         .rest("statements", "The statements that all hold.")
@@ -238,7 +245,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(and p (or q r) s)"),
         Keyword::new(
             "or",
-            "Logical or: the statements joined by `∨`. With none it is the `∨` sign itself.",
+            "Logical or: the statements joined by `∨`. With one statement it shows just that \
+             statement; with none it is the `∨` sign itself.",
             |call, out| nary("\u{2228}", "\u{2228}", Prec::Or, Assoc::Both, call, out),
         )
         .rest("statements", "The statements of which at least one holds.")

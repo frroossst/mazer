@@ -112,14 +112,16 @@ pub fn keywords() -> Vec<Keyword> {
             prime,
         )
         .param("x", "The expression to prime.")
-        .optional("count", "How many primes; defaults to 1.")
+        .optional("count", "How many primes; defaults to 1. A count of 0 shows `x` unchanged.")
+        .sign("′")
         .example("(prime f)")
         .example("(prime f 2)")
         .example("(prime f n)"),
         Keyword::new(
             "funcapp",
             "Applies any expression as a function: `(funcapp f x y)` shows f(x, y). With only \
-             the head, `(funcapp f)` shows just f.",
+             the head, `(funcapp f)` shows just f, and a head that is a sum or other compound \
+             expression keeps its own parentheses where the context needs them.",
             |call, out| out.application(call.req(0), call.rest()),
         )
         .alias("fapp")
@@ -182,15 +184,21 @@ pub fn keywords() -> Vec<Keyword> {
             "ty-judge",
             "An inference rule: the premises above a bar, the conclusion below, and the rule \
              name to the right: `(ty-judge T-Var (premise ...) conclusion)`. The premises are a \
-             list, or a single expression.",
+             parenthesised list, each premise itself an expression, e.g. `((in x S) (= a b))`. A \
+             list argument is always read as a list of premises, so a single premise must still \
+             be wrapped: `(ty-judge T-Var ((in x S)) c)`.",
             ty_judge,
         )
         .alias("ty-judgement")
         .param("name", "The rule name, shown upright to the right of the bar.")
-        .param("premises", "A list of the premises, shown side by side above the bar.")
+        .param(
+            "premises",
+            "A parenthesised list of premises, each an expression, shown side by side above the bar; wrap a single premise too: `((in x S))`.",
+        )
         .param("conclusion", "The conclusion, below the bar.")
         .example("(ty-judge T-Var ((subscript x i)) (+ x y))")
-        .example("(ty-judge \"T-App\" ((+ a b) (+ c d)) (frac a b))"),
+        .example("(ty-judge \"T-App\" ((+ a b) (+ c d)) (frac a b))")
+        .example("(ty-judge T-In ((in x S)) (= x x))"),
         // --- Font variants --------------------------------------------------
         Keyword::new("bb", "Blackboard bold (double-struck) letters: `(bb R)` shows ℝ.", |call, out| {
             font(call, out, Font::DoubleStruck);
@@ -247,6 +255,26 @@ pub(crate) fn precedence(name: &str, args: usize) -> Option<Prec> {
     }
 }
 
+/// The argument that a call of the keyword `name` renders as, when the call
+/// adds nothing of its own, so a parent treats the call exactly as it treats
+/// that argument: `quote`, a font variant (a styled sum is still a sum),
+/// `funcapp` with only a head, and `prime` with a count of 0.
+pub(crate) fn see_through<'a>(name: &str, args: &'a [Node]) -> Option<&'a Node> {
+    match (name, args) {
+        ("quote" | "bb" | "cal" | "frak" | "bold" | "rm" | "funcapp", [x]) => Some(x),
+        ("prime", [x, count]) if plain_count(count) == Some(0) => Some(x),
+        _ => None,
+    }
+}
+
+/// The count of a `prime` as a small plain number, if it is one.
+fn plain_count(count: &Node) -> Option<usize> {
+    match &count.kind {
+        NodeKind::Number(text) => text.parse::<usize>().ok().filter(|&n| n <= MAX_PRIMES),
+        _ => None,
+    }
+}
+
 /// `(text w ...)`: the words of every argument, single-spaced, in one `<mtext>`.
 fn text(call: &Call<'_>, out: &mut MathMl<'_>) {
     let mut words: Vec<String> = Vec::new();
@@ -281,13 +309,9 @@ fn prime(call: &Call<'_>, out: &mut MathMl<'_>) {
         });
         return;
     };
-    let plain = match &count.kind {
-        NodeKind::Number(text) => text.parse::<usize>().ok().filter(|&n| n <= MAX_PRIMES),
-        _ => None,
-    };
-    match plain {
-        // No primes at all: just the operand.
-        Some(0) => out.operand(x, Prec::Postfix),
+    match plain_count(count) {
+        // No primes at all: just the operand, exactly as if `prime` were not there.
+        Some(0) => out.expr(x),
         Some(n) => out.tag("msup", |o| {
             o.operand(x, Prec::Postfix);
             o.mo(&"′".repeat(n));

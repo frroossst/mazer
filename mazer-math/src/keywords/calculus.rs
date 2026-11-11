@@ -15,8 +15,8 @@ pub fn keywords() -> Vec<Keyword> {
         Keyword::new(
             "integral",
             "An integral of `body` with respect to `var`. With `lower` and `upper` it is a \
-             definite integral; with only `lower`, that is written underneath, as for an \
-             integral over a region.",
+             definite integral; with only `lower`, that is written as a subscript on the \
+             ∫, as for an integral over a region.",
             integral,
         )
         .param("body", "The integrand.")
@@ -104,15 +104,16 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(dd x t 2)"),
         Keyword::new(
             "evalat",
-            "Evaluated at: `body` followed by a vertical bar with the point underneath. With two \
-             arguments after `body` the first is a variable and the second its value, shown as \
-             `var = value`; with none the bar has nothing under it.",
+            "Evaluated at: `body` followed by a vertical bar with the point underneath. Written \
+             `(evalat body [at] [value])`: with one argument after `body` that is the point; with \
+             two the first is a variable and the second its value, shown as `var = value`; with \
+             none the bar has nothing under it.",
             evalat,
         )
         .alias("eval-at")
         .param("body", "The expression being evaluated.")
-        .optional("at", "The point, or the variable when `value` is also given.")
-        .optional("value", "The value of the variable.")
+        .optional("at", "With one argument after `body`: the point. With two: the variable.")
+        .optional("value", "The value of the variable, when a variable is given.")
         .example("(evalat f x 0)")
         .example("(eval-at (frac 1 x) 2)")
         .example("(evalat f)"),
@@ -129,21 +130,21 @@ pub fn keywords() -> Vec<Keyword> {
         named("sec", "The secant function: `(sec x)` shows sec(x).", "The angle.", "(sec x)", "(sec (+ x t))"),
         named("cosec", "The cosecant function: `(cosec x)` shows cosec(x).", "The angle.", "(cosec x)", "(csc (+ x t))")
             .alias("csc"),
-        named("arcsin", "The inverse sine, written sin⁻¹(x).", "The value.", "(arcsin x)", "(asin (frac x 2))")
+        named("arcsin", "The inverse sine: `(arcsin x)` shows sin⁻¹(x); written on its own, `arcsin` shows the name arcsin.", "The value.", "(arcsin x)", "(asin (frac x 2))")
             .alias("asin"),
-        named("arccos", "The inverse cosine, written cos⁻¹(x).", "The value.", "(arccos x)", "(acos (frac x 2))")
+        named("arccos", "The inverse cosine: `(arccos x)` shows cos⁻¹(x); written on its own, `arccos` shows the name arccos.", "The value.", "(arccos x)", "(acos (frac x 2))")
             .alias("acos"),
-        named("arctan", "The inverse tangent, written tan⁻¹(x).", "The value.", "(arctan x)", "(atan (frac x 2))")
+        named("arctan", "The inverse tangent: `(arctan x)` shows tan⁻¹(x); written on its own, `arctan` shows the name arctan.", "The value.", "(arctan x)", "(atan (frac x 2))")
             .alias("atan"),
         named("ln", "The natural logarithm: `(ln x)` shows ln(x).", "The argument.", "(ln x)", "(ln (+ x 1))"),
         Keyword::new(
             "log",
-            "A logarithm: `(log x)` shows log(x). With two arguments the first is the base, \
+            "A logarithm: `(log a)` shows log(a). With two arguments the first is the base, \
              written as a subscript: `(log 2 x)` shows log₂(x).",
             log,
         )
-        .param("x", "The argument; when a second argument is given, this is the base instead.")
-        .optional("arg", "The argument, when the first argument is the base.")
+        .param("a", "With one argument: the argument of the logarithm. With two: the base.")
+        .optional("b", "The argument of the logarithm, when a base is given.")
         .sign("log")
         .example("(log x)")
         .example("(log 2 x)"),
@@ -181,7 +182,8 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(ceil (frac n 2))"),
         Keyword::new(
             "fact",
-            "The factorial: `(fact n)` shows n!. A compound argument is parenthesised.",
+            "The factorial: `(fact n)` shows n!. A compound argument is parenthesised, including \
+             another factorial: `(fact (fact n))` shows (n!)!, not the double factorial n!!.",
             |call, out| out.postfix("!", call.req(0)),
         )
         .alias("factorial")
@@ -671,8 +673,10 @@ mod tests {
         assert_eq!(visible("(csc x)"), "cosec(x)");
         assert_eq!(mathml("cos"), "<mo>cos</mo>");
         assert_eq!(mathml("cosec"), "<mo>cosec</mo>");
-        let (_, diags) = render("(cos)");
-        assert_eq!(diags.as_slice()[0].message, "`cos` is missing its `x` argument");
+        // No arguments is the bare name; too many is an error.
+        assert_eq!(mathml("(cos)"), "<mo>cos</mo>");
+        let (_, diags) = render("(cos x y)");
+        assert_eq!(diags.as_slice()[0].code, mazer_syntax::DiagCode::Arity);
     }
 
     #[test]
@@ -736,7 +740,7 @@ mod tests {
         assert_eq!(mathml("(fact n)"), "<mrow><mi>n</mi><mo>!</mo></mrow>");
         assert_eq!(mathml("(factorial n)"), "<mrow><mi>n</mi><mo>!</mo></mrow>");
         assert_eq!(visible("(fact (+ n 1))"), "(n+1)!");
-        assert_eq!(visible("(fact (fact n))"), "n!!");
+        assert_eq!(visible("(fact (fact n))"), "(n!)!");
         assert_eq!(mathml("fact"), "<mo>!</mo>");
         assert_eq!(mathml("factorial"), "<mo>!</mo>");
     }
