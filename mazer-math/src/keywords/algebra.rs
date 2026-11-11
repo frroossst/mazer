@@ -2,7 +2,7 @@
 
 use crate::call::Call;
 use crate::keyword::Keyword;
-use crate::mathml::{MathMl, Prec};
+use crate::mathml::{Assoc, MathMl, Prec};
 
 #[must_use]
 pub fn keywords() -> Vec<Keyword> {
@@ -42,6 +42,7 @@ pub(crate) fn precedence(name: &str, args: usize) -> Option<Prec> {
         // `(+)` is just the sign: an atom.
         ("+", 1) => Some(Prec::Prefix),
         ("+", 2..) => Some(Prec::Additive),
+        ("frac", _) => Some(Prec::Fraction),
         _ => None,
     }
 }
@@ -49,11 +50,8 @@ pub(crate) fn precedence(name: &str, args: usize) -> Option<Prec> {
 fn add(call: &Call<'_>, out: &mut MathMl<'_>) {
     match call.rest() {
         [] => out.mo("+"),
-        [term] => out.row(|o| {
-            o.mo("+");
-            o.operand(term, Prec::Prefix);
-        }),
-        terms => out.infix("+", Prec::Additive, terms),
+        [term] => out.prefix("+", term, Prec::BigOp),
+        terms => out.infix("+", Prec::Additive, Assoc::Both, terms),
     }
 }
 
@@ -77,15 +75,29 @@ mod tests {
             mathml("(+ a (+ b c))"),
             "<mrow><mi>a</mi><mo>+</mo><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow></mrow>"
         );
-        // ... but a sum under a unary plus needs them, and a negative number
-        // is written with a real minus sign.
+        // ... but a sum under a unary plus needs them.
         assert_eq!(
             mathml("(+ (+ a b))"),
             "<mrow><mo>+</mo><mrow><mo>(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo>)</mo></mrow></mrow>"
         );
+        // A negative number after `+` is parenthesised so that two signs
+        // never touch; at the start it needs none.
         assert_eq!(
             mathml("(+ a -2)"),
-            "<mrow><mi>a</mi><mo>+</mo><mrow><mo>\u{2212}</mo><mn>2</mn></mrow></mrow>"
+            "<mrow><mi>a</mi><mo>+</mo><mrow><mo>(</mo><mrow><mo>\u{2212}</mo><mn>2</mn></mrow><mo>)</mo></mrow></mrow>"
+        );
+        assert_eq!(
+            mathml("(+ -2 a)"),
+            "<mrow><mrow><mo>\u{2212}</mo><mn>2</mn></mrow><mo>+</mo><mi>a</mi></mrow>"
+        );
+        // Unary plus of something signed.
+        assert_eq!(
+            mathml("(+ -2)"),
+            "<mrow><mo>+</mo><mrow><mo>(</mo><mrow><mo>\u{2212}</mo><mn>2</mn></mrow><mo>)</mo></mrow></mrow>"
+        );
+        assert_eq!(
+            mathml("(+ (+ a))"),
+            "<mrow><mo>+</mo><mrow><mo>(</mo><mrow><mo>+</mo><mi>a</mi></mrow><mo>)</mo></mrow></mrow>"
         );
     }
 

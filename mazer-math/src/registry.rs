@@ -49,14 +49,24 @@ impl Registry {
     }
 
     /// The keyword name closest to `name`, if one is within a small edit
-    /// distance. Used for did-you-mean on a list head that is not a keyword.
+    /// distance. Used for did-you-mean on a list head that is not a keyword;
+    /// the result is only ever a hint, since the name may be deliberate.
     ///
     /// The distance is counted in characters, and swapping two neighbouring
-    /// characters counts as one edit. How many edits are allowed grows with
-    /// the length of `name` (see [`max_distance`]): short names such as `f`,
-    /// `min` or `sup` are almost always deliberate variables and would
-    /// otherwise be "one typo" from `+`, `sin` or `sum`. A name that merely
-    /// extends a keyword (`sinh` from `sin`) is also taken to be deliberate.
+    /// characters counts as one edit. A candidate must:
+    /// - be within the number of edits allowed for the length of `name` (see
+    ///   [`max_distance`]): short names such as `f`, `min` or `sup` are almost
+    ///   always deliberate variables and would otherwise be "one typo" from
+    ///   `+`, `sin` or `sum`, so names of three characters or fewer get no
+    ///   suggestion at all;
+    /// - start with the same character as `name`: typos rarely hit the first
+    ///   letter, and deliberate names such as `fold` or `trace` differ from
+    ///   `bold` or `brace` exactly there;
+    /// - not be a prefix of `name`, since `sinh` from `sin` or `arcsinh` from
+    ///   `arcsin` is a different name, not a typo. The one exception is a
+    ///   keyword of four or more characters whose last character is typed
+    ///   twice: `fracc`, `integrall`.
+    ///
     /// A name that is itself a keyword gets no suggestion. Ties go to the
     /// keyword registered first.
     #[must_use]
@@ -65,9 +75,10 @@ impl Registry {
         if limit == 0 || self.get(Sym::new(name)).is_some() {
             return None;
         }
+        let first = name.chars().next();
         let mut best: Option<(usize, &'static str)> = None;
         for candidate in self.keywords.iter().flat_map(Keyword::names) {
-            if name.starts_with(candidate) {
+            if candidate.chars().next() != first || (name.starts_with(candidate) && !is_doubled_end(name, candidate)) {
                 continue;
             }
             let d = edit_distance(name, candidate);
@@ -77,6 +88,16 @@ impl Registry {
         }
         best.map(|(_, candidate)| candidate)
     }
+}
+
+/// Whether `name` is `keyword` with its last character typed once more
+/// (`fracc` for `frac`), for a keyword of at least four characters.
+fn is_doubled_end(name: &str, keyword: &str) -> bool {
+    let Some(extra) = name.strip_prefix(keyword) else {
+        return false;
+    };
+    let mut extra = extra.chars();
+    keyword.chars().count() >= 4 && extra.next() == keyword.chars().last() && extra.next().is_none()
 }
 
 /// How many edits [`Registry::suggest`] allows for a name of `len` characters.
@@ -139,6 +160,12 @@ static REGISTRY: LazyLock<Registry> = LazyLock::new(|| {
 /// The global keyword registry.
 #[must_use]
 pub fn registry() -> &'static Registry {
+    // Tests of the parenthesis rules render with stand-ins for keywords that
+    // do not exist yet; see `testing::with_standins`.
+    #[cfg(test)]
+    if let Some(registry) = crate::testing::active_registry() {
+        return registry;
+    }
     &REGISTRY
 }
 
@@ -171,7 +198,6 @@ mod tests {
         assert_eq!(r.suggest("intgral"), Some("integral"));
         assert_eq!(r.suggest("intergal"), Some("integral"));
         assert_eq!(r.suggest("farc"), Some("frac"));
-        assert_eq!(r.suggest("Frac"), Some("frac"));
         assert_eq!(r.suggest("subscrpt"), Some("subscript"));
         assert_eq!(r.suggest("subscirpt"), Some("subscript"));
         // A keyword itself, and names that are clearly not typos.
@@ -181,9 +207,63 @@ mod tests {
         for name in ["f", "x", "+x", "sni", "min"] {
             assert_eq!(r.suggest(name), None, "{name}");
         }
-        // A name extending a keyword is deliberate.
+        // The first character must match, case included.
+        assert_eq!(r.suggest("Frac"), None);
+        assert_eq!(r.suggest("drac"), None);
+        // A name extending a keyword is deliberate ...
         assert_eq!(r.suggest("sinh"), None);
         assert_eq!(r.suggest("fracs"), None);
+        assert_eq!(r.suggest("fractal"), None);
+        // ... unless it only doubles the last letter of a long enough keyword.
+        assert_eq!(r.suggest("fracc"), Some("frac"));
+        assert_eq!(r.suggest("integrall"), Some("integral"));
+        assert_eq!(r.suggest("sinn"), None, "`sin` is too short");
+    }
+
+    /// The same rules against the whole planned inventory, which is where
+    /// deliberate names collide with keywords.
+    #[test]
+    fn suggest_against_the_planned_inventory() {
+        let r = Registry::from_keywords(
+            crate::testing::PLANNED_KEYWORDS
+                .iter()
+                .map(|&name| Keyword::new(name, "T.", noop))
+                .collect(),
+        );
+        // Deliberate names that are one edit from a keyword but start with a
+        // different letter: no suggestion.
+        assert_eq!(r.suggest("fold"), None, "bold");
+        assert_eq!(r.suggest("trace"), None, "brace");
+        // Deliberate names that pass every rule still get a suggestion. It is
+        // only a hint, and the note can silence it by renaming.
+        for (name, keyword) in [
+            ("cons", "cos"),
+            ("subst", "subset"),
+            ("case", "cases"),
+            ("proj", "prod"),
+            ("pred", "prod"),
+            ("prob", "prod"),
+            ("spin", "sin"),
+            ("sign", "sin"),
+            ("sort", "sqrt"),
+            ("test", "text"),
+        ] {
+            assert_eq!(r.suggest(name), Some(keyword), "{name}");
+        }
+        // Hyperbolic functions extend a keyword: deliberate.
+        for name in ["sinh", "cosh", "tanh", "coth", "sech", "csch", "arcsinh", "arccosh", "arctanh"] {
+            assert_eq!(r.suggest(name), None, "{name}");
+        }
+        // Plurals and other extensions of long keywords too.
+        for name in ["roots", "primes", "limits", "tables", "exists2"] {
+            assert_eq!(r.suggest(name), None, "{name}");
+        }
+        // Real typos.
+        assert_eq!(r.suggest("fracc"), Some("frac"));
+        assert_eq!(r.suggest("integrall"), Some("integral"));
+        assert_eq!(r.suggest("sqtr"), Some("sqrt"));
+        assert_eq!(r.suggest("matirx"), Some("matrix"));
+        assert_eq!(r.suggest("subscirpt"), Some("subscript"));
     }
 
     #[test]
@@ -196,7 +276,7 @@ mod tests {
         assert_eq!(r.suggest("abcf"), Some("abcd"));
         // Closer beats earlier.
         assert_eq!(r.suggest("abce"), None, "a keyword itself");
-        assert_eq!(r.suggest("xbce"), Some("abce"));
+        assert_eq!(r.suggest("abde"), Some("abce"));
         // Aliases are candidates; long names allow two edits, short ones one.
         assert_eq!(r.suggest("lnogernmae"), Some("longername"));
         assert_eq!(r.suggest("abxy"), None);
