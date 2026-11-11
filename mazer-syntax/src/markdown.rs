@@ -7,8 +7,9 @@
 //!   links, images, inline code, emoji shortcodes, line breaks. Styles nest.
 //! - Code: a parenthesis is code only if it opens with one of
 //!   [`crate::RESERVED_HEADS`]; it is then read with [`crate::reader::read_form`].
-//!   Alone in its paragraph it becomes `BlockKind::Code`; inside a sentence it
-//!   becomes `InlineKind::Code`. Every other parenthesis is prose.
+//!   Alone in its paragraph it becomes `BlockKind::Code` (except `ref`, which
+//!   is always inline); inside a sentence it becomes `InlineKind::Code`.
+//!   Every other parenthesis is prose.
 //! - Nothing inside a fenced code block or inline code is interpreted.
 //! - There is no pipe-table syntax.
 //!
@@ -28,18 +29,33 @@
 //!
 //! **Line breaks.** A newline inside a paragraph is a *soft* break: it stays
 //! in the surrounding [`InlineKind::Text`] as `'\n'` and the renderer decides
-//! how to show it. A line ending in two or more spaces, or in a backslash, is a
-//! *hard* break: [`InlineKind::LineBreak`]. Trailing whitespace on the last
-//! line of a paragraph or heading is dropped.
+//! how to show it. A line ending in two or more spaces, or in a single
+//! unescaped backslash, is a *hard* break: [`InlineKind::LineBreak`]. A line
+//! ending in an escaped backslash (`foo\\`) ends in a literal backslash and a
+//! soft break. Trailing whitespace on the last line of a paragraph or heading
+//! is dropped.
 //!
-//! **Code forms span lines.** A reserved-head form is read as one unit even
-//! across many lines and blank lines; the lines it covers belong to the block
-//! where the form starts, whatever they look like. If the form is never
-//! closed, the reader is re-run on the text up to the next blank line, so a
-//! missing `)` damages one paragraph, not the rest of the note. The
-//! `UnclosedParen` diagnostic still points at the opening paren. A form must
-//! be followed by whitespace (ASCII space, tab, newline), `(`, `)`, `'` or `"`
-//! after its head: `(show` at the very end of the input is prose.
+//! **Code forms.** A reserved head counts only when it is directly followed by
+//! whitespace (ASCII space, tab, newline), `(` or `)`: `(let's see)`,
+//! `(show's over)`, `(eval"x")` and `(show` at the very end of the input are
+//! prose. Prose that happens to open a parenthesis with a reserved word, such
+//! as `(show that f is continuous)`, is read as code; `\(show` keeps it prose.
+//!
+//! A form may span several consecutive lines, and the lines it covers belong
+//! to the block where it starts, whatever they look like (`# x` inside a form
+//! is not a heading). **A form never crosses a blank line** (a line that is
+//! empty or holds only spaces and tabs): the text handed to the reader ends at
+//! the first blank line after the opening paren, or at the end of the
+//! enclosing container if that comes first. A form not closed by then is
+//! unclosed: one `UnclosedParen` diagnostic on its outermost unclosed `(`, an
+//! `Error` node in the tree, and parsing resumes normally at the blank line.
+//! So a missing `)` damages at most the rest of its paragraph, and no read
+//! ever runs on to the end of the note.
+//!
+//! Inside a list item or block quote a *closed* form may run onto following
+//! lines that would not belong to the container on their own (an unindented
+//! continuation line); those lines then belong to it. An *unclosed* form does
+//! not stretch its container: it ends where the container's own lines end.
 //! `BlockKind::Code` is produced only for top-level paragraphs; inside a list
 //! item or block quote a form alone in its paragraph is still
 //! `InlineKind::Code` in a one-element paragraph.
@@ -89,11 +105,14 @@
 //! the same paragraph (or link text), otherwise it is literal text. A closer
 //! must follow a non-space. `*` (single) and `_` directly after a letter or
 //! digit are literal (`lambda*I`, `snake_case`); `_` also only closes when not
-//! followed by a letter or digit. A run of three or more `~` is literal.
+//! followed by a letter or digit. `_` has no double form, so a run of two or
+//! more `_` is literal (`__init__`); a run of three or more `~` is literal.
 //!
 //! **Links.** `[text](url)`; the text is parsed as inlines, the URL is taken
 //! verbatim, may contain balanced parentheses (`Magma_(algebra)`) and may not
 //! contain whitespace. Anything that does not complete a link is literal text.
+//! A code form that starts in link text but runs past its `]` means there is
+//! no link: code binds tighter than link brackets.
 //!
 //! **Inline code.** A run of N backticks up to the next run of exactly N
 //! backticks; may span lines (newlines become spaces); one leading and one
@@ -113,7 +132,7 @@
 mod block;
 mod inline;
 
-use crate::diag::{DiagCode, Diags};
+use crate::diag::Diags;
 use crate::doc::Document;
 use crate::reader::{self, Read, Seg};
 use crate::span::FileId;
@@ -148,7 +167,7 @@ fn is_blank(text: &str, line: Seg) -> bool {
 }
 
 /// Whether a reserved-head form starts at byte `at`: `(`, a head from
-/// [`crate::RESERVED_HEADS`], then whitespace, `(`, `)`, `'` or `"`.
+/// [`crate::RESERVED_HEADS`], then whitespace, `(` or `)`.
 fn is_form_start(text: &str, at: usize) -> bool {
     let bytes = text.as_bytes();
     if bytes.get(at) != Some(&b'(') {
@@ -159,29 +178,17 @@ fn is_form_start(text: &str, at: usize) -> bool {
         after.starts_with(head.as_bytes())
             && matches!(
                 after.get(head.len()),
-                Some(b' ' | b'\t' | b'\n' | b'\r' | b'(' | b')' | b'\'' | b'"')
+                Some(b' ' | b'\t' | b'\n' | b'\r' | b'(' | b')')
             )
     })
 }
 
 /// Reads the code form at `at` from the lines `segs` (the first of which holds
-/// `at`). If the form is never closed, it is re-read from only the lines before
-/// the next blank line so that the damage stays inside one paragraph.
+/// `at`). The read stops at the first blank line or at the end of `segs`,
+/// whichever comes first, so it never looks further than the form can reach.
 fn read_code(text: &str, file: FileId, segs: &[Seg], at: usize) -> (Read, Diags) {
     let mut diags = Diags::new();
-    let read = reader::read_in(text, file, at, segs, &mut diags);
-    if diags.iter().any(|d| d.code == DiagCode::UnclosedParen) {
-        let cut = segs
-            .iter()
-            .skip(1)
-            .position(|&s| is_blank(text, s))
-            .map_or(segs.len(), |i| i + 1);
-        if cut < segs.len() {
-            let mut retry = Diags::new();
-            let read = reader::read_in(text, file, at, &segs[..cut], &mut retry);
-            return (read, retry);
-        }
-    }
+    let read = reader::read_in(text, file, at, segs, true, &mut diags);
     (read, diags)
 }
 

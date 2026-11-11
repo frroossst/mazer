@@ -127,8 +127,12 @@ fn unterminated_string_recovers_at_end_of_line() {
 fn comments_run_to_end_of_line() {
     let node = read_ok("(+ 1 ; one\n   2) ; trailing");
     assert_eq!(node.to_string(), "(+ 1 2)");
-    // `;` inside an atom is part of it.
-    assert_eq!(read_ok("a;b").as_ident().map(Sym::as_str), Some("a;b"));
+    // `;` ends an atom and starts a comment.
+    assert_eq!(read_ok("a;b").as_ident().map(Sym::as_str), Some("a"));
+    assert_eq!(read_ok("(a;c\n b)").to_string(), "(a b)");
+    assert_eq!(read_ok("(f';x\n y)").to_string(), "(f' y)");
+    // Inside a string it is just text.
+    assert_eq!(read_ok("(text \"a;b\")").args()[0].kind, NodeKind::Str("a;b".into()));
 }
 
 #[test]
@@ -157,13 +161,22 @@ fn unclosed_paren_points_at_the_opening_paren() {
 }
 
 #[test]
-fn nested_unclosed_parens_each_get_a_diagnostic() {
+fn nested_unclosed_parens_get_one_diagnostic_at_the_outermost() {
     let src = "(show (frac a";
     let (node, diags) = read(src);
-    assert_eq!(codes(&diags), vec![DiagCode::UnclosedParen, DiagCode::UnclosedParen]);
-    let starts: Vec<usize> = diags.iter().map(|d| d.span.start.to_usize()).collect();
-    assert_eq!(starts, vec![6, 0]);
+    assert_eq!(codes(&diags), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.range(), 0..1);
     assert_eq!(node.to_string(), "(show (frac a <error>))");
+    // Many unclosed parens inside one form still give a single diagnostic.
+    let src = format!("(show {}", "(a ".repeat(200));
+    let (_, diags) = read(&src);
+    assert_eq!(codes(&diags), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.range(), 0..1);
+    // Under a quote the outermost *paren* is reported.
+    let (node, diags) = read("'(a (b");
+    assert_eq!(codes(&diags), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.range(), 1..2);
+    assert_eq!(node.to_string(), "(quote (a (b <error>)))");
 }
 
 #[test]
@@ -235,10 +248,10 @@ fn deep_nesting_is_cut_off_with_a_diagnostic() {
     let (node, diags) = read(&src);
     assert_eq!(codes(&diags), vec![DiagCode::Other]);
     assert_eq!(node.span.range(), 0..src.len());
-    // Unclosed: one diagnostic per open list that was kept, none per skipped one.
+    // Unclosed: one diagnostic for the cut-off part, one for the form.
     let src = "(".repeat(depth);
     let (_, diags) = read(&src);
-    assert_eq!(diags.len(), MAX_NESTING + 1);
+    assert_eq!(codes(&diags), vec![DiagCode::Other, DiagCode::UnclosedParen]);
     let src = format!("{}x", "'".repeat(depth));
     let (node, _) = read(&src);
     assert!(node.is_form("quote"));
@@ -259,10 +272,26 @@ fn segments_read_as_lines() {
     let text = "> (show (a\n> b))";
     let segs = [Seg::new(2, 10, 11), Seg::new(13, 16, 16)];
     let mut diags = Diags::new();
-    let read = read_in(text, FileId(0), 2, &segs, &mut diags);
+    let read = read_in(text, FileId(0), 2, &segs, false, &mut diags);
     assert!(diags.is_empty(), "{diags:?}");
     assert_eq!(read.node.to_string(), "(show (a b))");
     assert_eq!(read.end.to_usize(), text.len());
+}
+
+#[test]
+fn a_blank_segment_ends_the_input_when_asked() {
+    let text = "(show (a\n  \t\nb))";
+    let segs = [Seg::new(0, 8, 9), Seg::new(9, 12, 13), Seg::new(13, 16, 16)];
+    let mut diags = Diags::new();
+    let read = read_in(text, FileId(0), 0, &segs, true, &mut diags);
+    assert_eq!(codes(&diags), vec![DiagCode::UnclosedParen]);
+    assert_eq!(read.node.to_string(), "(show (a <error>))");
+    assert_eq!(read.end.to_usize(), 8);
+    // Without the flag the blank segment is just whitespace.
+    let mut diags = Diags::new();
+    let read = read_in(text, FileId(0), 0, &segs, false, &mut diags);
+    assert!(diags.is_empty(), "{diags:?}");
+    assert_eq!(read.node.to_string(), "(show (a b))");
 }
 
 #[test]

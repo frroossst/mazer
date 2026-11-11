@@ -1,4 +1,5 @@
 use super::*;
+use crate::diag::DiagCode;
 use crate::doc::{Block, BlockKind, Inline, InlineKind, ListItem};
 use crate::node::{Node, NodeKind};
 use crate::span::Span;
@@ -482,6 +483,17 @@ fn paragraphs_split_on_blank_lines() {
 }
 
 #[test]
+fn escaped_backslash_at_end_of_line_is_not_a_break() {
+    // Two backslashes: a literal backslash, then a soft break.
+    assert_eq!(shape(&para("foo\\\\\nbar")), vec![text("foo\\\nbar")]);
+    // Three: a literal backslash, then a hard break.
+    assert_eq!(
+        shape(&para("foo\\\\\\\nbar")),
+        vec![text("foo\\"), InlineKind::LineBreak, text("bar")]
+    );
+}
+
+#[test]
 fn hard_line_breaks() {
     let inlines = para("two spaces  \nbackslash\\\none space \nend  ");
     assert_eq!(
@@ -775,6 +787,22 @@ fn star_after_a_letter_or_digit_is_literal() {
 }
 
 #[test]
+fn double_underscores_are_text() {
+    for src in ["__init__", "__a__b", "a__b__c", "x = __", "a ____ b"] {
+        assert_eq!(shape(&para(src)), vec![text(src)], "{src}");
+    }
+    assert_eq!(
+        shape(&para("call __init__ and _u_")),
+        vec![text("call __init__ and "), InlineKind::Underline(vec![dummy(text("u"))])]
+    );
+    // A single underline cannot close on a run either.
+    assert_eq!(shape(&para("_a__")), vec![text("_a__")]);
+    // Doubled `*` and `~` keep their meaning.
+    assert_eq!(shape(&para("**init**")), vec![InlineKind::Bold(vec![dummy(text("init"))])]);
+    assert_eq!(shape(&para("~~init~~")), vec![InlineKind::Strike(vec![dummy(text("init"))])]);
+}
+
+#[test]
 fn unmatched_markers_are_text() {
     for src in [
         "a * b * c",
@@ -814,6 +842,39 @@ fn links_and_urls() {
         .collect();
     assert_eq!(urls, vec!["https://en.wikipedia.org/wiki/Magma_(algebra)", "a_b~c*d"]);
     assert_eq!(flat(&inlines), "see Magma and x");
+    // Nested parens balance; an unbalanced URL or one with a space is text.
+    assert_eq!(
+        shape(&para("[x](a(b)c) ![y](p(q))")),
+        vec![
+            InlineKind::Link {
+                content: vec![dummy(text("x"))],
+                url: "a(b)c".into()
+            },
+            text(" "),
+            InlineKind::Image {
+                alt: "y".into(),
+                url: "p(q)".into()
+            },
+        ]
+    );
+    for src in ["[x](a(b c)", "[x](a(b", "[x](a\nb)", "[x]((a)"] {
+        assert!(para(src).iter().all(|i| matches!(i.kind, InlineKind::Text(_))), "{src}");
+    }
+}
+
+#[test]
+fn a_form_running_past_link_text_means_no_link() {
+    // Code binds tighter than link brackets, as code spans do in CommonMark.
+    let inlines = para("[see (show x](u) y)");
+    assert_eq!(flat(&inlines), "[see (show x] (u) y)");
+    assert!(matches!(&inlines[1].kind, InlineKind::Code(n) if n.is_form("show")));
+    // A form closed inside the link text is part of it.
+    let inlines = para("[see (show x)](u)");
+    let InlineKind::Link { content, url } = &inlines[0].kind else {
+        panic!("{inlines:?}")
+    };
+    assert_eq!(&**url, "u");
+    assert!(matches!(&content[1].kind, InlineKind::Code(n) if n.to_string() == "(show x)"));
 }
 
 #[test]
@@ -877,7 +938,7 @@ fn prose_parentheses_stay_prose() {
 #[test]
 fn every_reserved_head_is_code() {
     for head in crate::RESERVED_HEADS {
-        for sep in [" x", "(x)", ")", "'x", "\"s\"", "\nx"] {
+        for sep in [" x", "\tx", "(x)", ")", "\nx", "\r\nx"] {
             let src = format!("a ({head}{sep}) b");
             let inlines = para(&src);
             assert!(
@@ -885,6 +946,47 @@ fn every_reserved_head_is_code() {
                 "{src:?} gave {inlines:?}"
             );
         }
+    }
+}
+
+#[test]
+fn reserved_head_glued_to_a_quote_or_string_is_prose() {
+    // A head counts only when followed by whitespace, `(` or `)`.
+    for src in ["(let's see)", "(show's over)", "(eval\"x\")", "(show'x)", "a (let's go) b", "(show;x)"] {
+        assert_eq!(shape(&para(src)), vec![text(src)], "{src}");
+    }
+}
+
+#[test]
+fn escaped_paren_keeps_a_reserved_word_prose() {
+    // Unescaped, this is read as code ...
+    let doc = blocks("(show that f is continuous)");
+    assert!(matches!(&doc[0].kind, BlockKind::Code(n) if n.is_form("show")));
+    // ... and `\(` keeps it prose, alone or inside a sentence.
+    assert_eq!(shape(&para(r"\(show that f is continuous)")), vec![text("(show that f is continuous)")]);
+    assert_eq!(
+        shape(&para(r"We \(show that f is continuous) now.")),
+        vec![text("We (show that f is continuous) now.")]
+    );
+    // An escaped head does not hide a form nested inside it.
+    let inlines = para(r"\(show (show x))");
+    assert_eq!(flat(&inlines), "(show (show x))");
+    assert!(matches!(&inlines[1].kind, InlineKind::Code(n) if n.to_string() == "(show x)"));
+}
+
+#[test]
+fn ref_alone_is_never_a_block() {
+    let doc = blocks("See\n\n(ref laplace)\n\nend");
+    assert_eq!(doc.len(), 3);
+    let BlockKind::Paragraph(p) = &doc[1].kind else {
+        panic!("{doc:?}")
+    };
+    assert_eq!(p.len(), 1);
+    assert!(matches!(&p[0].kind, InlineKind::Code(n) if n.to_string() == "(ref laplace)"));
+    // The other heads still make blocks.
+    for head in ["show", "eval", "let", "alias", "macro"] {
+        let src = format!("({head} x)");
+        assert!(matches!(&blocks(&src)[0].kind, BlockKind::Code(n) if n.is_form(head)), "{src}");
     }
 }
 
@@ -910,7 +1012,8 @@ fn block_vs_inline_code() {
 
 #[test]
 fn multi_line_show_blocks() {
-    let src = "Intro line\n\n(show\n    (=\n        (jux a b)\n\n        # not a heading\n- not a list\n    )\n)\n\nAfter.";
+    // A form spans consecutive non-blank lines, whatever they look like.
+    let src = "Intro line\n\n(show\n    (=\n        (jux a b)\n        # not a heading\n- not a list\n    )\n)\n\nAfter.";
     let doc = blocks(src);
     assert_eq!(doc.len(), 3, "{doc:?}");
     let BlockKind::Code(node) = &doc[1].kind else {
@@ -919,6 +1022,136 @@ fn multi_line_show_blocks() {
     assert_eq!(node.to_string(), "(show (= (jux a b) # not a heading - not a list))");
     assert_eq!(&src[node.span.range()], &src[src.find("(show").unwrap()..=src.rfind(")\n").unwrap()]);
     assert!(matches!(&doc[2].kind, BlockKind::Paragraph(p) if flat(p) == "After."));
+}
+
+#[test]
+fn a_form_never_crosses_a_blank_line() {
+    let src = "(show\n    (=\n        (jux a b)\n\n        c)\n)\n\nAfter.";
+    let (doc, diags) = parse_doc(src);
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.range(), 0..1);
+    let BlockKind::Code(node) = &doc.blocks[0].kind else {
+        panic!("{doc:?}")
+    };
+    assert_eq!(node.to_string(), "(show (= (jux a b) <error>))");
+    // The rest is read as ordinary paragraphs again.
+    assert_eq!(doc.blocks.len(), 3, "{doc:?}");
+    assert!(matches!(&doc.blocks[1].kind, BlockKind::Paragraph(p) if flat(p) == "c)\n)"));
+}
+
+#[test]
+fn unclosed_form_does_not_swallow_later_blocks() {
+    let src = "(show (+ a b)\n\nSome prose.\n\n# Heading\n\n- item one\n- item two\n\ntext with a smiley :) end";
+    let (doc, diags) = parse_doc(src);
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.range(), 0..1);
+    let b = &doc.blocks;
+    assert_eq!(b.len(), 5, "{b:?}");
+    assert!(matches!(&b[0].kind, BlockKind::Code(n) if n.to_string() == "(show (+ a b) <error>)"));
+    assert!(matches!(&b[1].kind, BlockKind::Paragraph(p) if flat(p) == "Some prose."));
+    assert!(matches!(&b[2].kind, BlockKind::Heading { level: 1, content } if flat(content) == "Heading"));
+    assert_eq!(list(&b[3]).1.len(), 2);
+    // The stray `)` of the smiley is prose.
+    let BlockKind::Paragraph(last) = &b[4].kind else {
+        panic!("{b:?}")
+    };
+    assert_eq!(shape(last), vec![text("text with a smiley :) end")]);
+
+    let src = "Intro (show (+ a b) and more\n\n## Section\n\n1) first\n2) second";
+    let (doc, diags) = parse_doc(src);
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.start.to_usize(), src.find("(show").unwrap());
+    let b = &doc.blocks;
+    assert_eq!(b.len(), 3, "{b:?}");
+    let BlockKind::Paragraph(p) = &b[0].kind else {
+        panic!("{b:?}")
+    };
+    assert_eq!(flat(p), "Intro (show (+ a b) and more <error>)");
+    assert!(matches!(&b[1].kind, BlockKind::Heading { level: 2, content } if flat(content) == "Section"));
+    let (ordered, items) = list(&b[2]);
+    assert_eq!(ordered, Some(1));
+    assert_eq!(items.len(), 2);
+    assert_eq!(flat(item_inlines(&items[0])), "first");
+}
+
+#[test]
+fn stray_close_paren_after_an_unclosed_form_is_prose() {
+    let (doc, diags) = parse_doc("see (show (a\n\nthen b) and c)");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(doc.blocks.len(), 2);
+    let BlockKind::Paragraph(p) = &doc.blocks[1].kind else {
+        panic!("{doc:?}")
+    };
+    assert_eq!(shape(p), vec![text("then b) and c)")]);
+}
+
+#[test]
+fn unclosed_form_in_a_list_item_or_quote_stays_inside_it() {
+    // The next item is not swallowed.
+    let (doc, diags) = parse_doc("- one (show (a\n- two\n- three");
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(doc.blocks.len(), 1, "{doc:?}");
+    let (_, items) = list(&doc.blocks[0]);
+    assert_eq!(items.len(), 3);
+    assert_eq!(flat(item_inlines(&items[0])), "one (show (a <error>))");
+    assert_eq!(flat(item_inlines(&items[1])), "two");
+    assert_eq!(flat(item_inlines(&items[2])), "three");
+    // Nor is an unindented line after it: an unclosed form does not stretch
+    // the item the way a closed one does.
+    let (doc, diags) = parse_doc("- one (show (a\nlazy) line\n- two");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(doc.blocks.len(), 3, "{doc:?}");
+    assert!(matches!(&doc.blocks[1].kind, BlockKind::Paragraph(p) if flat(p) == "lazy) line"));
+    // In a nested list too.
+    let (doc, diags) = parse_doc("- a\n  - b (show (x\n  - c\n- d");
+    assert_eq!(diags.len(), 1);
+    let (_, outer) = list(&doc.blocks[0]);
+    assert_eq!(outer.len(), 2);
+    let (_, inner) = list(&outer[0].content[1]);
+    assert_eq!(flat(item_inlines(&inner[1])), "c");
+
+    // The text after a quote is not swallowed.
+    let (doc, diags) = parse_doc("> see (show (a\n> more\nafter the quote");
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(doc.blocks.len(), 2, "{doc:?}");
+    let BlockKind::BlockQuote(q) = &doc.blocks[0].kind else {
+        panic!("{doc:?}")
+    };
+    assert!(matches!(&q[0].kind, BlockKind::Paragraph(p) if flat(p) == "see (show (a more <error>))"));
+    assert!(matches!(&doc.blocks[1].kind, BlockKind::Paragraph(p) if flat(p) == "after the quote"));
+    // A blank `>` line ends the form but not the quote.
+    let (doc, diags) = parse_doc("> (show (a\n>\n> next");
+    assert_eq!(diags.len(), 1);
+    let BlockKind::BlockQuote(q) = &doc.blocks[0].kind else {
+        panic!("{doc:?}")
+    };
+    assert_eq!(q.len(), 2);
+    assert!(matches!(&q[1].kind, BlockKind::Paragraph(p) if flat(p) == "next"));
+}
+
+#[test]
+fn crlf_in_and_around_forms() {
+    // A form over several CRLF lines.
+    let doc = blocks("(show (= a\r\n    b))\r\n\r\nnext\r\n");
+    assert_eq!(doc.len(), 2);
+    assert!(matches!(&doc[0].kind, BlockKind::Code(n) if n.to_string() == "(show (= a b))"));
+    assert!(matches!(&doc[1].kind, BlockKind::Paragraph(p) if flat(p) == "next"));
+    // A CRLF blank line ends an unclosed form.
+    let (doc, diags) = parse_doc("(show (a\r\n  b\r\n\r\n# H\r\n");
+    assert_eq!(diags.iter().map(|d| d.code).collect::<Vec<_>>(), vec![DiagCode::UnclosedParen]);
+    assert_eq!(doc.blocks.len(), 2, "{doc:?}");
+    assert!(matches!(&doc.blocks[0].kind, BlockKind::Code(n) if n.to_string() == "(show (a b <error>))"));
+    assert!(matches!(&doc.blocks[1].kind, BlockKind::Heading { content, .. } if flat(content) == "H"));
+    // Whitespace-only lines count as blank too.
+    let (doc, diags) = parse_doc("(show (a\r\n \t\r\nb)");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(doc.blocks.len(), 2);
+}
+
+#[test]
+fn semicolon_in_a_form_starts_a_comment() {
+    let doc = blocks("(show (a;c\n b))");
+    assert!(matches!(&doc[0].kind, BlockKind::Code(n) if n.to_string() == "(show (a b))"));
 }
 
 #[test]
@@ -961,11 +1194,9 @@ fn unclosed_paren_recovers_within_the_paragraph() {
     assert_eq!(doc.blocks.len(), 3, "{doc:?}");
     assert!(matches!(doc.blocks[1].kind, BlockKind::Heading { level: 1, .. }));
     let codes: Vec<_> = diags.iter().map(|d| d.code).collect();
-    assert_eq!(codes, vec![DiagCode::UnclosedParen, DiagCode::UnclosedParen]);
-    let first = &diags.as_slice()[0];
-    // Innermost first; each span is exactly the opening paren.
-    assert_eq!(first.span.start.to_usize(), src.find("(frac").unwrap());
-    assert_eq!(diags.as_slice()[1].span.start.to_usize(), src.find("(show").unwrap());
+    // One diagnostic, on the outermost unclosed paren: exactly that `(`.
+    assert_eq!(codes, vec![DiagCode::UnclosedParen]);
+    assert_eq!(diags.as_slice()[0].span.start.to_usize(), src.find("(show").unwrap());
     assert!(diags.iter().all(|d| &src[d.span.range()] == "("));
     let found = all_code(&doc.blocks);
     assert_eq!(found.len(), 2);
@@ -982,9 +1213,9 @@ fn unterminated_string_in_a_note() {
 #[test]
 fn diagnostics_are_not_duplicated_by_backtracking() {
     // The italic attempt fails and the content is parsed again; the broken
-    // form must still report once.
+    // form must still report once (one unterminated string, one unclosed form).
     let (_, diags) = parse_doc("*a (show (x \"s) b");
-    assert_eq!(diags.len(), 3, "{diags:?}");
+    assert_eq!(diags.len(), 2, "{diags:?}");
 }
 
 // ---------------------------------------------------------------------------
@@ -1106,6 +1337,38 @@ fn deep_nesting_is_bounded() {
         let (doc, _) = parse_doc(&src);
         check_spans(&src, &doc.blocks);
     }
+}
+
+/// Inputs that used to take quadratic time (or read to the end of the note
+/// for every unclosed form) parse quickly.
+#[test]
+fn pathological_inputs_scale_linearly() {
+    let cases = [
+        ("unclosed forms between blank lines", "(show x\n\n".repeat(5_000)),
+        ("unclosed forms in one paragraph", "(show x\n".repeat(5_000)),
+        ("unclosed forms in list items", "- (show x\n".repeat(5_000)),
+        ("unclosed forms in nested items", "- a\n  - (show x\n".repeat(2_500)),
+        ("unclosed forms in a quote", "> (show x\n".repeat(5_000)),
+        ("unclosed forms in items with lazy lines", "- (show (x\nlazy\n".repeat(5_000)),
+        ("unclosed forms in quotes with lazy lines", "> (show (x\nlazy\n".repeat(5_000)),
+        ("forms inside link text", format!("[{}](u)", "(show x ".repeat(5_000))),
+        ("links without a closing paren", "[a](".repeat(20_000)),
+        ("images without a closing paren", "![a](".repeat(20_000)),
+        ("link openers before text", format!("{} x)", "[a](b".repeat(10_000))),
+        ("many unclosed parens", format!("(show {}\n\n", "(a ".repeat(200)).repeat(200)),
+    ];
+    for (what, src) in cases {
+        let started = std::time::Instant::now();
+        let (doc, _) = parse_doc(&src);
+        let took = started.elapsed();
+        check_spans(&src, &doc.blocks);
+        assert!(took < std::time::Duration::from_secs(1), "{what}: {took:?}");
+    }
+    // One diagnostic per unclosed form, not one per paren or per re-read.
+    let (_, diags) = parse_doc(&"(show x\n\n".repeat(5_000));
+    assert_eq!(diags.len(), 5_000);
+    let (_, diags) = parse_doc(&format!("(show {}", "(a ".repeat(200)));
+    assert_eq!(diags.len(), 1);
 }
 
 fn check_spans(src: &str, blocks: &[Block]) {

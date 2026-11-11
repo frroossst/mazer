@@ -70,7 +70,7 @@ Reader rules:
 - `'x` reads as `(quote x)`.
 - `"..."` is a `Str` node, escapes `\"` and `\\`. New; verify no fixture note has a `"` inside a show block.
 - `;` to end of line is a comment, inside code only.
-- Unclosed `(` gives an `Error` node plus a diagnostic at the opening paren; a stray `)` in prose is prose.
+- Unclosed `(` gives an `Error` node plus one diagnostic at the outermost unclosed opening paren of the form; a stray `)` in prose is prose.
 
 Names:
 - Only two kinds of name: **keywords** (operations with arguments, defined in Rust) and **variables** (everything else: `x`, `tau`, `Laplace`).
@@ -302,12 +302,17 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 
 ### Decisions made during step 1
 
-1. A single newline inside a paragraph is a soft break, kept as `\n` in `Text`; `mazer-doc` renders it as `<br/>` to match the old output. Two trailing spaces or a trailing backslash make a `LineBreak`.
+1. A single newline inside a paragraph is a soft break, kept as `\n` in `Text`; `mazer-doc` renders it as `<br/>` to match the old output. Two trailing spaces or a single unescaped trailing backslash make a `LineBreak` (`foo\\` at the end of a line is a literal backslash and a soft break).
 2. `BlockKind::Code` is produced only for a reserved-head form that is alone in a top-level paragraph (blank lines around it). A form on its own line directly under text is `InlineKind::Code`.
 3. Every `MathMl::expr` call writes exactly one element.
 4. Parentheses are decided by precedence levels (`Prec`, `MathMl::operand`), not by inspecting a child's head.
 5. Twelve old symbol names are keywords now and are not display names, so each of these keywords MUST have a `.sign(...)` so bare use still renders the symbol: `partial` ∂, `approx` ≈, `neq` ≠, `leq` ≤, `geq` ≥, `subset` ⊂, `in` ∈, `notin` ∉, `union` ∪, `forall` ∀, `exists` ∃, `arrow` →.
 6. Did-you-mean thresholds: names of 3 characters or fewer get no suggestion, 4 to 7 allow 1 edit, 8 or more allow 2.
+7. A code form never crosses a blank line (empty or whitespace-only). The text handed to the reader for one form ends at the first blank line after the opening paren, or at the end of the enclosing container (list item, block quote) if that comes first. A form not closed by then is unclosed: one `UnclosedParen` at its outermost opening paren, an `Error` node in the tree, and parsing resumes normally at the blank line. A form may still span several consecutive non-blank lines; a closed one may carry a list item or quote over unindented continuation lines, an unclosed one never stretches its container.
+8. A reserved head counts only when directly followed by whitespace, `(` or `)`: `(let's see)`, `(show's over)` and `(eval"x")` are prose, as is a head at the very end of the input.
+9. `ref` is never a block: `(ref x)` alone in a paragraph is a `Paragraph` holding one `InlineKind::Code`. `BlockKind::Code` is only for `show`, `eval`, `let`, `alias`, `macro`.
+10. In code, `;` ends an atom and starts a comment (outside strings): `(a;c` + newline + `b)` reads as `(a b)`.
+11. For authors: prose that happens to open a parenthesis with a reserved word, e.g. "(show that f is continuous)", is read as code. Write `\(show that f is continuous)` to keep it prose.
 
 ### Helper APIs in the skeleton
 
