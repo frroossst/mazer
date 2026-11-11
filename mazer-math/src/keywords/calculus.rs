@@ -24,6 +24,21 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(integral (sin x) x)")
         .example("(integral (frac 1 x) x 1 b)")
         .example("(integral f V D)"),
+        Keyword::new(
+            "sum",
+            "A sum of `body` over `var`, with the limits written under and over the ∑. With \
+             `lower` and `upper` it runs from `var = lower` to `upper`; with only `lower`, that \
+             is written underneath on its own, as a condition or set; with neither, `var` is.",
+            sum,
+        )
+        .param("body", "The summand.")
+        .param("var", "The index of summation.")
+        .optional("lower", "The first value of the index, or the condition or set it ranges over.")
+        .optional("upper", "The last value of the index.")
+        .sign("∑")
+        .example("(sum (subscript a n) n)")
+        .example("(sum (frac 1 k) k 1 n)")
+        .example("(sum f x S)"),
         Keyword::new("sin", "The sine function: `(sin x)` shows sin(x).", |call, out| {
             out.apply(|o| o.mi("sin"), slice::from_ref(call.req(0)));
         })
@@ -35,10 +50,11 @@ pub fn keywords() -> Vec<Keyword> {
 }
 
 /// The keywords of this file that are not atoms; see `keywords/mod.rs`.
-#[allow(clippy::missing_const_for_fn, clippy::unnecessary_wraps)] // step 2 adds non-const string matches here
 pub(crate) fn precedence(name: &str, args: usize) -> Option<Prec> {
-    let _ = (name, args);
-    None
+    match (name, args) {
+        ("integral" | "sum", _) => Some(Prec::BigOp),
+        _ => None,
+    }
 }
 
 fn integral(call: &Call<'_>, out: &mut MathMl<'_>) {
@@ -56,12 +72,36 @@ fn integral(call: &Call<'_>, out: &mut MathMl<'_>) {
             }),
             _ => o.mo("∫"),
         }
-        o.operand(body, Prec::Multiplicative);
+        o.operand(body, Prec::BigOp);
         o.space(THIN_SPACE);
         o.row(|o| {
             o.mi("d");
             o.operand(var, Prec::Atom);
         });
+    });
+}
+
+/// `∑` with its limits under and over, then the body. The integral writes
+/// its bounds as scripts instead (`msubsup`), as the old renderer did.
+fn sum(call: &Call<'_>, out: &mut MathMl<'_>) {
+    let (body, var) = (call.req(0), call.req(1));
+    out.row(|o| {
+        match (call.opt(2), call.opt(3)) {
+            (Some(lower), Some(upper)) => o.under_over(
+                |o| o.mo("∑"),
+                |o| {
+                    o.row(|o| {
+                        o.expr(var);
+                        o.mo("=");
+                        o.expr(lower);
+                    });
+                },
+                |o| o.expr(upper),
+            ),
+            (Some(condition), None) => o.under(|o| o.mo("∑"), |o| o.expr(condition)),
+            (None, _) => o.under(|o| o.mo("∑"), |o| o.expr(var)),
+        }
+        o.operand(body, Prec::BigOp);
     });
 }
 
@@ -98,6 +138,48 @@ mod tests {
         assert_eq!(diags.as_slice()[0].message, "`integral` is missing its `var` argument");
         let (_, diags) = render("(integral f x 0 1 2)");
         assert_eq!(diags.as_slice()[0].message, "`integral` takes 2 to 4 arguments but was given 5");
+    }
+
+    #[test]
+    fn sum() {
+        assert_eq!(
+            mathml("(sum (subscript a n) n)"),
+            "<mrow><munder><mo>∑</mo><mi>n</mi></munder><msub><mi>a</mi><mi>n</mi></msub></mrow>"
+        );
+        assert_eq!(
+            mathml("(sum f k 1 n)"),
+            "<mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover>\
+             <mi>f</mi></mrow>"
+        );
+        // Only `lower`: written underneath as it is.
+        assert_eq!(
+            mathml("(sum f x S)"),
+            "<mrow><munder><mo>∑</mo><mi>S</mi></munder><mi>f</mi></mrow>"
+        );
+        // A sum as the body is parenthesised; a fraction or another sum is not.
+        assert_eq!(
+            mathml("(sum (+ a b) n)"),
+            "<mrow><munder><mo>∑</mo><mi>n</mi></munder>\
+             <mrow><mo>(</mo><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mo>)</mo></mrow></mrow>"
+        );
+        assert_eq!(
+            mathml("(sum (frac 1 k) k)"),
+            "<mrow><munder><mo>∑</mo><mi>k</mi></munder><mfrac><mn>1</mn><mi>k</mi></mfrac></mrow>"
+        );
+        assert_eq!(
+            mathml("(sum (sum a m) n)"),
+            "<mrow><munder><mo>∑</mo><mi>n</mi></munder>\
+             <mrow><munder><mo>∑</mo><mi>m</mi></munder><mi>a</mi></mrow></mrow>"
+        );
+        // As a script base it is parenthesised.
+        assert_eq!(
+            mathml("(subscript (sum a n) 2)"),
+            "<msub><mrow><mo>(</mo><mrow><munder><mo>∑</mo><mi>n</mi></munder><mi>a</mi></mrow><mo>)</mo></mrow>\
+             <mn>2</mn></msub>"
+        );
+        assert_eq!(mathml("sum"), "<mo>∑</mo>");
+        let (_, diags) = render("(sum a)");
+        assert_eq!(diags.as_slice()[0].message, "`sum` is missing its `var` argument");
     }
 
     #[test]

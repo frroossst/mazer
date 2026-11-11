@@ -79,7 +79,7 @@ fn table() -> Vec<DisplayName> {
         DisplayName::letter("beta",     "β", "Greek lowercase beta").latex("\\beta"),
         DisplayName::letter("gamma",    "γ", "Greek lowercase gamma").latex("\\gamma"),
         DisplayName::letter("delta",    "δ", "Greek lowercase delta").latex("\\delta"),
-        DisplayName::letter("epsilon",  "ε", "Greek lowercase epsilon").latex("\\epsilon"),
+        DisplayName::letter("epsilon",  "ε", "Greek lowercase epsilon").latex("\\varepsilon"), // LaTeX's \epsilon is ϵ
         DisplayName::letter("zeta",     "ζ", "Greek lowercase zeta").latex("\\zeta"),
         DisplayName::letter("eta",      "η", "Greek lowercase eta").latex("\\eta"),
         DisplayName::letter("theta",    "θ", "Greek lowercase theta").latex("\\theta"),
@@ -95,19 +95,19 @@ fn table() -> Vec<DisplayName> {
         DisplayName::letter("sigma",    "σ", "Greek lowercase sigma").latex("\\sigma"),
         DisplayName::letter("tau",      "τ", "Greek lowercase tau").latex("\\tau"),
         DisplayName::letter("upsilon",  "υ", "Greek lowercase upsilon").latex("\\upsilon"),
-        DisplayName::letter("phi",      "φ", "Greek lowercase phi").latex("\\phi"),
+        DisplayName::letter("phi",      "φ", "Greek lowercase phi").latex("\\varphi"), // LaTeX's \phi is ϕ
         DisplayName::letter("chi",      "χ", "Greek lowercase chi").latex("\\chi"),
         DisplayName::letter("psi",      "ψ", "Greek lowercase psi").latex("\\psi"),
         DisplayName::letter("omega",    "ω", "Greek lowercase omega").latex("\\omega"),
 
         // Greek lowercase variants
-        DisplayName::letter("varepsilon",  "ϵ", "Greek variant form: varepsilon").latex("\\varepsilon"),
+        DisplayName::letter("varepsilon",  "ϵ", "Greek variant form: varepsilon").latex("\\epsilon"), // LaTeX's \varepsilon is ε
         DisplayName::letter("vartheta",    "ϑ", "Greek variant form: vartheta").latex("\\vartheta"),
         DisplayName::letter("varkappa",    "ϰ", "Greek variant form: varkappa").latex("\\varkappa"),
         DisplayName::letter("varpi",       "ϖ", "Greek variant form: varpi").latex("\\varpi"),
         DisplayName::letter("varrho",      "ϱ", "Greek variant form: varrho").latex("\\varrho"),
         DisplayName::letter("varsigma",    "ς", "Greek variant form: varsigma").latex("\\varsigma"),
-        DisplayName::letter("varphi",      "ϕ", "Greek variant form: varphi").latex("\\varphi"),
+        DisplayName::letter("varphi",      "ϕ", "Greek variant form: varphi").latex("\\phi"), // LaTeX's \varphi is φ
         DisplayName::letter("digamma",     "ϝ", "Greek variant form: digamma").latex("\\digamma"),
 
         // Greek uppercase
@@ -153,8 +153,6 @@ fn table() -> Vec<DisplayName> {
         DisplayName::letter("Laplace",      "𝓛", "Laplace transform operator").latex("\\mathcal{L}"),
         DisplayName::letter("Fourier",      "ℱ", "Fourier transform operator").latex("\\mathcal{F}"),
         DisplayName::letter("Hamiltonian",  "ℋ", "Hamiltonian operator").latex("\\mathcal{H}"),
-        DisplayName::letter("Re",           "ℜ", "Real part").latex("\\Re"),
-        DisplayName::letter("Im",           "ℑ", "Imaginary part").latex("\\Im"),
 
         // Number sets
         DisplayName::letter("Reals",        "ℝ", "Set of all real numbers").latex("\\mathbb{R}"),
@@ -222,7 +220,6 @@ fn table() -> Vec<DisplayName> {
         DisplayName::operator("ge",         "≥", "Greater than or equal (LaTeX name)").latex("\\ge"),
         DisplayName::operator("ne",         "≠", "Not equal (LaTeX name)").latex("\\ne"),
         DisplayName::operator("prec",       "≺", "Precedes").latex("\\prec"),
-        DisplayName::operator("succ",       "≻", "Succeeds").latex("\\succ"),
         DisplayName::operator("preceq",     "⪯", "Precedes or equals").latex("\\preceq"),
         DisplayName::operator("succeq",     "⪰", "Succeeds or equals").latex("\\succeq"),
         DisplayName::operator("perp",       "⊥", "Perpendicular / orthogonal").latex("\\perp"),
@@ -259,8 +256,8 @@ fn table() -> Vec<DisplayName> {
         DisplayName::operator("models",     "⊨", "Models / semantic entailment").latex("\\models"),
         DisplayName::operator("vDash",      "⊨", "Models / semantic entailment (LaTeX name)").latex("\\vDash"),
         DisplayName::operator("Vdash",      "⊩", "Forces").latex("\\Vdash"),
-        DisplayName::operator("top",        "⊤", "Top / true").latex("\\top"),
-        DisplayName::operator("bot",        "⊥", "Bottom / false / contradiction").latex("\\bot"),
+        DisplayName::letter("top",          "⊤", "Top / true (a term, like ∅)").latex("\\top"),
+        DisplayName::letter("bot",          "⊥", "Bottom / false / contradiction (a term, like ∅)").latex("\\bot"),
         DisplayName::operator("land",       "∧", "Logical and").latex("\\land"),
         DisplayName::operator("lor",        "∨", "Logical or").latex("\\lor"),
         DisplayName::operator("lnot",       "¬", "Logical not").latex("\\lnot"),
@@ -340,6 +337,7 @@ pub fn display_name(name: Sym) -> Option<&'static DisplayName> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testing::PLANNED_KEYWORDS;
 
     #[test]
     fn constructors_set_class() {
@@ -350,20 +348,6 @@ mod tests {
         #[cfg(feature = "latex")]
         assert_eq!(tau.latex, "\\tau");
     }
-
-    const KEYWORDS: &[&str] = &[
-        "+", "add", "-", "sub", "*", "mul", "/", "div", "^", "pow", "frac", "sqrt", "root", "jux",
-        "juxtapose", "=", "eq", "!=", "neq", ">", "gt", "<", "lt", "approx", "≈", ">=", "geq", "<=",
-        "leq", "integral", "sum", "prod", "product", "lim", "limit", "derivative", "deriv",
-        "partial", "dd", "sin", "cos", "tan", "cot", "sec", "cosec", "csc", "arcsin", "asin",
-        "arccos", "acos", "arctan", "atan", "ln", "log", "exp", "abs", "floor", "ceil", "fact",
-        "factorial", "binom", "nCr", "mat", "matrix", "vec", "vector", "det", "determinant",
-        "table", "ty-judge", "ty-judgement", "set", "in", "notin", "subset", "superset", "union",
-        "intersect", "and", "or", "not", "implies", "iff", "forall", "exists", "paren", "bracket",
-        "brace", "text", "subscript", "superscript", "bar", "overline", "hat", "dot", "ddot",
-        "arrow", "box", "prime", "funcapp", "fapp", "evalat", "eval-at", "quote", "bb", "cal",
-        "frak", "bold", "rm", "cases", "show", "eval", "let", "alias", "macro", "ref", "tag",
-    ];
 
     #[test]
     fn no_duplicate_names() {
@@ -385,7 +369,7 @@ mod tests {
     #[test]
     fn no_keyword_clash() {
         for d in display_names() {
-            assert!(!KEYWORDS.contains(&d.name), "`{}` is a keyword name", d.name);
+            assert!(!PLANNED_KEYWORDS.contains(&d.name), "`{}` is a keyword name", d.name);
         }
     }
 
@@ -410,7 +394,26 @@ mod tests {
         assert!(display_name(Sym::new("no-such-display-name")).is_none());
         let n = display_names().len();
         assert_eq!(n, TABLE.len());
-        assert!(n > 100);
+        // Changing the table changes this number on purpose.
+        assert_eq!(n, 212);
+        // Removed: they would hijack common names (successor, real part,
+        // Reynolds number). A note that wants the symbol can `alias` it.
+        for name in ["succ", "Re", "Im"] {
+            assert!(display_name(Sym::new(name)).is_none(), "{name}");
+        }
+    }
+
+    /// Each name shows the same glyph in `MathML` and in LaTeX. LaTeX's
+    /// `\epsilon` and `\phi` are the variant shapes ϵ and ϕ, so the names are
+    /// crossed over.
+    #[cfg(feature = "latex")]
+    #[test]
+    fn epsilon_and_phi_match_latex() {
+        let row = |n: &str| display_name(Sym::new(n)).expect(n);
+        assert_eq!((row("epsilon").unicode, row("epsilon").latex), ("\u{3b5}", "\\varepsilon"));
+        assert_eq!((row("varepsilon").unicode, row("varepsilon").latex), ("\u{3f5}", "\\epsilon"));
+        assert_eq!((row("phi").unicode, row("phi").latex), ("\u{3c6}", "\\varphi"));
+        assert_eq!((row("varphi").unicode, row("varphi").latex), ("\u{3d5}", "\\phi"));
     }
 
     #[test]
@@ -420,5 +423,9 @@ mod tests {
         assert_eq!(class("hbar"), Class::Letter);
         assert_eq!(class("turnstile"), Class::Operator);
         assert_eq!(class("mapsto"), Class::Operator);
+        // Terms, not operators.
+        assert_eq!(class("top"), Class::Letter);
+        assert_eq!(class("bot"), Class::Letter);
+        assert_eq!(class("emptyset"), Class::Letter);
     }
 }
