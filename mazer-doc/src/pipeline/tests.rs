@@ -100,6 +100,28 @@ fn diagnostics_are_reported_once() {
 }
 
 #[test]
+fn an_unclosed_form_reports_only_the_paren() {
+    // The lists cut off by the missing parens are short of arguments only
+    // because they are cut off.
+    let analysis = analyze("(show (frac (frac (frac 1", "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::UnclosedParen]);
+    let analysis = analyze("(show (+ (frac 1 2) (half", "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::UnclosedParen]);
+    let analysis = analyze("(macro (half x) (frac x 2))\n\n(show (half (sqrt", "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::UnclosedParen]);
+    // A complete sibling inside the unclosed form is still checked, and so
+    // is another form.
+    let src = "(show (+ (frac 1) (sqrt x\n\n(show (frac 2))";
+    let analysis = analyze(src, "t.zr");
+    let found: Vec<(DiagCode, &str)> =
+        analysis.diags.iter().map(|d| (d.code, analysis.sources.text(d.span))).collect();
+    assert_eq!(
+        found,
+        [(DiagCode::UnclosedParen, "("), (DiagCode::Arity, "(frac 1)"), (DiagCode::Arity, "(frac 2)")]
+    );
+}
+
+#[test]
 fn empty_show_and_eval_arity() {
     let analysis = analyze("(show )", "t.zr");
     assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::Arity]);
@@ -351,7 +373,12 @@ fn lists() {
     assert_eq!(body("1. a\n2. b"), "<ol><li>a</li><li>b</li></ol>");
     assert_eq!(body("3. a\n4. b"), "<ol start=\"3\"><li>a</li><li>b</li></ol>");
     assert_eq!(body("- a\n  - b\n- c"), "<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>");
-    assert_eq!(body("- a\n\n  more"), "<ul><li>a<p>more</p></li></ul>");
+    // One paragraph is written bare; several all get <p>.
+    assert_eq!(body("- a\n\n  more"), "<ul><li><p>a</p><p>more</p></li></ul>");
+    assert_eq!(body("- a\n\n  more\n\n  - x"), "<ul><li><p>a</p><p>more</p><ul><li>x</li></ul></li></ul>");
+    assert_eq!(body("- a\n  - x\n- b"), "<ul><li>a<ul><li>x</li></ul></li><li>b</li></ul>");
+    // A paragraph of only definitions does not count.
+    assert_eq!(body("- (let x 2)\n\n  more"), "<ul><li><p>more</p></li></ul>");
     assert_eq!(
         body("- a (show x)"),
         "<ul><li>a <math display=\"inline\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math></li></ul>"
@@ -370,7 +397,8 @@ fn checklists() {
 #[test]
 fn block_quotes() {
     assert_eq!(body("> a\n> b"), "<blockquote>a<br/>b</blockquote>");
-    assert_eq!(body("> a\n>\n> b"), "<blockquote>a<p>b</p></blockquote>");
+    assert_eq!(body("> a\n>\n> b"), "<blockquote><p>a</p><p>b</p></blockquote>");
+    assert_eq!(body("> a\n>\n> - x"), "<blockquote>a<ul><li>x</li></ul></blockquote>");
     assert_eq!(body("> - x"), "<blockquote><ul><li>x</li></ul></blockquote>");
 }
 
@@ -534,8 +562,29 @@ fn latex_target() {
     let html = unwrap_fragment(&out.html);
     assert_eq!(
         html,
-        "<p>a \\(x\\) b</p><div class=\"mazer-equation\" id=\"eq-e\">\\[y \\tag{1}\\label{eq-e}\\]</div><p>See \\eqref{eq-e}.</p>"
+        "<p>a \\(\\displaystyle x\\) b</p><div class=\"mazer-equation\" id=\"eq-e\">\\[y \\tag{1}\\label{eq-e}\\]</div><p>See \\eqref{eq-e}.</p>"
     );
+}
+
+#[test]
+#[cfg(feature = "latex")]
+fn latex_labels_are_sanitised() {
+    // Inline math is display style in both targets, so limits stay above
+    // and below.
+    let mut opts = Options::new("t.zr");
+    opts.target = Target::Latex;
+    let out = compile("a (show (sum k k 1 n)) b", &mut opts);
+    assert!(unwrap_fragment(&out.html).starts_with("<p>a \\(\\displaystyle "), "{}", out.html);
+    // A tag name with characters LaTeX would choke on: the label and the
+    // reference get the same safe key; the HTML anchor keeps the name.
+    let mut opts = Options::new("t.zr");
+    opts.target = Target::Latex;
+    let out = compile("(show (tag a%b#c{_é) y)\n\nSee (ref a%b#c{_é).", &mut opts);
+    assert!(out.diags.is_empty(), "{:?}", out.diags);
+    let html = unwrap_fragment(&out.html);
+    assert!(html.contains("\\label{eq-a-b-c-_-}"), "{html}");
+    assert!(html.contains("\\eqref{eq-a-b-c-_-}"), "{html}");
+    assert!(html.contains("id=\"eq-a%b#c{_é\""), "{html}");
 }
 
 #[test]
@@ -752,11 +801,23 @@ fn a_let_value_is_checked_once_where_it_is_bound() {
 
 #[test]
 fn identical_diagnostics_are_merged() {
-    // The template has the same problem twice: one report per use.
-    let out = compile("(macro (f) (+ (frac 1) (frac 1)))\n\n(show (f))", &mut Options::new("t.zr"));
-    assert_eq!(codes(&out.diags), [DiagCode::Arity]);
+    // A closed template is checked at its definition: two faulty forms are
+    // two reports there, and the uses report nothing more.
+    let src = "(macro (f) (+ (frac 1) (frac 1)))\n\n(show (f))";
+    let out = compile(src, &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::Arity]);
+    assert!(out.diags.iter().all(|d| out.sources.text(d.span) == "(frac 1)" && d.span.start.0 < 34));
     let out = compile("(macro (f) (frac 1))\n\n(show (f))\n\n(show (f))", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity], "one report, at the definition");
+    // A problem that depends on the arguments: one report per use.
+    let out = compile("(macro (f v) (frac v))\n\n(show (f a))\n\n(show (f a))", &mut Options::new("t.zr"));
     assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::Arity], "different places are different reports");
+    let out = compile("(macro (f v) (+ (frac v) (frac v)))\n\n(show (f a))", &mut Options::new("t.zr"));
+    // The same problem twice in the template: one report per use (same code,
+    // span and message are merged), labelled at the first template form.
+    assert_eq!(codes(&out.diags), [DiagCode::Arity]);
+    assert_eq!(out.diags[0].labels.len(), 1);
+    assert_eq!(out.diags[0].labels[0].0.start.0, 16);
     // A macro problem at the use keeps its label to the definition.
     let src = "(macro (half v) (frac v 2))\n\n(let y (half a b))\n\n(show y)";
     let analysis = analyze(src, "t.zr");

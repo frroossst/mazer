@@ -12,7 +12,7 @@
 //! | numbered list    | `<ol>`, `<ol start="n">` when it does not start at 1 |
 //! | checklist item   | `<li><input type="checkbox" disabled> text</li>` (`checked disabled` when ticked); a list of only checklist items is `<ul class="mazer-checklist">` |
 //! | block quote      | `<blockquote>` |
-//! | list item / quote content | the first paragraph is written bare (no `<p>`), later blocks normally |
+//! | list item / quote content | a leading paragraph that is the only paragraph is written bare (no `<p>`), other blocks normally; with more than one paragraph every paragraph gets `<p>` |
 //! | code block       | `<pre><code class="language-x">`, `<pre><code>` without a language |
 //! | rule             | `<hr/>` |
 //! | image            | `<img alt=".." src=".."/>`, wrapped in `<p>` as a block; with a `javascript:`, `vbscript:` or non-image `data:` URL, just the alt text |
@@ -99,6 +99,15 @@ pub fn full_page(title: &str, name: &str, body: &str) -> String {
 }
 
 /// The old template's icon and syntax highlighter.
+///
+/// The highlighter is loaded from a CDN without a pinned version and without
+/// `integrity`/`crossorigin`, exactly as the old template (and the website's
+/// `mazer.js`) loads it. It is NOT pinned here because the version the site
+/// uses is not recorded anywhere and no copy of the file was available to
+/// compute a Subresource Integrity hash from; a made-up version or hash
+/// would break the page. To harden it: choose a release, write
+/// `@arborium/arborium@<version>` in the URL, and add
+/// `integrity="sha384-<hash of that exact file>" crossorigin="anonymous"`.
 const HEAD: &str = "<link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2232%22 font-size=%2232%22>🍁</text></svg>\"><script src=\"https://cdn.jsdelivr.net/npm/@arborium/arborium/dist/arborium.iife.js\" data-theme=\"github-light\" data-selector=\"pre code\"></script>";
 
 /// Default styles for the classes the old renderer did not have.
@@ -208,9 +217,18 @@ impl Writer<'_, '_> {
         escape(&mut self.out, text);
     }
 
-    /// Writes blocks. With `bare_first`, a leading paragraph is written
-    /// without `<p>` (list items and quotes, as the old renderer did).
+    /// Writes blocks. With `bare_first` (the content of a list item or a
+    /// block quote), a leading paragraph is written without `<p>`, as the
+    /// old renderer did, but only when it is the one paragraph there (nested
+    /// lists and other blocks aside); with several paragraphs, all of them
+    /// get `<p>`, so they are spaced alike. Paragraphs that write nothing
+    /// (only definitions) do not count.
     fn blocks(&mut self, blocks: &[Block], bare_first: bool) {
+        let paragraphs = blocks
+            .iter()
+            .filter(|b| matches!(&b.kind, BlockKind::Paragraph(content) if !content.iter().all(|i| self.is_silent(i))))
+            .count();
+        let bare_first = bare_first && paragraphs <= 1;
         for (i, block) in blocks.iter().enumerate() {
             match &block.kind {
                 BlockKind::Paragraph(content) if bare_first && i == 0 => self.inlines(content),
@@ -474,7 +492,7 @@ impl Writer<'_, '_> {
                 break;
             }
             if walk::span_within(diag.span, node.span)
-                && !emitted.iter().any(|e| e == *diag)
+                && !emitted.iter().any(|e| same_problem(e, diag))
                 && !out.contains(&diag.message)
             {
                 out.push(diag.message.clone());
@@ -602,7 +620,7 @@ impl Writer<'_, '_> {
             }
             #[cfg(feature = "latex")]
             Target::Latex => {
-                let latex = format!("\\eqref{{{}}}", label.anchor);
+                let latex = format!("\\eqref{{{}}}", latex_label(&label.anchor));
                 self.escaped(&latex);
             }
         }
@@ -697,11 +715,11 @@ impl Writer<'_, '_> {
             Target::Latex => {
                 let joined = bodies.join(" ");
                 match place {
-                    Place::Inline => self.escaped(&format!("\\({joined}\\)")),
+                    Place::Inline => self.escaped(&format!("\\(\\displaystyle {joined}\\)")),
                     Place::Block => {
                         self.equation_open(label);
                         let tag = label.map_or_else(String::new, |l| {
-                            format!(" \\tag{{{}}}\\label{{{}}}", l.number, l.anchor)
+                            format!(" \\tag{{{}}}\\label{{{}}}", l.number, latex_label(&l.anchor))
                         });
                         self.escaped(&format!("\\[{joined}{tag}\\]"));
                         self.push("</div>");
@@ -752,4 +770,24 @@ impl Writer<'_, '_> {
 
 fn is_definition(node: &Node) -> bool {
     node.is_form("let") || node.is_form("alias") || node.is_form("macro")
+}
+
+/// An equation anchor as a LaTeX `\label` / `\eqref` key: ASCII letters,
+/// digits, `:`, `_` and `-` are kept, every other character (`%`, `#`, `{`,
+/// a non-ASCII letter ...) becomes `-`. The same text is used for the label
+/// and every reference to it, so they still match.
+#[cfg(feature = "latex")]
+fn latex_label(anchor: &str) -> String {
+    anchor
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, ':' | '_' | '-') { c } else { '-' })
+        .collect()
+}
+
+/// Whether two diagnostics report the same problem at the same place. A
+/// problem found inside an expansion is reported by `analyze` with extra
+/// labels and help pointing at the template; rendering the expression finds
+/// it again without them, and it is still the same problem.
+fn same_problem(a: &Diag, b: &Diag) -> bool {
+    a.code == b.code && a.span == b.span && a.message == b.message
 }

@@ -11,7 +11,7 @@ use mazer_doc::syntax::BlockKind;
 use mazer_doc::{Analysis, ByteOffset, Span};
 
 use crate::convert::{self, NOTE, note_text};
-use crate::tree::{self, Place};
+use mazer_doc::Place;
 
 /// One outline entry before nesting.
 struct Entry {
@@ -56,7 +56,7 @@ fn headings(analysis: &Analysis) -> Vec<Entry> {
 fn definitions(analysis: &Analysis) -> Vec<Entry> {
     let sources = &analysis.sources;
     let mut out = Vec::new();
-    for (form, place) in tree::forms(analysis) {
+    for (form, place) in mazer_doc::code_forms(analysis) {
         let range = convert::range(sources, form.span);
         let name_range = |node: Option<&mazer_doc::syntax::Node>| node.map_or(range, |n| convert::range(sources, n.span));
         if form.is_form("let") {
@@ -71,11 +71,11 @@ fn definitions(analysis: &Analysis) -> Vec<Entry> {
                     Some(binding.value.to_string()),
                     SymbolKind::VARIABLE,
                     range,
-                    name_range(tree::definition_name(form)),
+                    name_range(mazer_doc::name_node(form)),
                 ),
             });
         } else if form.is_form("alias") || form.is_form("macro") {
-            let Some(def) = tree::definition_name(form)
+            let Some(def) = mazer_doc::name_node(form)
                 .and_then(mazer_doc::syntax::Node::as_ident)
                 .and_then(|sym| analysis.macros.get(sym))
                 .filter(|m| m.span == form.span)
@@ -85,12 +85,12 @@ fn definitions(analysis: &Analysis) -> Vec<Entry> {
             let (kind, detail) = if def.is_alias() {
                 (SymbolKind::CONSTANT, format!("alias {}", def.body))
             } else {
-                (SymbolKind::FUNCTION, crate::docs::macro_call_text(def))
+                (SymbolKind::FUNCTION, def.signature())
             };
             out.push(Entry {
                 level: None,
                 span: form.span,
-                symbol: symbol(def.name.as_str().to_owned(), Some(detail), kind, range, name_range(tree::definition_name(form))),
+                symbol: symbol(def.name.as_str().to_owned(), Some(detail), kind, range, name_range(mazer_doc::name_node(form))),
             });
         } else if form.is_form("show") && place == Place::Block {
             let Some(tag) = form.args().first().filter(|t| t.is_form("tag")) else {

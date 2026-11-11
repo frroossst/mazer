@@ -181,10 +181,16 @@ fn resolve(form: &Node, labels: &Labels, diags: &mut Diags) {
     match form.args() {
         [name] => match name.as_ident() {
             Some(sym) if labels.get(sym).is_some() => {}
-            Some(sym) => diags.push(
-                Diag::error(DiagCode::UnresolvedRef, name.span, format!("no equation is tagged `{sym}`"))
-                    .with_help(format!("tag one with (show (tag {sym}) ...)")),
-            ),
+            Some(sym) => {
+                let help = closest(sym, labels).map_or_else(
+                    || format!("tag one with (show (tag {sym}) ...)"),
+                    |near| format!("did you mean `{}`? (equation ({}))", near.name, near.number),
+                );
+                diags.push(
+                    Diag::error(DiagCode::UnresolvedRef, name.span, format!("no equation is tagged `{sym}`"))
+                        .with_help(help),
+                );
+            }
             None => diags.push(Diag::error(
                 DiagCode::UnresolvedRef,
                 name.span,
@@ -196,6 +202,45 @@ fn resolve(form: &Node, labels: &Labels, diags: &mut Diags) {
                 .with_help("write it as (ref name)"),
         ),
     }
+}
+
+/// The label nearest to `name` by edit distance, if one is close enough to
+/// be a typo: at most one edit for names of up to four characters, two for
+/// longer ones. Ties go to the lower equation number.
+fn closest(name: Sym, labels: &Labels) -> Option<&Label> {
+    let name = name.as_str();
+    let limit = if name.chars().count() <= 4 { 1 } else { 2 };
+    labels
+        .iter()
+        .map(|label| (edit_distance(name, label.name.as_str()), label))
+        .filter(|(d, _)| *d <= limit)
+        .min_by_key(|(d, label)| (*d, label.number))
+        .map(|(_, label)| label)
+}
+
+/// Edit distance counting characters: insert, delete, substitute, and
+/// swapping two neighbours, one edit each.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    // Three rows of the dynamic-programming table.
+    let mut before: Vec<usize> = vec![0; b.len() + 1];
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut row: Vec<usize> = vec![0; b.len() + 1];
+    for i in 1..=a.len() {
+        row[0] = i;
+        for j in 1..=b.len() {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            let mut best = (prev[j] + 1).min(row[j - 1] + 1).min(prev[j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                best = best.min(before[j - 2] + 1);
+            }
+            row[j] = best;
+        }
+        std::mem::swap(&mut before, &mut prev);
+        std::mem::swap(&mut prev, &mut row);
+    }
+    prev[b.len()]
 }
 
 #[cfg(test)]

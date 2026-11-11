@@ -10,20 +10,50 @@
 //!   the notes through DNS rebinding).
 //!
 //! The accept loop runs on its own thread; each connection is answered on a
-//! short-lived thread with read and write timeouts, and closed after one
-//! response. [`Preview::stop`] ends the accept loop and joins it.
+//! short-lived thread and closed after one response. Limits keep a
+//! misbehaving client from holding the server:
+//! - the whole request head must arrive within [`Limits::head_deadline`]
+//!   (5 s) of the connection, however slowly it trickles in; otherwise the
+//!   connection is closed without an answer;
+//! - at most [`Limits::max_connections`] (32) connections are served at
+//!   once; one more is closed at once;
+//! - a request with more than one `Host` header is a 400, one whose `Host`
+//!   is not this loopback address a 403;
+//! - a note that is closed in the editor is no longer served (404).
+//!
+//! The listener is bound to `127.0.0.1` only. [`Preview::stop`] ends the
+//! accept loop and joins it.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::io::{self, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Longest request head read before giving up with a 400.
 const MAX_REQUEST: usize = 8 * 1024;
+
+/// How much the preview server puts up with.
+#[derive(Clone, Copy, Debug)]
+pub struct Limits {
+    /// The whole request head must have arrived this long after the
+    /// connection was accepted.
+    pub head_deadline: Duration,
+    /// Connections served at the same time; more are closed at once.
+    pub max_connections: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            head_deadline: Duration::from_secs(5),
+            max_connections: 32,
+        }
+    }
+}
 
 /// One previewed note.
 struct Page {
@@ -36,6 +66,17 @@ struct Page {
 struct Shared {
     pages: Mutex<HashMap<u32, Page>>,
     stop: AtomicBool,
+    /// Connections being served now.
+    active: AtomicUsize,
+}
+
+/// Counts one connection as active while it lives.
+struct Slot(Arc<Shared>);
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.active.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl Shared {
@@ -57,13 +98,21 @@ impl Preview {
     /// # Errors
     /// If no port can be bound or the thread cannot be started.
     pub fn start() -> io::Result<Self> {
+        Self::start_with(Limits::default())
+    }
+
+    /// [`Self::start`] with other limits (tests use short ones).
+    ///
+    /// # Errors
+    /// If no port can be bound or the thread cannot be started.
+    pub fn start_with(limits: Limits) -> io::Result<Self> {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
         let addr = listener.local_addr()?;
         let shared = Arc::new(Shared::default());
         let state = Arc::clone(&shared);
         let thread = thread::Builder::new()
             .name("mazer-preview".to_owned())
-            .spawn(move || accept_loop(&listener, &state, addr))?;
+            .spawn(move || accept_loop(&listener, &state, addr, limits))?;
         Ok(Self {
             addr,
             shared,
@@ -91,6 +140,12 @@ impl Preview {
         );
     }
 
+    /// Stops serving note `id` (it was closed in the editor): its page and
+    /// version are 404 from now on.
+    pub fn remove(&self, id: u32) {
+        self.shared.pages().remove(&id);
+    }
+
     /// Stops serving and joins the accept thread.
     pub fn stop(mut self) {
         self.shutdown();
@@ -114,7 +169,7 @@ impl Drop for Preview {
     }
 }
 
-fn accept_loop(listener: &TcpListener, shared: &Arc<Shared>, addr: SocketAddr) {
+fn accept_loop(listener: &TcpListener, shared: &Arc<Shared>, addr: SocketAddr, limits: Limits) {
     for stream in listener.incoming() {
         if shared.stop.load(Ordering::SeqCst) {
             return;
@@ -122,11 +177,17 @@ fn accept_loop(listener: &TcpListener, shared: &Arc<Shared>, addr: SocketAddr) {
         let Ok(stream) = stream else {
             continue;
         };
-        let state = Arc::clone(shared);
+        if shared.active.fetch_add(1, Ordering::SeqCst) >= limits.max_connections {
+            shared.active.fetch_sub(1, Ordering::SeqCst);
+            drop(stream); // too many at once: close it now
+            continue;
+        }
+        let slot = Slot(Arc::clone(shared));
         let _ = thread::Builder::new()
             .name("mazer-preview-conn".to_owned())
             .spawn(move || {
-                let _ = serve(stream, &state, addr);
+                let _ = serve(stream, &slot.0, addr, limits.head_deadline);
+                drop(slot);
             });
     }
 }
@@ -156,15 +217,13 @@ impl Response {
     }
 }
 
-fn serve(mut stream: TcpStream, shared: &Shared, addr: SocketAddr) -> io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+fn serve(mut stream: TcpStream, shared: &Shared, addr: SocketAddr, deadline: Duration) -> io::Result<()> {
     stream.set_write_timeout(Some(Duration::from_secs(5)))?;
-    let head = read_head(&mut stream)?;
-    let head_only = head.as_deref().is_some_and(|h| h.starts_with("HEAD "));
-    let response = head.map_or_else(
-        || Response::text("400 Bad Request", "bad request\n"),
-        |head| respond(&head, shared, addr),
-    );
+    let (response, head_only) = match read_head(&mut stream, Instant::now() + deadline)? {
+        Head::TooSlow => return Ok(()), // close without an answer
+        Head::Bad => (Response::text("400 Bad Request", "bad request\n"), false),
+        Head::Request(head) => (respond(&head, shared, addr), head.starts_with("HEAD ")),
+    };
     let mut out = format!(
         "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
         response.status,
@@ -179,23 +238,41 @@ fn serve(mut stream: TcpStream, shared: &Shared, addr: SocketAddr) -> io::Result
     stream.flush()
 }
 
-/// Reads the request head (up to the blank line). `None` if it is too long,
-/// not UTF-8, or the connection ends first.
-fn read_head(stream: &mut TcpStream) -> io::Result<Option<String>> {
+/// What came in as a request head.
+enum Head {
+    /// The head, up to the blank line.
+    Request(String),
+    /// Too long, not UTF-8, or the connection ended first.
+    Bad,
+    /// The deadline passed first.
+    TooSlow,
+}
+
+/// Reads the request head (up to the blank line) before `deadline`.
+fn read_head(stream: &mut TcpStream, deadline: Instant) -> io::Result<Head> {
     let mut buf = Vec::with_capacity(1024);
     let mut chunk = [0u8; 1024];
     loop {
-        let n = stream.read(&mut chunk)?;
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Ok(Head::TooSlow);
+        }
+        stream.set_read_timeout(Some(left))?;
+        let n = match stream.read(&mut chunk) {
+            Ok(n) => n,
+            Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => return Ok(Head::TooSlow),
+            Err(e) => return Err(e),
+        };
         if n == 0 {
-            return Ok(None);
+            return Ok(Head::Bad);
         }
         buf.extend_from_slice(&chunk[..n]);
         if let Some(end) = find(&buf, b"\r\n\r\n").or_else(|| find(&buf, b"\n\n")) {
             buf.truncate(end);
-            return Ok(String::from_utf8(buf).ok());
+            return Ok(String::from_utf8(buf).map_or(Head::Bad, Head::Request));
         }
         if buf.len() > MAX_REQUEST {
-            return Ok(None);
+            return Ok(Head::Bad);
         }
     }
 }
@@ -217,13 +294,17 @@ fn respond(head: &str, shared: &Shared, addr: SocketAddr) -> Response {
     if method != "GET" && method != "HEAD" {
         return Response::text("405 Method Not Allowed", "only GET\n");
     }
-    let host = lines
+    let hosts: Vec<&str> = lines
         .filter_map(|l| l.split_once(':'))
-        .find(|(name, _)| name.trim().eq_ignore_ascii_case("host"))
-        .map(|(_, value)| value.trim());
-    if let Some(host) = host
-        && host != format!("127.0.0.1:{}", addr.port())
-        && host != format!("localhost:{}", addr.port())
+        .filter(|(name, _)| name.trim().eq_ignore_ascii_case("host"))
+        .map(|(_, value)| value.trim())
+        .collect();
+    if hosts.len() > 1 {
+        return Response::text("400 Bad Request", "more than one Host header\n");
+    }
+    if let Some(host) = hosts.first()
+        && *host != format!("127.0.0.1:{}", addr.port())
+        && *host != format!("localhost:{}", addr.port())
     {
         return Response::text("403 Forbidden", "wrong host\n");
     }
@@ -297,7 +378,8 @@ mod tests {
     fn get(addr: SocketAddr, request: &[u8]) -> String {
         let mut stream = TcpStream::connect(addr).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-        stream.write_all(request).unwrap();
+        // A refused connection may already be closed.
+        let _ = stream.write_all(request);
         let mut out = String::new();
         let _ = stream.read_to_string(&mut out);
         out
@@ -337,6 +419,104 @@ mod tests {
         drop(TcpStream::connect(addr).unwrap());
         // Still serving.
         assert!(get(addr, b"GET / HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 200"));
+        preview.stop();
+    }
+
+    #[test]
+    fn host_headers() {
+        let preview = Preview::start().unwrap();
+        let addr = preview.addr;
+        let port = addr.port();
+        let ok = format!("GET / HTTP/1.1\r\nHost: localhost:{port}\r\n\r\n");
+        assert!(get(addr, ok.as_bytes()).starts_with("HTTP/1.1 200"));
+        let two = format!("GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nhost: evil.example\r\n\r\n");
+        assert!(get(addr, two.as_bytes()).starts_with("HTTP/1.1 400"), "two Host headers");
+        let same_twice = format!("GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nHost: 127.0.0.1:{port}\r\n\r\n");
+        assert!(get(addr, same_twice.as_bytes()).starts_with("HTTP/1.1 400"));
+        for host in ["evil.example", "127.0.0.1", "127.0.0.1:1", "192.168.0.1:80", "[::1]:1"] {
+            let request = format!("GET / HTTP/1.1\r\nHost: {host}\r\n\r\n");
+            assert!(get(addr, request.as_bytes()).starts_with("HTTP/1.1 403"), "{host}");
+        }
+        assert!(addr.ip().is_loopback());
+        preview.stop();
+    }
+
+    #[test]
+    fn a_closed_note_is_no_longer_served() {
+        let preview = Preview::start().unwrap();
+        let addr = preview.addr;
+        preview.update(3, "note", "<html><body>x</body></html>".to_owned());
+        assert!(get(addr, b"GET /doc/3 HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 200"));
+        preview.remove(3);
+        assert!(get(addr, b"GET /doc/3 HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 404"));
+        assert!(get(addr, b"GET /doc/3/version HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 404"));
+        assert!(!get(addr, b"GET / HTTP/1.1\r\n\r\n").contains("/doc/3"));
+        preview.stop();
+    }
+
+    #[test]
+    fn a_slow_request_head_is_cut_off() {
+        let limits = Limits {
+            head_deadline: Duration::from_millis(400),
+            max_connections: 32,
+        };
+        let preview = Preview::start_with(limits).unwrap();
+        let addr = preview.addr;
+        let mut stream = TcpStream::connect(addr).unwrap();
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        // A byte every 100 ms never finishes the head: each read is quick,
+        // but the total deadline still ends it.
+        let start = Instant::now();
+        let mut closed = false;
+        for byte in b"GET / HTTP/1.1\r\nX-Slow: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+            if stream.write_all(&[*byte]).is_err() {
+                closed = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+            if start.elapsed() > Duration::from_secs(2) {
+                break;
+            }
+        }
+        let mut out = Vec::new();
+        let _ = stream.read_to_end(&mut out);
+        assert!(closed || out.is_empty(), "no answer to a request that never ended: {out:?}");
+        assert!(start.elapsed() < Duration::from_secs(4), "{:?}", start.elapsed());
+        // A prompt request is still answered.
+        assert!(get(addr, b"GET / HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 200"));
+        preview.stop();
+    }
+
+    #[test]
+    fn too_many_connections_are_closed_at_once() {
+        let limits = Limits {
+            head_deadline: Duration::from_secs(10),
+            max_connections: 4,
+        };
+        let preview = Preview::start_with(limits).unwrap();
+        let addr = preview.addr;
+        // Four idle connections hold every slot.
+        let idle: Vec<TcpStream> = (0..4).map(|_| TcpStream::connect(addr).unwrap()).collect();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while preview.shared.active.load(Ordering::SeqCst) < 4 {
+            assert!(Instant::now() < deadline, "the idle connections were not accepted");
+            thread::sleep(Duration::from_millis(10));
+        }
+        // The fifth is closed without an answer, right away.
+        let start = Instant::now();
+        let refused = get(addr, b"GET / HTTP/1.1\r\n\r\n");
+        assert_eq!(refused, "", "{refused}");
+        assert!(start.elapsed() < Duration::from_secs(2));
+        // Once they go away, requests are served again.
+        drop(idle);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if get(addr, b"GET / HTTP/1.1\r\n\r\n").starts_with("HTTP/1.1 200") {
+                break;
+            }
+            assert!(Instant::now() < deadline, "not serving again");
+            thread::sleep(Duration::from_millis(20));
+        }
         preview.stop();
     }
 }

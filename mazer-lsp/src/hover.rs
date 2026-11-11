@@ -34,7 +34,7 @@ pub fn hover(analysis: &Analysis, at: ByteOffset) -> Option<Hover> {
         Role::MacroUse(def) | Role::MacroName(Some(def)) => docs::macro_markdown(def, &place(analysis, def)),
         Role::MacroName(None) => format!("`{name}` is not defined: this definition has an error (see its diagnostic)."),
         Role::MacroParam => {
-            let owner = found.ctx.macro_form.and_then(tree::definition_name).map_or("", |n| sources.text(n.span));
+            let owner = found.ctx.macro_form.and_then(mazer_doc::name_node).map_or("", |n| sources.text(n.span));
             format!("Parameter `{name}` of the macro `{owner}`: replaced by the argument as written.")
         }
         Role::LetName(Some(binding)) => format!(
@@ -42,6 +42,10 @@ pub fn hover(analysis: &Analysis, at: ByteOffset) -> Option<Hover> {
             binding.value
         ),
         Role::LetName(None) => format!("`{name}` is not bound: this `let` has an error (see its diagnostic)."),
+        Role::LetUse(binding) if matches!(binding.value.kind, mazer_doc::syntax::NodeKind::Error) => format!(
+            "`let` variable `{name}` is an error from line {} on: the note creates too many nodes through `let` variables and notation, and its value was refused (see the diagnostic there).",
+            line_of(binding.span)
+        ),
         Role::LetUse(binding) => {
             let mut out = format!(
                 "`let` variable `{name}`, shown as:\n```{FENCE}\n{}\n```\nBound on line {}:\n```{FENCE}\n{}\n```",
@@ -63,7 +67,7 @@ pub fn hover(analysis: &Analysis, at: ByteOffset) -> Option<Hover> {
         Role::TagName(_, None) => format!("The tag `{name}` is not registered (see its diagnostic)."),
         Role::RefName(_, Some(label)) => {
             let mut out = format!("Equation ({}), tagged on line {}", label.number, line_of(label.span));
-            if let Some(form) = tree::tagged_equation(analysis, label) {
+            if let Some(form) = mazer_doc::tagged_equation(analysis, label) {
                 let _ = write!(out, ":\n```{FENCE}\n{}\n```", sources.text(form.span));
             }
             out
@@ -162,6 +166,14 @@ mod tests {
         has("(show |y)\n\n(let y 1)", &["only takes effect after it is written"]);
         // Quoted: no substitution.
         assert!(text("(let x 2)\n\n(show '|x)").is_none());
+        // A let refused by the node budget: the variable is an error, as the
+        // renderer substitutes it.
+        let mut src = format!("(let big (+{}))", " a".repeat(999));
+        for i in 0..300 {
+            let _ = write!(src, "\n\n(let c{i} big)");
+        }
+        src.push_str("\n\n(show c2|99)");
+        has(&src, &["`c299` is an error from line"]);
     }
 
     #[test]

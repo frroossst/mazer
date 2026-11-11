@@ -12,8 +12,10 @@ pub mod labels;
 pub mod locate;
 pub mod macros;
 pub mod pipeline;
+pub mod query;
 
 mod html;
+mod origins;
 mod walk;
 
 #[cfg(test)]
@@ -22,9 +24,16 @@ mod testing;
 pub use bindings::{Binding, Bindings};
 pub use eval::Evaluator;
 pub use labels::{Label, Labels, collect_labels};
-pub use locate::{Cursor, locate};
+pub use locate::{Cursor, is_inside, is_paren_list, is_unclosed, locate, real_items, string_spans};
 pub use macros::{Macro, Macros, expand};
 pub use pipeline::{Analysis, Options, Output, Page, Target, analyze, compile, render};
+pub use query::{
+    arg_index, binding_at, bindings_in_scope, code_forms, comment_spans, definition_name_span, enclosing_lists,
+    equation_span, form_at, label_name_span, name_node, name_span, tagged_equation,
+};
+/// Visiting every code form of a document in document order, with its
+/// [`Place`] (alone as a block, or inside a sentence).
+pub use walk::{Place, for_each_code};
 
 // Front ends depend only on this crate, so re-export what they need from below.
 pub use mazer_math as math;

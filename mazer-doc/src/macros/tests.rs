@@ -266,3 +266,142 @@ fn expanded_nodes_take_the_use_site_span() {
     assert_eq!(analysis.sources.text(items[1].span), "(+ a b)");
     assert_eq!(analysis.sources.text(items[1].as_list().unwrap()[1].span), "a");
 }
+
+// ------------------------------------------- diagnostics inside expansions
+
+/// A diagnostic as (code, primary text, labels as (text, label), help).
+type Report = (DiagCode, String, Vec<(String, String)>, Option<String>);
+
+/// Every diagnostic `analyze` reports for `src`.
+fn reports(src: &str) -> Vec<Report> {
+    let analysis = analyze(src, "t.zr");
+    let text = |span: Span| analysis.sources.text(span).to_owned();
+    analysis
+        .diags
+        .iter()
+        .map(|d| {
+            let labels = d.labels.iter().map(|(s, l)| (text(*s), l.clone())).collect();
+            (d.code, text(d.span), labels, d.help.clone())
+        })
+        .collect()
+}
+
+fn pair(a: &str, b: &str) -> (String, String) {
+    (a.to_owned(), b.to_owned())
+}
+
+fn assert_real_spans(node: &Node) {
+    assert_eq!(node.span.file, mazer_syntax::FileId(0), "{node}");
+    for child in node.as_list().unwrap_or(&[]) {
+        assert_real_spans(child);
+    }
+}
+
+#[test]
+fn a_problem_in_a_template_points_at_the_template() {
+    let src = "(macro (tuple first rest...) (paren first rest))\n\n(show (tuple a b c d))";
+    let got = reports(src);
+    assert_eq!(got.len(), 1, "{got:?}");
+    let (code, primary, labels, help) = &got[0];
+    assert_eq!(*code, DiagCode::Arity);
+    assert_eq!(primary, "(tuple a b c d)", "the primary span stays at the use");
+    assert_eq!(
+        labels,
+        &[
+            pair("b", "unexpected argument"),
+            pair("c", "unexpected argument"),
+            pair("d", "unexpected argument"),
+            pair("(paren first rest)", "in the expansion of `tuple`, defined here"),
+        ]
+    );
+    assert_eq!(help.as_deref(), Some("the template of `tuple` calls `paren` with 4 arguments; (paren body)"));
+    // The label is inside the definition, not just anywhere with that text.
+    let analysis = analyze(src, "t.zr");
+    let def = analysis.macros.get(Sym::new("tuple")).unwrap();
+    let template = analysis.diags.as_slice()[0].labels[3].0;
+    assert!(def.span.start <= template.start && template.end <= def.span.end);
+    // The resolved tree still carries only real use-site spans, and the use
+    // renders its `<merror>` without an error box.
+    crate::walk::for_each_code(&analysis.resolved, &mut |form, _| assert_real_spans(form));
+    let html = crate::testing::body(src);
+    assert!(html.contains("<merror>") && !html.contains("mazer-error"), "{html}");
+}
+
+#[test]
+fn a_closed_alias_is_reported_once_at_its_definition() {
+    let src = "(alias H (frac h))\n\n(show H)\n\n(show (+ H H))\n\nText (show H).";
+    let got = reports(src);
+    assert_eq!(got, [(DiagCode::Arity, "(frac h)".to_owned(), vec![], Some("(frac num den)".to_owned()))]);
+    // The uses still render the problem in place; the broken definition is
+    // an error box, like a broken `let`.
+    let html = crate::testing::body(src);
+    assert_eq!(html.matches("<merror>").count(), 4, "{html}");
+    assert!(html.starts_with("<pre class=\"mazer-error\">`frac` is missing its `den` argument</pre>"), "{html}");
+    // A macro whose body is wrong whatever its arguments: the same.
+    let got = reports("(macro (f v) (+ v (frac 1)))\n\n(show (f a))\n\n(show (f b))");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].1, "(frac 1)");
+    // A macro use with the wrong count, inside a closed template.
+    let got = reports("(macro (half v) (frac v 2))\n\n(alias H (half))\n\n(show H)");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!((got[0].0, got[0].1.as_str()), (DiagCode::MacroArity, "(half)"));
+    // A single name is not checked on its own: it may be a head.
+    assert_eq!(reports("(alias F frac)\n\n(show (F a b))").len(), 0);
+    // An unused closed definition is still reported.
+    assert_eq!(reports("(alias U (sqrt))").len(), 1);
+}
+
+#[test]
+fn nested_expansions_name_every_definition() {
+    // The faulty call is in `inner`'s template and depends on the arguments
+    // `outer` passes: reported at the use, labelled at both templates.
+    let src = "(macro (inner x rest...) (paren x rest))\n\n(macro (outer a) (+ 1 (inner a b c)))\n\n(show (outer q))";
+    let got = reports(src);
+    assert_eq!(got.len(), 1, "{got:?}");
+    let (code, primary, labels, help) = &got[0];
+    assert_eq!(*code, DiagCode::Arity);
+    assert_eq!(primary, "(outer q)");
+    assert_eq!(
+        labels,
+        &[
+            pair("(paren x rest)", "in the expansion of `inner`, defined here"),
+            pair("(inner a b c)", "`inner` is used in the expansion of `outer` here"),
+        ]
+    );
+    assert_eq!(help.as_deref(), Some("the template of `inner` calls `paren` with 3 arguments; (paren body)"));
+    // A closed problem of an inner definition is reported at that definition
+    // only, not again at the definition that uses it, nor at the uses.
+    let got = reports("(alias A (paren 1 2))\n\n(macro (b) (+ A x))\n\n(show (b))\n\n(show A)");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].1, "(paren 1 2)");
+    // Closed for the outer definition, through the inner one: reported at
+    // the outer definition, labelled at the inner template.
+    let got = reports("(macro (inner x rest...) (paren x rest))\n\n(alias O (inner 1 2))\n\n(show O)");
+    assert_eq!(got.len(), 1, "{got:?}");
+    assert_eq!(got[0].1, "(inner 1 2)");
+    assert_eq!(
+        got[0].2,
+        [
+            pair("2", "unexpected argument"),
+            pair("(paren x rest)", "in the expansion of `inner`, defined here")
+        ]
+    );
+    assert_eq!(
+        got[0].3.as_deref(),
+        Some("the template of `inner` calls `paren` with 2 arguments; (paren body)")
+    );
+}
+
+#[test]
+fn sound_definitions_report_nothing() {
+    let src = "(macro (tuple first rest...) (paren (jux first rest)))\n\n(alias R (bb R))\n\n\
+               (macro (lap f s) \"doc\" (jux L (brace f) (paren s)))\n\n(show (tuple a b c))\n\n(show (lap R x))";
+    assert!(reports(src).is_empty(), "{:?}", reports(src));
+    // Recursion through each other is reported at each definition, and not
+    // again at a use, which is an error box.
+    let src = "(alias A (paren B))\n\n(alias B (paren A))\n\n(show A)";
+    let got = reports(src);
+    assert_eq!(got.iter().map(|r| r.0).collect::<Vec<_>>(), [DiagCode::MacroDepth, DiagCode::MacroDepth]);
+    assert!(got.iter().all(|r| r.2.len() <= 6), "a bounded number of labels: {got:?}");
+    assert!(crate::testing::body(src).contains("mazer-error"));
+}

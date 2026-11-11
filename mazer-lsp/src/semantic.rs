@@ -98,7 +98,7 @@ pub fn raw_tokens(analysis: &Analysis) -> Vec<Raw> {
             });
         }
     };
-    for (form, _) in tree::forms(analysis) {
+    for (form, _) in mazer_doc::code_forms(analysis) {
         tree::visit(text, form, &mut |node, ctx| match &node.kind {
             NodeKind::Ident(_) => {
                 let (kind, modifiers) = ident_kind(tree::classify(analysis, node, ctx));
@@ -108,9 +108,9 @@ pub fn raw_tokens(analysis: &Analysis) -> Vec<Raw> {
             NodeKind::Str(_) => push(node.span, Kind::String, 0),
             NodeKind::List(_) | NodeKind::Error => {}
         });
-        for span in tree::comment_spans(text, form) {
-            push(span, Kind::Comment, 0);
-        }
+    }
+    for span in mazer_doc::comment_spans(analysis) {
+        push(span, Kind::Comment, 0);
     }
     raw.sort_by_key(|t| (t.start, t.end));
     let mut out: Vec<Raw> = Vec::with_capacity(raw.len());

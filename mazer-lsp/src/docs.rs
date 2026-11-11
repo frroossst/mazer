@@ -152,17 +152,6 @@ pub fn macro_signature(def: &Macro) -> Signature {
     }
 }
 
-/// How a macro or alias is written: `(laplace f s)`, `(pair a rest...)`, or
-/// just the name of an alias. (`Macro::signature` is private to `mazer-doc`.)
-#[must_use]
-pub fn macro_call_text(def: &Macro) -> String {
-    if def.is_alias() {
-        def.name.as_str().to_owned()
-    } else {
-        macro_signature(def).label().0
-    }
-}
-
 /// The reserved words, with a one-line description each, in the order they
 /// are offered.
 pub const RESERVED: &[(&str, &str)] = &[
@@ -326,7 +315,7 @@ pub fn display_markdown(display: &DisplayName) -> String {
 pub fn macro_markdown(def: &Macro, place: &str) -> String {
     let mut out = String::new();
     let kind = if def.is_alias() { "alias" } else { "macro" };
-    let _ = writeln!(out, "```{FENCE}\n{}\n```", macro_call_text(def));
+    let _ = writeln!(out, "```{FENCE}\n{}\n```", def.signature());
     if let Some(doc) = def.doc.as_deref() {
         let _ = writeln!(out, "\n{doc}");
     }

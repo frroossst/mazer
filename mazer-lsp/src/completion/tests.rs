@@ -194,3 +194,102 @@ fn every_offset_is_safe() {
         let _ = complete(&analysis, ByteOffset::from_usize(at), Config { snippets: true });
     }
 }
+
+#[test]
+fn table_directives() {
+    let src = "(show (table (|";
+    let got = labels(src);
+    assert_eq!(&got[..4], ["header", "row", "align", "style"], "directives first");
+    assert!(got.contains(&"frac".to_owned()), "a bare row may start with anything");
+    assert_eq!(new_text(find(&items("(show (table (ro|"), "row")), "row");
+    // Values of the directives.
+    assert_eq!(labels("(show (table (align |"), ["left", "center", "right"]);
+    assert_eq!(labels("(show (table (align left ce|"), ["left", "center", "right"]);
+    assert_eq!(replaced("(show (table (align left ce|", "center"), "ce");
+    assert_eq!(labels("(show (table (style |"), ["grid", "clean", "plain"]);
+    assert_eq!(labels("(show (table (style grid |"), NONE, "style takes one value");
+    // Only inside a table: elsewhere `align` is just a function name.
+    assert!(!labels("(show (align |").contains(&"left".to_owned()));
+    assert!(!labels("(show (frac (|").contains(&"header".to_owned()));
+    // Cells of a row are ordinary arguments.
+    assert!(labels("(show (table (row al|").contains(&"alpha".to_owned()));
+}
+
+#[test]
+fn list_items_are_light_and_resolve_to_full_docs() {
+    let src = "(macro (sq v) \"Square of v.\" (^ v 2))\n\n(let y 2)\n\n(show (tag e) x)\n\n(show (+ x |";
+    let (analysis, at) = marked(src);
+    let all = complete(&analysis, at, Config { snippets: true });
+    for item in &all {
+        assert!(
+            !matches!(item.documentation, Some(Documentation::MarkupContent(_))),
+            "{} carries full docs in the list",
+            item.label
+        );
+        if let Some(Documentation::String(doc)) = &item.documentation {
+            assert!(!doc.contains('\n') && doc.chars().count() <= 101, "{}: {doc:?}", item.label);
+        }
+    }
+    let full = |label: &str, analysis: Option<&Analysis>| {
+        let item = find(&all, label).clone();
+        assert!(item.data.is_some(), "{label} has a data payload");
+        match resolve(analysis, item).documentation {
+            Some(Documentation::MarkupContent(m)) => m.value,
+            other => panic!("{label}: {other:?}"),
+        }
+    };
+    let integral = full("integral", None);
+    assert!(integral.contains("**Parameters**") && integral.contains("**Examples**"), "{integral}");
+    assert!(full("tau", None).contains("`tau` shows as **τ**"));
+    assert!(full("y", Some(&analysis)).contains("bound on line 3"));
+    let one_line = |label: &str| match &find(&all, label).documentation {
+        Some(Documentation::String(s)) => s.clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(one_line("tau"), mazer_doc::math::display_name(mazer_doc::Sym::new("tau")).unwrap().doc);
+    assert!(one_line("integral").len() > 10);
+    // A macro, at a head.
+    let (analysis, at) = marked("(macro (sq v) \"Square of v.\" (^ v 2))\n\n(show (s|");
+    let heads = complete(&analysis, at, Config { snippets: true });
+    let sq = find(&heads, "sq").clone();
+    assert_eq!(sq.documentation, Some(Documentation::String("Square of v.".to_owned())));
+    let Some(Documentation::MarkupContent(m)) = resolve(Some(&analysis), sq).documentation else {
+        panic!("no docs for sq");
+    };
+    assert!(m.value.contains("(^ v 2)") && m.value.contains("on line 1"), "{}", m.value);
+    // A label inside (ref ...).
+    let (analysis, at) = marked("(show (tag euler) (= x 1))\n\nSee (ref |");
+    let refs = complete(&analysis, at, Config { snippets: true });
+    let Some(Documentation::MarkupContent(m)) = resolve(Some(&analysis), refs[0].clone()).documentation else {
+        panic!("no docs for the label");
+    };
+    assert!(m.value.contains("(show (tag euler) (= x 1))"), "{}", m.value);
+    // Unknown payloads are returned unchanged.
+    let plain = CompletionItem::default();
+    assert_eq!(resolve(None, plain.clone()), plain);
+}
+
+#[test]
+fn responses_share_the_edit_range() {
+    let src = "(let y 2)\n\n(show (+ x al|";
+    let all = items(src);
+    let plain = response(all.clone(), "file:///n.zr", false);
+    let list = plain.as_array().expect("a plain array");
+    assert!(list.iter().all(|i| i.get("textEdit").is_some()));
+    let shared = response(all, "file:///n.zr", true);
+    let range = &shared["itemDefaults"]["editRange"];
+    assert_eq!(range["start"]["character"], 11);
+    assert_eq!(range["end"]["character"], 13);
+    let items = shared["items"].as_array().unwrap();
+    assert!(items.iter().all(|i| i.get("textEdit").is_none()));
+    let frac = items.iter().find(|i| i["label"] == "frac").unwrap();
+    assert_eq!(frac["textEditText"], "(frac ${1:num} ${2:den})");
+    let alpha = items.iter().find(|i| i["label"] == "alpha").unwrap();
+    assert!(alpha.get("textEditText").is_none(), "the label is the text");
+    // Only what the note defines needs the document to resolve.
+    let y = items.iter().find(|i| i["label"] == "y").unwrap();
+    assert_eq!(y["data"]["uri"], "file:///n.zr");
+    assert!(alpha["data"].get("uri").is_none());
+    // The whole response stays small: no markdown documentation in it.
+    assert!(!shared.to_string().contains("**Parameters**"));
+}

@@ -15,11 +15,18 @@
 -- signature help after a space or `(` in insert mode (unless
 -- `signature = false`), and adds :MazerPreview, which opens a live preview of
 -- the note in your browser.
+--
+-- Completion: the menu opens by itself after `(`, `:` and `'` (or with
+-- <C-x><C-o> anywhere; `autotrigger = false` keeps it manual). It never
+-- selects or inserts anything by itself: in .zr buffers completeopt is set
+-- (buffer-locally) to `menu,menuone,noselect,popup`. Pick an item with
+-- <C-n>/<C-p> and accept it with <C-y>; Enter or Space with nothing selected
+-- are just a newline and a space. nvim/test_typing.lua checks this by typing.
 -- Needs Neovim 0.11 or newer. No plugins required.
 
 local M = {}
 
-local defaults = { cmd = { 'mazer-lsp' }, autocomplete = true, signature = true }
+local defaults = { cmd = { 'mazer-lsp' }, autocomplete = true, autotrigger = true, signature = true }
 
 -- Semantic token types the server sends, and the groups they look like.
 local links = {
@@ -70,7 +77,15 @@ function M.setup(opts)
         return
       end
       if opts.autocomplete and vim.lsp.completion then
-        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+        -- The menu pops up by itself after `(`, `:` and `'`, so it must
+        -- never pick an item by itself: with Neovim's default completeopt
+        -- (`menu,popup`) the first item is selected AND inserted, and typing
+        -- `(show` gives `(aliasshow`. Only <C-n>/<C-p> then <C-y> (or <CR> on
+        -- a selected item) insert one; Enter or Space with nothing selected
+        -- are a newline and a space. Buffer-local, so other buffers keep
+        -- yours.
+        vim.bo[args.buf].completeopt = 'menu,menuone,noselect,popup'
+        vim.lsp.completion.enable(true, client.id, args.buf, { autotrigger = opts.autotrigger })
       end
       if opts.signature then
         vim.api.nvim_clear_autocmds({ group = group, buffer = args.buf, event = 'TextChangedI' })

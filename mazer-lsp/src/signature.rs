@@ -17,7 +17,6 @@ use mazer_doc::syntax::{Node, RESERVED_HEADS};
 use mazer_doc::{Analysis, ByteOffset, Cursor, locate};
 
 use crate::docs::{self, Signature};
-use crate::tree;
 
 /// The signature help at `at`, if the cursor is inside a call that has one.
 #[must_use]
@@ -25,13 +24,13 @@ pub fn signature_help(analysis: &Analysis, at: ByteOffset) -> Option<SignatureHe
     if matches!(locate(analysis, at), Cursor::Prose) {
         return None;
     }
-    let chain = tree::enclosing_lists(analysis, at);
+    let chain = mazer_doc::enclosing_lists(analysis, at);
     for list in chain.iter().rev() {
         let Some((sig, show)) = signature_of(analysis, list) else {
             continue;
         };
-        let count = tree::real_items(list).len().saturating_sub(1);
-        let active = tree::arg_index(list, at).and_then(|index| {
+        let count = mazer_doc::real_items(list).len().saturating_sub(1);
+        let active = mazer_doc::arg_index(list, at).and_then(|index| {
             if show {
                 // `(show [(tag name)] expr...)`: the tag only if one is written first.
                 let tagged = list.args().first().is_some_and(|a| a.is_form("tag"));
@@ -47,7 +46,7 @@ pub fn signature_help(analysis: &Analysis, at: ByteOffset) -> Option<SignatureHe
 
 /// The signature of a list's head, and whether it is `show`.
 fn signature_of(analysis: &Analysis, list: &Node) -> Option<(Signature, bool)> {
-    let head = tree::real_items(list).first()?;
+    let head = mazer_doc::real_items(list).first()?;
     let sym = head.as_ident()?;
     let name = sym.as_str();
     if RESERVED_HEADS.contains(&name) || name == "tag" {

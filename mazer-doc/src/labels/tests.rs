@@ -90,3 +90,22 @@ fn unresolved_references() {
     let (_, found, _) = labels("See (ref ).");
     assert_eq!(found, [DiagCode::Arity]);
 }
+
+#[test]
+fn a_misspelt_reference_gets_a_suggestion() {
+    let help = |src: &str| {
+        let (_, found, diags) = labels(src);
+        assert_eq!(found, [DiagCode::UnresolvedRef], "{src}");
+        diags.as_slice()[0].help.clone().unwrap()
+    };
+    let tags = "(show (tag euler) x)\n\n(show (tag gauss) y)\n\n";
+    assert_eq!(help(&format!("{tags}See (ref eular).")), "did you mean `euler`? (equation (1))");
+    assert_eq!(help(&format!("{tags}See (ref guass).")), "did you mean `gauss`? (equation (2))", "a swap is one edit");
+    assert_eq!(help(&format!("{tags}See (ref eu).")), "tag one with (show (tag eu) ...)", "too far");
+    assert_eq!(help(&format!("{tags}See (ref fermat).")), "tag one with (show (tag fermat) ...)");
+    // Short names allow one edit only.
+    assert_eq!(help("(show (tag ab) x)\n\nSee (ref ba)."), "did you mean `ab`? (equation (1))");
+    assert_eq!(help("(show (tag abc) x)\n\nSee (ref xyc)."), "tag one with (show (tag xyc) ...)");
+    assert_eq!(edit_distance("τau", "tau"), 1, "characters, not bytes");
+    assert_eq!(edit_distance("", "abc"), 3);
+}
