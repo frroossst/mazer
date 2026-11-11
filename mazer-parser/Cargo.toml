@@ -1,9 +1,0 @@
-[package]
-name = "mazer-parser"
-version = "0.15.0"
-edition = "2024"
-
-[dependencies]
-unicode-segmentation = "1.12"
-thiserror = { workspace = true }
-miette = { workspace = true, features = ["derive"] }
