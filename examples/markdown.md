@@ -1,20 +1,62 @@
-# Foo
+# A tour of the markdown side
 
-look ma! live reload
+This file shows every markdown feature a note can use. Each feature has a one-line explanation, and most are followed by the source that produced them. The math side is in `docs.md`.
 
-frfr?
+## Headings
 
-(show (string f((pow Delta 2))))
+Six levels, `#` to `######`. A heading may contain inline math: a form written with `show` inside the sentence.
 
-## Bar
+# Level one
+## Level two
+### Level three
+#### Level four
+##### Level five
+###### Level six
 
-### Baz
+### The value of (show (= pi 3.14159)) in a heading
 
-#### Qux
+## Paragraphs and line breaks
 
-- Item 1
-- Item 2
-- Item 3
+A blank line starts a new paragraph.
+
+A single newline inside a paragraph is a soft break,
+so this sentence continues on a new line.
+
+Two spaces at the end of a line make a hard break.  
+This line follows a hard break.
+
+A single backslash at the end of a line does the same.\
+This line follows a backslash break.
+
+## Text styles
+
+Wrap text in `**two stars**` for **bold**, in `*one star*` for *italic*, in `_underscores_` for _underline_, and in `~tildes~` for ~strikethrough~ (`~~two~~` also works). Each pair needs its closing marker in the same paragraph, or the markers stay as literal text.
+
+Styles nest: **bold with *italic inside* and _underline too_**, and ~strikethrough around **bold**~.
+
+A star directly after a letter or digit is a literal star, so `lambda*I` stays as it is: lambda*I.
+
+A backslash makes any punctuation literal: \*not italic\*.
+
+## Spoilers
+
+Wrap text in `||two bars||` to hide it until it is clicked: I dont want to tell you my ||secret||.
+
+## Links and images
+
+A link is `[text](url)`, and the text may be styled: [**bold** google](https://www.google.com).
+
+An image on a line of its own becomes a block:
+
+![a placeholder picture](https://example.com/picture.png)
+
+An image inside a sentence stays inline: ![small](https://example.com/small.png) like this.
+
+## Code
+
+Inline code uses backticks and is never interpreted: `(show (+ 1 1))` stays as text, and so does `**not bold**`.
+
+A fenced block takes the language after the opening fence. Nothing inside it is interpreted either.
 
 ```python
 if __name__ == "__main__":
@@ -34,133 +76,115 @@ fn main() {
       (* n (factorial (- n 1)))))
 ```
 
-> This is a blockquote.
+## Block quotes
 
-Check this out [google!](https://www.google.com)
+A block quote starts each line with `>`. It holds other blocks.
 
-I dont want to tell you my ||secret||.
+> This is a quote with **bold** text.
+>
+> - a list inside the quote
+> - another item
+>
+> A second paragraph, with math: (show (= (^ e (* i pi)) -1)).
 
-I like to write `code` snippets.
+## Lists
 
----
+A bullet list uses `-`, `*` or `+`.
+
+- Item 1
+- Item 2
+- Item 3
+
+A numbered list uses `1.` or `1)`. The first number is the starting number.
+
+1. First
+2. Second
+3. Third
+
+Start somewhere else:
+
+5. Five
+6. Six
+
+Indent an item by the width of its marker to nest a list under it.
+
+- Fruit
+  - Apple
+  - Pear
+    1. Green
+    2. Yellow
+- Vegetables
+  - Carrot
+
+A checklist item is `-[ ]` or `-[x]`. The GitHub spelling `- [ ]` works too.
 
 -[ ] Task 1
 -[x] Task 2
 -[ ] Task 3
 -[x] Task 4
 
+## Rules
+
+Three dashes alone on a line draw a horizontal rule.
+
 ---
 
-> This is a blockquote ALSO
+## Emoji
 
-Check this out [google!](https://www.google.com)
+A shortcode between colons becomes an emoji. There are exactly thirteen, and unknown ones stay as text.
 
-I dont want to tell you my ||secret||. Aint no way
+:sob: :maple: :heart: :eyes: :thinking: :+1: :-1: :brain: :fire: :sparkles: :rocket: :coffee: :sunglasses:
 
-# New header
+An unknown name like :banana: is left alone.
 
-I wanna write something (and provide some context).
+## Prose parentheses and code
 
-I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
+Only a parenthesis that opens with one of six words is code: `show`, `eval`, `let`, `alias`, `macro` and `ref`. Every other parenthesis is prose, so (this is just a sentence) and (so is f(x) = 2x).
 
-# Math Demo with Show
+A `show` form inside a sentence renders as inline math: the sum (show (+ a b)) and the fraction (show (frac 1 2)).
 
-Here are some mathematical expressions using the show command:
+A form alone in its paragraph is a display equation:
 
-**Power expressions:**
-The expression (show (pow x 2)) represents x squared.
-And (show (pow x (pow y z))) shows nested exponents.
+(show (= (^ x 2) (* x x)))
 
-**Fractions:**
-One half is (show (frac 1 2)).
-A more complex fraction: (show (frac (+ a b) (- c d))).
+If a sentence happens to begin a parenthesis with a reserved word, put a backslash in front of the paren. Compare \(show that f is continuous) with the same words written in code.
 
-**Square roots:**
-The square root of x is (show (sqrt x)).
-The cube root of x is (show (root 3 x)).
-The famous formula: (show (= x (frac (+ (- b) (sqrt (- (pow b 2) (* 4 a c)))) (* 2 a)))).
+A form may run over several lines, but it never crosses a blank line.
 
-**Calculus:**
-An indefinite integral: (show (integral f)).
-An indefinite integral with respect to x: (show (integral (pow x 2) x)).
-A definite integral: (show (integral 0 infinity (exp (- (pow x 2))) x)).
-A sum: (show (sum (= i 1) n (pow i 2))).
-A derivative: (show (deriv f x)).
+## Math samples
 
-**Greek letters:**
-(show (= (+ alpha beta) gamma)).
+These are the same forms as in `docs.md`, in short.
 
-**Trigonometry:**
-(show (= (+ (pow (sin theta) 2) (pow (cos theta) 2)) 1)).
+The expression (show (^ x 2)) is x squared, and (show (^ x (^ y z))) is a nested power.
 
-**Matrices:**
-(show (matrix (1 2) (3 4))).
+One half is (show (frac 1 2)). A larger fraction: (show (frac (+ a b) (- c d))).
 
-**Tables:**
-A grid table (the default style) with a bold header row:
-(show (table (header Name Age City) (row Alice 30 NYC) (row Bob 25 LA))).
+The square root of x is (show (sqrt x)), and the cube root is (show (root 3 x)).
 
-A clean table (rule under the header only), right-aligned values, and math in cells:
-(show (table (style clean) (align left right) (header n (frac 1 n)) (row 1 1) (row 2 (frac 1 2)))).
+The quadratic formula:
 
-**Logic:**
-(show (implies p q)).
-(show (forall x (exists y (= x y)))).
+(show (= x (frac (+ (- b) (sqrt (- (^ b 2) (* 4 a c)))) (* 2 a))))
 
-```scheme
-(eval
-    (print (reflect +))
-)
+An integral with respect to x: (show (integral (^ x 2) x)). A definite one: (show (integral (exp (- (^ x 2))) x 0 infinity)).
 
-(eval
-    (begin
-        (define s (string hello))
-        (print s)
-    )
-)
+A sum: (show (sum (^ i 2) i (= i 1) n)). A derivative: (show (derivative f x)).
 
-(eval
-    (print (string 42))
-)
+A Greek identity: (show (= (+ alpha beta) gamma)).
 
-(eval
-    (print (string true))
-)
+(show (= (+ (^ (sin theta) 2) (^ (cos theta) 2)) 1))
 
-(eval
-    (print (string (quote (H e l l o))))
-)
+A matrix:
 
-(eval
-    (print (reflect (string world)))
-)
+(show (matrix (1 2) (3 4)))
 
-(eval
-    (print (string 👋🌍))
-)
-```
+Logic: (show (implies p q)) and (show (forall x (exists y (= x y)))).
 
-(show
-    (ellipsis)
-)
+A table with a bold header row, in the default grid style:
 
-- Item A
+(show (table (header Name Age City) (row Alice 30 NYC) (row Bob 25 LA)))
 
-(show
-    (integral
-        (exp (- (pow x 2)))
-        x
-    )
-)
+A clean table, with a rule under the header only, right-aligned values and math in the cells:
 
-Explicit multiplication: (show (* g cos theta))
+(show (table (style clean) (align left right) (header n (frac 1 n)) (row 1 1) (row 2 (frac 1 2))))
 
-Implicit multiplication: (show (jux g cos theta))
-
-Coefficient: (show (jux 2 pi r))
-
-Multiple terms: (show (jux a b c))
-
-Single letter (no difference): (show (jux gcos))
-
-Compare: (show (* 2 x)) vs (show (jux 2 x))
+Evaluation with `eval` needs an evaluator, which this build does not ship, so there is no live example here.
