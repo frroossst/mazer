@@ -1,0 +1,62 @@
+/* mazer note styles for the four classes the site's stylesheet lacks.
+   Append to notes.css (adhyan.ca); rules are scoped under .note like the rest.
+   Markup produced by mazer:
+     <div class="mazer-equation"><math display="block">..</math></div>
+     <div class="mazer-equation" id="eq-x"><math display="block">..</math><span class="mazer-eqno">(1)</span></div>
+     <a class="mazer-ref" href="#eq-x">(1)</a>
+     <ul class="mazer-checklist"><li><input type="checkbox" [checked] disabled> text</li></ul>
+   The site has no CSS variables or dark mode: colours below are its literals
+   (#0066cc links, #666 muted) with a fallback to inherited/system colours. */
+
+/* Display equation: centred in the middle grid column, scrolls sideways when wide. */
+.note .mazer-equation {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin: 0.8em 0;
+    overflow-x: auto;
+    scroll-margin-top: 1rem;
+}
+.note .mazer-equation > math { grid-column: 2; grid-row: 1; }
+
+/* Equation number: right edge, same line, vertically centred, stays visible while scrolling. */
+.note .mazer-eqno {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    position: sticky;
+    right: 0;
+    padding-left: 0.75em;
+    background: Canvas;
+    color: #666;
+    user-select: text;
+    text-decoration: none;
+}
+
+/* Followed reference: faint static accent wash on the target equation. */
+.note .mazer-equation:target {
+    background-color: rgba(0, 102, 204, 0.1);
+    border-radius: 4px;
+}
+.note .mazer-equation:target .mazer-eqno { background: transparent; }
+
+/* Reference: inherits the site's link look, never wraps inside "(1)". */
+.note a.mazer-ref { white-space: nowrap; }
+
+/* Checklist: no bullets, list-indent of 1.5em like .note ul, box hangs beside first line. */
+.note ul.mazer-checklist,
+.note .mazer-checklist ul {
+    list-style: none;
+    padding-left: 1.5em;
+}
+.note .mazer-checklist li { text-indent: -1.5em; padding-left: 1.5em; }
+.note .mazer-checklist li > ul,
+.note .mazer-checklist li > ol { text-indent: 0; }
+.note .mazer-checklist input[type="checkbox"] {
+    width: 1em;
+    height: 1em;
+    margin: 0 0.5em 0 0;
+    vertical-align: -0.15em;
+    accent-color: #0066cc;
+    opacity: 1;
+}
