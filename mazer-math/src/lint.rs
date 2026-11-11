@@ -24,12 +24,34 @@ const REMOVED: &[(&str, &str)] = &[
     ("defunc", "`defunc` was removed: use `(macro (name params...) body)`"),
 ];
 
-/// The hint for a list whose head `name` is not a keyword: a removed keyword,
-/// or else a did-you-mean. It is a hint, not a warning: the name may be
-/// deliberate.
+/// Names of constants and fixed sets. None of them is something one integrates,
+/// sums or differentiates over, so in the variable slot of a big operator they
+/// mean the arguments are in the old order (`(integral 0 infinity body t)`).
+/// Deliberately small: Greek letters, `hbar`, `ell`, `nabla` and the like are
+/// plausible variables and are not listed.
+const CONSTANTS: &[&str] = &[
+    "infinity",
+    "emptyset",
+    "Reals",
+    "reals",
+    "Naturals",
+    "naturals",
+    "Integers",
+    "integers",
+    "Rationals",
+    "rationals",
+    "Complex",
+    "complex",
+    "Complexes",
+    "complexes",
+];
+
+/// The diagnostic for a list whose head `name` is not a keyword. A removed
+/// keyword is a warning: the list renders as a meaningless function
+/// application. A did-you-mean is only a hint: the name may be deliberate.
 pub fn unknown_head(name: Sym, head: &Node, diags: &mut Diags) {
     if let Some((_, message)) = REMOVED.iter().find(|(removed, _)| *removed == name.as_str()) {
-        diags.push(Diag::hint(DiagCode::UnknownForm, head.span, *message));
+        diags.push(Diag::warning(DiagCode::UnknownForm, head.span, *message));
     } else if display_name(name).is_none()
         && let Some(suggestion) = registry().suggest(name.as_str())
     {
@@ -60,7 +82,7 @@ pub fn call_warnings(call: &Call<'_>, diags: &mut Diags) {
             Diag::warning(
                 DiagCode::Other,
                 var.span,
-                format!("the variable of `{}` should be a name, but this is {what}", keyword.name),
+                format!("the variable of `{}` should be a name, but {what}", keyword.name),
             )
             .with_help(help),
         );
@@ -72,21 +94,23 @@ pub fn call_warnings(call: &Call<'_>, diags: &mut Diags) {
     }
 }
 
-/// What `node` is, if it cannot serve as the variable of a big operator or
+/// Why `node` cannot serve, as a clause ("this is a number", "`infinity` is
+/// a constant"), if it cannot serve as the variable of a big operator or
 /// derivative. A variable is a name, a quoted name, or a name decorated or
 /// indexed: `x`, `'x`, `(subscript x i)`, `(superscript x 2)`, `(bar x)`,
 /// `(hat x)`, `(dot x)`, `(ddot x)`, `(arrow x)`, `(bold x)`, `(rm x)`,
 /// `(vec x y)` and `(prime x)`. Everything else (numbers, strings, other
 /// expressions) is almost certainly an argument in the wrong place, typically
 /// the old `(integral lower upper body var)` order.
-fn not_a_variable(node: &Node) -> Option<&'static str> {
+fn not_a_variable(node: &Node) -> Option<String> {
     match &node.kind {
+        NodeKind::Ident(name) if CONSTANTS.contains(&name.as_str()) => Some(format!("`{name}` is a constant")),
         NodeKind::Ident(_) | NodeKind::Error => None,
-        NodeKind::Number(_) => Some("a number"),
-        NodeKind::Str(_) => Some("a string"),
+        NodeKind::Number(_) => Some("this is a number".into()),
+        NodeKind::Str(_) => Some("this is a string".into()),
         NodeKind::List(items) => {
             let Some((head, args)) = items.split_first() else {
-                return Some("an empty list");
+                return Some("this is an empty list".into());
             };
             match (head.as_ident().map(Sym::as_str), args) {
                 (Some("quote"), [x]) if x.as_ident().is_some() => None,
@@ -95,7 +119,7 @@ fn not_a_variable(node: &Node) -> Option<&'static str> {
                     [base, ..],
                 ) => not_a_variable(base),
                 (Some("vec"), [_, ..]) => None,
-                _ => Some("an expression"),
+                _ => Some("this is an expression".into()),
             }
         }
     }
