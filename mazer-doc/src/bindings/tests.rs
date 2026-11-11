@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use mazer_syntax::{DiagCode, Span};
 
 use super::*;
@@ -56,6 +58,32 @@ fn quote_is_never_substituted() {
 fn the_head_of_a_list_is_substituted() {
     let analysis = clean("(let f g)\n\n(show (f x))");
     assert_eq!(resolved_forms(&analysis)[1], "(show (g x))");
+    // A keyword as the value is checked where it is used, not at the let.
+    let analysis = clean("(let f frac)\n\n(show (f a b))");
+    assert_eq!(resolved_forms(&analysis)[1], "(show (frac a b))");
+}
+
+#[test]
+fn storing_a_value_costs_nothing_using_it_does() {
+    // 300 values of 1 000 nodes each: more than the document budget, but
+    // nothing is substituted, so nothing is created.
+    let value = format!("(+{})", " a".repeat(999));
+    let mut src = String::new();
+    for i in 0..300 {
+        write!(src, "(let x{i} {value})\n\n").unwrap();
+    }
+    clean(&src);
+    // Copying the value 300 times is over the budget: one diagnostic, at the
+    // use that crossed it.
+    let mut src = format!("(let big {value})");
+    for i in 0..300 {
+        write!(src, "\n\n(let c{i} big)").unwrap();
+    }
+    let analysis = analyze(&src, "t.zr");
+    assert_eq!(codes_of(&analysis), [DiagCode::Other]);
+    assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), "big");
+    let bound = analysis.lets.len();
+    assert!((250..300).contains(&bound), "{bound} lets bound before the budget ran out");
 }
 
 #[test]

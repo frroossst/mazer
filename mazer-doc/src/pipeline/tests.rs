@@ -1,5 +1,7 @@
 use std::cell::RefCell;
+use std::fmt::Write as _;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use mazer_syntax::{BlockKind, DiagCode, FileId, Node, NodeKind, Severity, Sym};
 
@@ -239,8 +241,8 @@ fn eval_failure_is_an_error_box() {
 #[test]
 fn broken_eval_is_not_evaluated() {
     let (out, seen) = with_stub("(eval a b)\n\n(eval (ref x))\n\n(macro (f x) x)\n\n(eval (f))");
-    assert_eq!(seen, ["(ref x)"]);
-    assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::MacroArity]);
+    assert!(seen.is_empty(), "{seen:?}");
+    assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::Other, DiagCode::MacroArity]);
 }
 
 #[test]
@@ -421,10 +423,25 @@ fn inline_and_display_math() {
 
 #[test]
 fn several_expressions_are_juxtaposed() {
-    assert_eq!(
-        body("(show a (+ b c))"),
-        "<div class=\"mazer-equation\"><math display=\"block\"><mrow><mi>a</mi><mrow><mi>b</mi><mo>+</mo><mi>c</mi></mrow></mrow></math></div>"
-    );
+    // Exactly what `jux` gives: spacing and parentheses come from it.
+    for (several, jux) in [
+        ("(show a (+ b c))", "(show (jux a (+ b c)))"),
+        ("(show (+ a b) c)", "(show (jux (+ a b) c))"),
+        ("Inline (show x y z).", "Inline (show (jux x y z))."),
+        ("(show (tag e) (+ a b) c)", "(show (tag e) (jux (+ a b) c))"),
+    ] {
+        assert_eq!(body(several), body(jux), "{several}");
+    }
+    assert!(body("(show (+ a b) c)").contains("<mo>(</mo>"), "(a+b) c is parenthesised");
+    // The resolved tree holds the `jux` node, spanning the expressions, so
+    // checking sees what is rendered.
+    let analysis = clean("(let y 2)\n\n(show (tag e) (+ a y) c)");
+    assert_eq!(resolved_forms(&analysis)[1], "(show (tag e) (jux (+ a 2) c))");
+    let show = first_show(&analysis);
+    let jux = &shown(&show)[0];
+    assert_eq!(analysis.sources.text(jux.span), "(+ a y) c");
+    let out = compile("(show (frac a) b)", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity]);
     // A single atom shows just that atom.
     assert_eq!(body("Group (show G)."), "<p>Group <math display=\"inline\"><mstyle displaystyle=\"true\"><mi>G</mi></mstyle></math>.</p>");
     assert_eq!(body("(show tau)"), "<div class=\"mazer-equation\"><math display=\"block\"><mi>τ</mi></math></div>");
@@ -460,7 +477,29 @@ fn definitions_produce_nothing() {
     assert_eq!(body("foo\n(let x 2)"), "<p>foo</p>");
     assert_eq!(body("foo (let x 2) bar"), "<p>foo  bar</p>");
     assert_eq!(body("(let x 2) (let y 3)"), "");
-    assert_eq!(body("- (let x 2)\n- b"), "<ul><li></li><li>b</li></ul>");
+    assert_eq!(body("- (let x 2)\n- b"), "<ul><li>b</li></ul>");
+}
+
+#[test]
+fn containers_of_only_definitions_vanish() {
+    assert_eq!(body("# (let x 2)"), "");
+    assert_eq!(body("# (let x 2)\n\nafter"), "<p>after</p>");
+    assert_eq!(body("- (let x 2)"), "");
+    assert_eq!(body("- (let x 2)\n- (alias R x)"), "");
+    assert_eq!(body("-[ ] (let x 2)\n-[x] done"), "<ul class=\"mazer-checklist\"><li><input type=\"checkbox\" checked disabled> done</li></ul>");
+    assert_eq!(body("1. (let x 2)\n2. b"), "<ol><li>b</li></ol>");
+    assert_eq!(body("- a\n  - (let x 2)"), "<ul><li>a</li></ul>");
+    assert_eq!(body("> (let x 2)"), "");
+    assert_eq!(body("> (let x 2)\n>\n> (macro (f a) a)"), "");
+    assert_eq!(body("**(let x 2)**"), "");
+    assert_eq!(body("a **(let x 2)** b"), "<p>a  b</p>");
+    assert_eq!(body("*_(let x 2)_* (let y 3)"), "");
+    assert_eq!(body("**(let x 2)**\nfoo"), "<p>foo</p>");
+    // The definitions still take effect.
+    assert_eq!(body("# (let x 2)\n\n(show x)"), body("(show 2)"));
+    // A broken definition is not silent: its box keeps the container.
+    assert_eq!(body("# (let sin 2)"), "<h1><span class=\"mazer-error\">`sin` is a built-in keyword</span></h1>");
+    assert_eq!(body("**(let 1 2)**"), "<p><strong><span class=\"mazer-error\">expected the name of the variable</span></strong></p>");
 }
 
 #[test]
@@ -511,4 +550,264 @@ fn latex_target_without_math() {
         unwrap_fragment(&out.html),
         "<h1>Hi</h1><p>See <span class=\"mazer-error\">no equation is tagged `nope`</span>.</p>"
     );
+}
+
+// ---------------------------------------------------------------- limits and scaling
+
+/// The first `show` of an analysis, resolved.
+fn first_show(analysis: &Analysis) -> Node {
+    let mut found = None;
+    crate::walk::for_each_code(&analysis.resolved, &mut |form, _| {
+        if found.is_none() && form.is_form("show") {
+            found = Some(form.clone());
+        }
+    });
+    found.expect("a show")
+}
+
+/// Fifteen definitions that each double the previous one (`x15` is about
+/// 100 000 nodes, just under the one-tree limit), then `uses` shows of the
+/// last.
+fn doubling(kind: &str, uses: usize) -> String {
+    let mut src = format!("({kind} x0 a)");
+    for i in 1..=15 {
+        let p = i - 1;
+        write!(src, "\n\n({kind} x{i} (+ x{p} x{p}))").unwrap();
+    }
+    for _ in 0..uses {
+        src.push_str("\n\n(show x15)");
+    }
+    src
+}
+
+#[test]
+fn one_node_budget_for_the_whole_document() {
+    for (kind, code) in [("let", DiagCode::Other), ("alias", DiagCode::MacroDepth)] {
+        let src = doubling(kind, 800);
+        assert!(src.len() < 11_000);
+        let start = Instant::now();
+        let analysis = analyze(&src, "t.zr");
+        let analyzed = start.elapsed();
+        let out = compile(&src, &mut Options::new("t.zr"));
+        let elapsed = start.elapsed();
+        // Exactly one diagnostic for the whole note, naming the limit.
+        assert_eq!(codes(&out.diags), [code], "{kind}");
+        let diag = &out.diags[0];
+        assert!(diag.message.contains(&crate::walk::MAX_DOC_NODES.to_string()), "{}", diag.message);
+        assert!(diag.help.as_deref().is_some_and(|h| h.contains("exponentially")));
+        assert_eq!(analysis.sources.text(diag.span), "x15", "{kind}: at the expression that crossed the limit");
+        // Every show is either rendered or an error box; the output is bounded.
+        let html = unwrap_fragment(&out.html);
+        let shown = html.matches("<div class=\"mazer-equation\">").count();
+        let boxed = html.matches("<pre class=\"mazer-error\">").count();
+        assert_eq!(shown + boxed, 800, "{kind}");
+        assert!(boxed >= 790, "{kind}: {boxed} boxes");
+        assert!(html.len() < 4_000_000, "{kind}: {} bytes", html.len());
+        // The resolved tree, which the editor keeps on every keystroke, is
+        // bounded too.
+        let mut nodes = 0;
+        crate::walk::for_each_code(&analysis.resolved, &mut |form, _| nodes += crate::walk::Measure::of(form).size);
+        assert!(nodes < crate::walk::MAX_DOC_NODES + crate::walk::MAX_NODES + 20_000, "{kind}: {nodes} nodes");
+        assert!(analyzed < Duration::from_secs(10), "{kind}: analyze took {analyzed:?}");
+        assert!(elapsed < Duration::from_secs(20), "{kind}: took {elapsed:?}");
+    }
+}
+
+#[test]
+fn ordinary_notes_stay_within_the_budget() {
+    let mut src = String::from("(macro (half v) (frac v 2))\n\n(alias R (bb R))");
+    for i in 0..10_000 {
+        write!(src, "\n\n(let x{i} (+ a {i}))\n\n(show (half x{i}) R)").unwrap();
+    }
+    let out = compile(&src, &mut Options::new("t.zr"));
+    assert!(out.diags.is_empty(), "{:?}", &out.diags[..out.diags.len().min(3)]);
+    assert!(!out.html.contains("mazer-error"));
+    assert_eq!(out.html.matches("mazer-equation").count(), 10_000);
+}
+
+#[test]
+fn rendering_is_linear_in_forms_and_diagnostics() {
+    for src in ["(show (frac 1))\n\n".repeat(20_000), "a (show (frac 1)) ".repeat(20_000)] {
+        let analysis = analyze(&src, "t.zr");
+        assert_eq!(analysis.diags.len(), 20_000);
+        let start = Instant::now();
+        let mut extra = Diags::new();
+        let html = render(&analysis, &mut Options::new("t.zr"), &mut extra);
+        let elapsed = start.elapsed();
+        assert!(extra.is_empty(), "nothing is reported twice");
+        assert_eq!(html.matches("<merror>").count(), 20_000);
+        assert!(elapsed < Duration::from_secs(1), "render took {elapsed:?}");
+    }
+}
+
+// ---------------------------------------------------------------- nesting
+
+#[test]
+fn reserved_heads_cannot_be_nested_in_code() {
+    use DiagCode::{BadDefinition, MisplacedTag, NestedEval, Other};
+    for (src, code, inner) in [
+        ("(show (ref a))", Other, "(ref a)"),
+        ("(show (+ 1 (show x)))", Other, "(show x)"),
+        ("(show (let y 2))", BadDefinition, "(let y 2)"),
+        ("(show (alias y 2))", BadDefinition, "(alias y 2)"),
+        ("(show (macro (f) 2))", BadDefinition, "(macro (f) 2)"),
+        ("(show x (tag a))", MisplacedTag, "(tag a)"),
+        ("(show (+ (tag a) x))", MisplacedTag, "(tag a)"),
+        ("(show (tag a) (tag b) x)", MisplacedTag, "(tag b)"),
+        ("(show (eval x))", NestedEval, "(eval x)"),
+        ("(eval (ref a))", Other, "(ref a)"),
+        ("(eval (tag a))", MisplacedTag, "(tag a)"),
+        ("(eval (+ 1 (let y 2)))", BadDefinition, "(let y 2)"),
+        ("(let y (ref a))", Other, "(ref a)"),
+        ("(let y (show a))", Other, "(show a)"),
+        ("(let y (let z 2))", BadDefinition, "(let z 2)"),
+        ("(let y (tag a))", MisplacedTag, "(tag a)"),
+        ("(show '(ref a))", Other, "(ref a)"),
+        ("(show (quote (+ 1 (eval x))))", NestedEval, "(eval x)"),
+        ("Inline (show (+ 1 (ref a))) here.", Other, "(ref a)"),
+    ] {
+        let analysis = analyze(src, "t.zr");
+        assert_eq!(codes(analysis.diags.as_slice()), [code], "{src}");
+        assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), inner, "{src}");
+        assert!(body(src).contains("class=\"mazer-error\""), "{src}: the enclosing form is an error box");
+    }
+    let analysis = analyze("(show (ref a))", "t.zr");
+    assert_eq!(analysis.diags.as_slice()[0].message, "`ref` can only be used in prose, not inside `show`");
+    let analysis = analyze("(let y (show a))", "t.zr");
+    assert_eq!(analysis.diags.as_slice()[0].message, "`show` can only be used in prose, not inside `let`");
+    assert!(body("(show (ref a))").starts_with("<pre class=\"mazer-error\">`ref` can only be used in prose"));
+    // A reserved word that is not a list head is an ordinary variable.
+    clean("(show (jux show me))");
+    clean("(show (+ ref tag let eval))\n\n(let y (+ alias macro))\n\n(show y)");
+    // Reported once, even when the expression is copied.
+    let out = compile("(let y (+ 1 (ref a)))\n\n(show y)\n\n(show y)", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Other]);
+    let out = compile("(macro (d v) (+ v v))\n\n(show (d (ref a)))", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Other]);
+}
+
+#[test]
+fn reserved_heads_in_notation_are_rejected_where_defined() {
+    let src = "(alias T (tag a))\n\n(show T x)";
+    let analysis = analyze(src, "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::MisplacedTag]);
+    assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), "(tag a)");
+    assert!(analysis.macros.get(Sym::new("T")).is_none(), "the name is not defined");
+    assert!(analysis.labels.is_empty());
+    assert_eq!(
+        body(src),
+        format!(
+            "<pre class=\"mazer-error\">a tag must be the first item of a display `show`</pre>{}",
+            body("(show (jux T x))")
+        )
+    );
+    for (src, code) in [
+        ("(macro (f v) (+ v (tag a)))", DiagCode::MisplacedTag),
+        ("(alias E (eval x))", DiagCode::NestedEval),
+        ("(alias S (paren (show x)))", DiagCode::Other),
+        ("(macro (f) (let y 2))", DiagCode::BadDefinition),
+        ("(alias R '(ref a))", DiagCode::Other),
+    ] {
+        let analysis = analyze(src, "t.zr");
+        assert_eq!(codes(analysis.diags.as_slice()), [code], "{src}");
+        assert!(analysis.macros.is_empty(), "{src}");
+    }
+    // A reserved word as a plain name in a template is fine.
+    let analysis = clean("(alias S (jux show tag))\n\n(show S)");
+    assert_eq!(resolved_forms(&analysis)[1], "(show (jux show tag))");
+}
+
+// ---------------------------------------------------------------- reporting
+
+#[test]
+fn a_boxed_tagged_equation_keeps_its_anchor() {
+    assert_eq!(
+        body("(macro (half v) (frac v 2))\n\n(show (tag a) (half 1 2))\n\nSee (ref a)."),
+        "<pre class=\"mazer-error\" id=\"eq-a\">`half` takes 1 argument, found 2</pre>\
+         <p>See <a class=\"mazer-ref\" href=\"#eq-a\">(1)</a>.</p>"
+    );
+    // An untagged box has no id.
+    assert!(!body("(macro (half v) (frac v 2))\n\n(show (half 1 2))").contains(" id="));
+}
+
+#[test]
+fn a_let_value_is_checked_once_where_it_is_bound() {
+    let src = "(let y (frac 1))\n\n(show y)\n\n(show (+ y 1))";
+    let analysis = analyze(src, "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::Arity]);
+    assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), "(frac 1)", "reported at the let");
+    let out = compile(src, &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity], "render does not report it again");
+    let html = unwrap_fragment(&out.html);
+    // The let shows the problem; each use still renders its <merror>.
+    assert!(html.starts_with("<pre class=\"mazer-error\">`frac` is missing its `den` argument</pre>"), "{html}");
+    assert_eq!(html.matches("<merror>").count(), 2, "{html}");
+    // Through a later let, too.
+    let out = compile("(let y (frac 1))\n\n(let z (+ y 2))\n\n(show z)\n\n(show z)", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity]);
+    // A new problem at a use is still reported there.
+    let analysis = analyze("(let y 2)\n\n(show (frac y))", "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::Arity]);
+    assert_eq!(analysis.sources.text(analysis.diags.as_slice()[0].span), "(frac y)");
+}
+
+#[test]
+fn identical_diagnostics_are_merged() {
+    // The template has the same problem twice: one report per use.
+    let out = compile("(macro (f) (+ (frac 1) (frac 1)))\n\n(show (f))", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity]);
+    let out = compile("(macro (f) (frac 1))\n\n(show (f))\n\n(show (f))", &mut Options::new("t.zr"));
+    assert_eq!(codes(&out.diags), [DiagCode::Arity, DiagCode::Arity], "different places are different reports");
+    // A macro problem at the use keeps its label to the definition.
+    let src = "(macro (half v) (frac v 2))\n\n(let y (half a b))\n\n(show y)";
+    let analysis = analyze(src, "t.zr");
+    assert_eq!(codes(analysis.diags.as_slice()), [DiagCode::MacroArity]);
+    let def = analysis.macros.get(Sym::new("half")).unwrap();
+    assert_eq!(analysis.diags.as_slice()[0].labels, vec![(def.span, "defined here".to_owned())]);
+}
+
+// ---------------------------------------------------------------- links
+
+#[test]
+fn a_reference_inside_a_link_is_plain_text() {
+    assert_eq!(
+        body("(show (tag a) x)\n\n[see (ref a)](u)"),
+        "<div class=\"mazer-equation\" id=\"eq-a\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
+         <p><a href=\"u\" target=\"_blank\" rel=\"noopener noreferrer\">see (1)</a></p>"
+    );
+    // Outside the link it is a link again.
+    assert!(body("(show (tag a) x)\n\n[l](u) (ref a)").contains("<a class=\"mazer-ref\" href=\"#eq-a\">(1)</a>"));
+}
+
+#[test]
+fn dangerous_urls_are_not_written() {
+    for (src, want) in [
+        ("[click](javascript:alert(1))", "<p>click</p>"),
+        ("[click *me*](JavaScript:alert(1))", "<p>click <em>me</em></p>"),
+        ("[c](java\u{1}script:x)", "<p>c</p>"),
+        ("[c](vbscript:x)", "<p>c</p>"),
+        ("[c](data:text/html,x)", "<p>c</p>"),
+        ("[c](data:image/png,x)", "<p>c</p>"),
+        ("![alt](javascript:x)", "<p>alt</p>"),
+        ("![a<b](data:text/html,x)", "<p>a&lt;b</p>"),
+        ("see ![a](DATA:text/html,x) here", "<p>see a here</p>"),
+    ] {
+        let analysis = analyze(src, "t.zr");
+        assert!(analysis.diags.is_empty(), "{src}: a render-time check");
+        let out = compile(src, &mut Options::new("t.zr"));
+        assert_eq!(unwrap_fragment(&out.html), want, "{src}");
+        assert_eq!(codes(&out.diags), [DiagCode::Other], "{src}");
+        assert_eq!(out.diags[0].severity, Severity::Warning);
+        let text = analysis.sources.text(out.diags[0].span);
+        assert!(text.starts_with('[') || text.starts_with("!["), "{src}: at the link, got {text:?}");
+    }
+    for (src, want) in [
+        ("![a](data:image/png;base64,AAAA)", "<p><img alt=\"a\" src=\"data:image/png;base64,AAAA\"/></p>"),
+        ("[a](https://x.org/javascript:y)", "<p><a href=\"https://x.org/javascript:y\" target=\"_blank\" rel=\"noopener noreferrer\">a</a></p>"),
+        ("[a](data-sheet.html)", "<p><a href=\"data-sheet.html\" target=\"_blank\" rel=\"noopener noreferrer\">a</a></p>"),
+    ] {
+        let out = compile(src, &mut Options::new("t.zr"));
+        assert_eq!(unwrap_fragment(&out.html), want, "{src}");
+        assert!(out.diags.is_empty(), "{src}");
+    }
 }

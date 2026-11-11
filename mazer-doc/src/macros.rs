@@ -27,6 +27,9 @@
 //!   definition span is attached to diagnostics as a secondary label.
 //! - `(quote ...)` contents are still expanded; quoting only stops `let`
 //!   substitution, not notation.
+//! - A template may not contain a list headed by a reserved word (`show`,
+//!   `eval`, `let`, `alias`, `macro`, `ref`) or by `tag`: such a definition
+//!   is reported once, where it is written, and the name is not defined.
 //!
 //! # Details
 //!
@@ -66,6 +69,12 @@
 //! going until [`MAX_DEPTH`] nested instantiations and then stop with one
 //! `MacroDepth` diagnostic.
 //!
+//! **Reserved words in a template.** `(alias T (tag a))`, `(macro (f x) (eval
+//! x))` and the like are rejected: `MisplacedTag` for a tag, `NestedEval` for
+//! `eval`, `BadDefinition` for `let`/`alias`/`macro`, `Other` for
+//! `show`/`ref`. A reserved word that is not the head of a list is just a
+//! name and is fine.
+//!
 //! **Failure.** A use with the wrong number of arguments (`MacroArity`) or one
 //! that nests too deeply (`MacroDepth`) is replaced by an `Error` node with the
 //! use-site span, so the form renders as an error box. The same happens if one
@@ -73,12 +82,17 @@
 //! levels deep (also `MacroDepth`). After the first `MacroDepth` in a tree,
 //! the remaining uses in that tree are replaced silently, so one runaway
 //! definition gives one diagnostic.
+//!
+//! **Document budget.** Every node a template or a copied argument creates is
+//! charged to the document-wide budget described in the `walk` module
+//! (250 000 nodes per `analyze`). [`expand`] on its own starts a fresh
+//! budget; `analyze` shares one across the whole note and the `let` pass.
 
 use std::collections::HashMap;
 
 use mazer_syntax::{Diag, DiagCode, Diags, Document, Node, NodeKind, Span, Sym};
 
-use crate::walk::{self, Measure};
+use crate::walk::{self, Budget, Measure};
 
 /// Maximum macro expansion depth before giving up with a diagnostic.
 pub const MAX_DEPTH: usize = 64;
@@ -177,6 +191,11 @@ pub fn collect_macros(doc: &Document, macros: &mut Macros, diags: &mut Diags) {
         let Some((def, name_span)) = parsed else {
             return;
         };
+        let mut body = def.body.clone();
+        let outer = if node.is_form("alias") { "alias" } else { "macro" };
+        if walk::strip_reserved(&mut body, outer, diags) {
+            return;
+        }
         if let Some(prev) = macros.get(def.name) {
             diags.push(
                 Diag::error(
@@ -315,12 +334,18 @@ fn definition_name(node: &Node, diags: &mut Diags) -> Option<Sym> {
 
 /// Expands every macro and alias use in one code tree.
 pub fn expand(node: &Node, macros: &Macros, diags: &mut Diags) -> Node {
+    expand_with(node, macros, &mut Budget::new(), diags)
+}
+
+/// [`expand`], charging created nodes to a shared document budget.
+pub(crate) fn expand_with(node: &Node, macros: &Macros, budget: &mut Budget, diags: &mut Diags) -> Node {
     if macros.is_empty() {
         return node.clone();
     }
     let mut expander = Expander {
         macros,
         diags,
+        budget,
         depth: 0,
         produced: 0,
         stopped: false,
@@ -356,6 +381,8 @@ impl<'a> Inst<'a> {
 struct Expander<'m, 'd> {
     macros: &'m Macros,
     diags: &'d mut Diags,
+    /// The document-wide budget for created nodes.
+    budget: &'d mut Budget,
     /// Instantiations currently open.
     depth: usize,
     /// Nodes produced so far, against [`walk::MAX_NODES`].
@@ -378,7 +405,7 @@ impl Expander<'_, '_> {
                     Some(def) if def.is_alias() && !inst.is_some_and(|i| i.blocks(*sym)) => {
                         self.call(def, &[], span, level)
                     }
-                    _ => self.leaf(node, span),
+                    _ => self.leaf(node, inst.is_some(), span),
                 }
             }
             NodeKind::List(items) => {
@@ -386,6 +413,9 @@ impl Expander<'_, '_> {
                     return self.too_big(span, None);
                 }
                 self.produced += 1;
+                if inst.is_some() {
+                    self.budget.spend(1);
+                }
                 let mut out = Vec::with_capacity(items.len());
                 for child in items {
                     if let Some(args) = child.as_ident().and_then(|s| inst.and_then(|i| i.rest(s))) {
@@ -405,12 +435,16 @@ impl Expander<'_, '_> {
                     None => Node::list(out, span),
                 }
             }
-            NodeKind::Number(_) | NodeKind::Str(_) | NodeKind::Error => self.leaf(node, span),
+            NodeKind::Number(_) | NodeKind::Str(_) | NodeKind::Error => self.leaf(node, inst.is_some(), span),
         }
     }
 
-    fn leaf(&mut self, node: &Node, span: Span) -> Node {
+    /// Copies a leaf; `created` when it comes from a template.
+    fn leaf(&mut self, node: &Node, created: bool, span: Span) -> Node {
         self.produced += 1;
+        if created {
+            self.budget.spend(1);
+        }
         Node::new(node.kind.clone(), span)
     }
 
@@ -421,6 +455,9 @@ impl Expander<'_, '_> {
         if self.produced > walk::MAX_NODES || level + m.depth > walk::MAX_TREE_DEPTH + 1 {
             return self.too_big(span, None);
         }
+        if !self.budget.try_spend(m.size) {
+            return self.over_budget(span, None);
+        }
         arg.clone()
     }
 
@@ -428,6 +465,9 @@ impl Expander<'_, '_> {
     fn call(&mut self, def: &Macro, args: &[Node], span: Span, level: usize) -> Node {
         if self.stopped {
             return Node::error(span);
+        }
+        if !self.budget.fits() {
+            return self.over_budget(span, Some(def));
         }
         let fits = if def.rest.is_some() {
             args.len() >= def.params.len()
@@ -476,6 +516,14 @@ impl Expander<'_, '_> {
         let out = self.node(&def.body, Some(&inst), level);
         self.depth -= 1;
         out
+    }
+
+    /// The document budget has run out: one diagnostic for the whole note,
+    /// then every later use is refused silently.
+    fn over_budget(&mut self, span: Span, def: Option<&Macro>) -> Node {
+        self.stopped = true;
+        self.budget.refuse(DiagCode::MacroDepth, span, def.map(|d| d.span), self.diags);
+        Node::error(span)
     }
 
     fn too_big(&mut self, span: Span, def: Option<&Macro>) -> Node {
