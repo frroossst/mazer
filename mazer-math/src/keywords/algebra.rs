@@ -36,7 +36,7 @@ pub fn keywords() -> Vec<Keyword> {
             "*",
             "Multiplication: the factors joined by `×`. With one factor it shows just that \
              factor; with none, the bare `*` sign.",
-            |call, out| nary("\u{d7}", "*", Prec::Multiplicative, Assoc::Both, call, out),
+            |call, out| nary("\u{d7}", Prec::Multiplicative, Assoc::Both, call, out),
         )
         .alias("mul")
         .rest("factors", "The factors to multiply, left to right.")
@@ -105,7 +105,7 @@ pub fn keywords() -> Vec<Keyword> {
             "=",
             "Equality: the arguments joined by `=`, so `(= a b c)` is a chain. With one argument \
              it shows just that argument; with none it is the `=` sign itself.",
-            |call, out| nary("=", "=", Prec::Relation, Assoc::Neither, call, out),
+            |call, out| nary("=", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("eq")
         .rest("terms", "The two or more expressions that are equal.")
@@ -123,7 +123,7 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(!= a b)")
         .example("(neq x 0)"),
         Keyword::new("<", "Less than: the arguments joined by `<`, so `(< a b c)` is a chain. With one argument it shows just that argument; with none, the `<` sign.", |call, out| {
-            nary("<", "<", Prec::Relation, Assoc::Neither, call, out);
+            nary("<", Prec::Relation, Assoc::Neither, call, out);
         })
         .alias("lt")
         .rest("terms", "The two or more expressions, smallest first.")
@@ -131,7 +131,7 @@ pub fn keywords() -> Vec<Keyword> {
         .example("(< a b)")
         .example("(lt 0 x 1)"),
         Keyword::new(">", "Greater than: the arguments joined by `>`, so `(> a b c)` is a chain. With one argument it shows just that argument; with none, the `>` sign.", |call, out| {
-            nary(">", ">", Prec::Relation, Assoc::Neither, call, out);
+            nary(">", Prec::Relation, Assoc::Neither, call, out);
         })
         .alias("gt")
         .rest("terms", "The two or more expressions, largest first.")
@@ -142,7 +142,7 @@ pub fn keywords() -> Vec<Keyword> {
             "<=",
             "Less than or equal: the arguments joined by `≤`, so `(<= a b c)` is a chain. With one \
              argument it shows just that argument; with none, the `≤` sign.",
-            |call, out| nary("\u{2264}", "\u{2264}", Prec::Relation, Assoc::Neither, call, out),
+            |call, out| nary("\u{2264}", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("leq")
         .rest("terms", "The two or more expressions, smallest first.")
@@ -153,7 +153,7 @@ pub fn keywords() -> Vec<Keyword> {
             ">=",
             "Greater than or equal: the arguments joined by `≥`, so `(>= a b c)` is a chain. With \
              one argument it shows just that argument; with none, the `≥` sign.",
-            |call, out| nary("\u{2265}", "\u{2265}", Prec::Relation, Assoc::Neither, call, out),
+            |call, out| nary("\u{2265}", Prec::Relation, Assoc::Neither, call, out),
         )
         .alias("geq")
         .rest("terms", "The two or more expressions, largest first.")
@@ -217,7 +217,7 @@ pub fn keywords() -> Vec<Keyword> {
             "union",
             "Union: the sets joined by `∪`. With one set it shows just that set; with none it is \
              the `∪` sign itself.",
-            |call, out| nary("\u{222a}", "\u{222a}", Prec::Additive, Assoc::Both, call, out),
+            |call, out| nary("\u{222a}", Prec::Additive, Assoc::Both, call, out),
         )
         .rest("sets", "The sets to unite.")
         .sign("\u{222a}")
@@ -227,7 +227,7 @@ pub fn keywords() -> Vec<Keyword> {
             "intersect",
             "Intersection: the sets joined by `∩`. With one set it shows just that set; with none \
              it is the `∩` sign itself.",
-            |call, out| nary("\u{2229}", "\u{2229}", Prec::Multiplicative, Assoc::Both, call, out),
+            |call, out| nary("\u{2229}", Prec::Multiplicative, Assoc::Both, call, out),
         )
         .rest("sets", "The sets to intersect.")
         .sign("\u{2229}")
@@ -237,7 +237,7 @@ pub fn keywords() -> Vec<Keyword> {
             "and",
             "Logical and: the statements joined by `∧`. With one statement it shows just that \
              statement; with none it is the `∧` sign itself.",
-            |call, out| nary("\u{2227}", "\u{2227}", Prec::And, Assoc::Both, call, out),
+            |call, out| nary("\u{2227}", Prec::And, Assoc::Both, call, out),
         )
         .rest("statements", "The statements that all hold.")
         .sign("\u{2227}")
@@ -247,7 +247,7 @@ pub fn keywords() -> Vec<Keyword> {
             "or",
             "Logical or: the statements joined by `∨`. With one statement it shows just that \
              statement; with none it is the `∨` sign itself.",
-            |call, out| nary("\u{2228}", "\u{2228}", Prec::Or, Assoc::Both, call, out),
+            |call, out| nary("\u{2228}", Prec::Or, Assoc::Both, call, out),
         )
         .rest("statements", "The statements of which at least one holds.")
         .sign("\u{2228}")
@@ -352,17 +352,14 @@ pub(crate) fn precedence(name: &str, args: usize) -> Option<Prec> {
     }
 }
 
-/// An n-ary infix row of `glyph`; with no operands the bare `bare` sign.
-fn nary(glyph: &str, bare: &str, prec: Prec, assoc: Assoc, call: &Call<'_>, out: &mut MathMl<'_>) {
-    match call.rest() {
-        [] => out.mo(bare),
-        terms => out.infix(glyph, prec, assoc, terms),
-    }
+/// An n-ary infix row of `glyph`. Never called with no operands: every keyword that
+/// uses it has a sign, so the dispatcher renders `(and)` as the bare sign.
+fn nary(glyph: &str, prec: Prec, assoc: Assoc, call: &Call<'_>, out: &mut MathMl<'_>) {
+    out.infix(glyph, prec, assoc, call.rest());
 }
 
 fn add(call: &Call<'_>, out: &mut MathMl<'_>) {
     match call.rest() {
-        [] => out.mo("+"),
         [term] => out.prefix("+", term, Prec::BigOp),
         terms => out.infix("+", Prec::Additive, Assoc::Both, terms),
     }
@@ -370,7 +367,6 @@ fn add(call: &Call<'_>, out: &mut MathMl<'_>) {
 
 fn subtract(call: &Call<'_>, out: &mut MathMl<'_>) {
     match call.rest() {
-        [] => out.mo("\u{2212}"),
         [term] => out.prefix("\u{2212}", term, Prec::BigOp),
         terms => out.infix("\u{2212}", Prec::Additive, Assoc::Left, terms),
     }
@@ -378,7 +374,6 @@ fn subtract(call: &Call<'_>, out: &mut MathMl<'_>) {
 
 fn divide(call: &Call<'_>, out: &mut MathMl<'_>) {
     match call.rest() {
-        [] => out.mo("\u{f7}"),
         [den] => out.tag("mfrac", |o| {
             o.mn("1");
             o.expr(den);

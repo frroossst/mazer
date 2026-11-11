@@ -28,6 +28,29 @@ fn latex(src: &str) -> String {
     out
 }
 
+/// Like [`shows`], for inputs whose only diagnostics are the `UnsupportedTarget`
+/// warnings of an alphabet font applied to something LaTeX cannot typeset.
+#[track_caller]
+fn shows_with_font_warnings(cases: &[(&str, &str)]) {
+    for &(src, expected) in cases {
+        let (out, diags) = render(src);
+        assert_eq!(out, expected, "{src}");
+        assert!(
+            !diags.is_empty() && diags.as_slice().iter().all(|d| d.code == DiagCode::UnsupportedTarget),
+            "{src}: {diags:?}"
+        );
+    }
+}
+
+/// Renders `src`, allowing only `UnsupportedTarget` warnings (the ones an
+/// alphabet font gives for an argument LaTeX cannot typeset).
+#[track_caller]
+fn latex_allowing_font_warnings(src: &str) -> String {
+    let (out, diags) = render(src);
+    assert!(diags.as_slice().iter().all(|d| d.code == DiagCode::UnsupportedTarget), "{src}: {diags:?}");
+    out
+}
+
 #[track_caller]
 fn shows(cases: &[(&str, &str)]) {
     for &(src, expected) in cases {
@@ -98,7 +121,7 @@ fn bare_signs() {
         ("arcsin", "\\arcsin"),
         ("lim", "\\lim"),
         ("fact", "!"),
-        ("prime", "'"),
+        ("prime", "{}'"),
         ("<", "<"),
         ("and", "\\land"),
         ("implies", "\\implies"),
@@ -227,8 +250,8 @@ fn assert_sane(src: &str, out: &str) {
 fn every_example_renders_cleanly() {
     for keyword in registry() {
         for src in &keyword.examples {
-            let (out, diags) = render(src);
-            assert!(diags.is_empty(), "`{}`: {src:?} gave diagnostics: {diags:?}", keyword.name);
+            // `(bb (+ a b))` is fine in `MathML`; LaTeX warns that it has no such glyph.
+            let out = latex_allowing_font_warnings(src);
             assert!(!out.trim().is_empty(), "`{}`: {src:?} rendered nothing", keyword.name);
             assert_sane(src, &out);
         }
@@ -284,8 +307,8 @@ const OUTPUTS: &[(&str, &str)] = &[
     ("(pow e (- x))", "e^{-x}"),
     ("(sqrt x)", "\\sqrt{x}"),
     ("(sqrt (+ a b))", "\\sqrt{a + b}"),
-    ("(root 3 x)", "\\sqrt[3]{x}"),
-    ("(root n (+ a b))", "\\sqrt[n]{a + b}"),
+    ("(root 3 x)", "\\sqrt[{3}]{x}"),
+    ("(root n (+ a b))", "\\sqrt[{n}]{a + b}"),
     ("(jux a b c)", "a \\, b \\, c"),
     ("(jux x)", "x"),
     ("(juxtapose f (paren x))", "f \\, \\left(x\\right)"),
@@ -414,9 +437,9 @@ const OUTPUTS: &[(&str, &str)] = &[
     ),
     ("(ty-judge R () c)", "{\\dfrac{}{c} \\; \\text{R}}"),
     ("(bb R)", "\\mathbb{R}"),
-    ("(bb (+ a b))", "\\mathbb{a + b}"),
+    ("(bb (+ a b))", "a + b"),
     ("(cal L)", "\\mathcal{L}"),
-    ("(cal (subscript F n))", "\\mathcal{F_{n}}"),
+    ("(cal (subscript F n))", "F_{n}"),
     ("(frak g)", "\\mathfrak{g}"),
     ("(bold v)", "\\mathbf{v}"),
     ("(bold gen)", "\\mathbf{gen}"),
@@ -431,7 +454,7 @@ const OUTPUTS: &[(&str, &str)] = &[
 #[test]
 fn keyword_outputs() {
     for &(src, expected) in OUTPUTS {
-        let out = latex(src);
+        let out = latex_allowing_font_warnings(src);
         assert_eq!(out, expected, "{src}");
         assert_sane(src, &out);
     }
@@ -523,7 +546,7 @@ fn zero_argument_calls_are_the_bare_keyword() {
         ("(partial)", "\\partial"),
         ("(neq)", "\\neq"),
         ("(+)", "+"),
-        ("(prime)", "'"),
+        ("(prime)", "{}'"),
         ("(^ (neq) 2)", "\\neq^{2}"),
         ("(* a (+))", "a \\times +"),
         ("(set)", "\\left\\{\\right\\}"),
@@ -682,14 +705,18 @@ fn building_blocks() {
 fn font_variants_hold_together_like_their_argument() {
     shows(&[
         ("(- (rm (+ a b)))", "-\\left(\\mathrm{a + b}\\right)"),
-        ("(^ (bb (+ a b)) 2)", "\\left(\\mathbb{a + b}\\right)^{2}"),
         ("(* c (bold (+ a b)))", "c \\times \\left(\\mathbf{a + b}\\right)"),
-        ("(fact (cal (* a b)))", "\\left(\\mathcal{a \\times b}\\right)!"),
-        ("(sum (bb (+ a b)) n)", "\\sum_{n} \\left(\\mathbb{a + b}\\right)"),
-        ("(- (bb x))", "-\\mathbb{x}"),
+        ("(- (bb X))", "-\\mathbb{X}"),
         ("(^ (bold x) 2)", "\\mathbf{x}^{2}"),
-        ("(+ a (bb -2))", "a + \\left(\\mathbb{-2}\\right)"),
         ("(* (sum a n) (rm b))", "\\left(\\sum_{n} a\\right) \\times \\mathrm{b}"),
+    ]);
+    // `\mathbb` cannot typeset a sum: it is shown plain (a warning each), and
+    // still held together like the sum it is.
+    shows_with_font_warnings(&[
+        ("(^ (bb (+ a b)) 2)", "\\left(a + b\\right)^{2}"),
+        ("(fact (cal (* a b)))", "\\left(a \\times b\\right)!"),
+        ("(sum (bb (+ a b)) n)", "\\sum_{n} \\left(a + b\\right)"),
+        ("(+ a (bb -2))", "a + \\left(-2\\right)"),
     ]);
 }
 
@@ -952,8 +979,7 @@ fn write_all_examples_tex() {
         "\\documentclass{article}\n\\usepackage{amsmath,amssymb}\n\\begin{document}\n\\allowdisplaybreaks\n",
     );
     let mut push = |src: &str| {
-        let (out, diags) = render(src);
-        assert!(diags.is_empty(), "{src}: {diags:?}");
+        let out = latex_allowing_font_warnings(src);
         let _ = writeln!(doc, "% {}\n\\[\n{out}\n\\]", src.replace('\n', " "));
     };
     for keyword in registry() {
@@ -975,8 +1001,29 @@ fn write_all_examples_tex() {
         "\"100% of $5 #1 {x} a_b < c\"",
         "(* (sum a n) (- (integral f x 0 1)) (forall y p))",
         "(f (ty-judge T ((in x S) (= a b)) c) x_1 a%b)",
+        // Typed glyphs, `]` in a root index, double scripts, alphabets, wide matrices.
+        "(jux \u{221e} \u{2192} \u{22a2} \u{3b1}\u{3b2})",
+        "(root (bracket y) x)",
+        "(root (root 3 a) b)",
+        "(prime (prime f k))",
+        "(prime (prime f k) 2)",
+        "(prime (prime f) k)",
+        "(sum prime n)",
+        "(integral prime x)",
+        "(^ prime 2)",
+        "(bb (+ a b))",
+        "(bb 1)",
+        "(cal (subscript F n))",
+        "(frak (+ a b))",
+        "(frak g)",
+        "(bold (+ a b))",
+        "(mat (1 2 3 4 5 6 7 8 9 10 11) (1 2))",
+        "(det (1 2 3 4 5 6 7 8 9 10 11 12))",
     ] {
         push(src);
+    }
+    for display in display_names() {
+        push(display.unicode);
     }
     doc.push_str("\\end{document}\n");
     std::fs::write(path, doc).expect("write the .tex file");
@@ -989,4 +1036,122 @@ fn directive_lists_in_grids() {
     let (out, diags) = render("(cases (a b c))");
     assert_eq!(out, "\\begin{cases} a & b \\end{cases}");
     assert_eq!(diags.as_slice()[0].severity, Severity::Warning);
+}
+
+// --- Final review fixes --------------------------------------------------------
+
+#[test]
+fn typed_glyphs_are_spelled_in_ascii() {
+    shows(&[
+        ("\u{221e}", "\\infty"),
+        ("\u{2192}", "\\to"),
+        ("\u{22a2}", "\\vdash"),
+        ("\u{3b1}\u{3b2}", "\\mathrm{\\alpha\\beta}"),
+        ("(jux \u{221e} \u{2192} \u{22a2} \u{3b1}\u{3b2})", "\\infty \\, \\to \\, \\vdash \\, \\mathrm{\\alpha\\beta}"),
+        // Mixed with ASCII: a control word never swallows the next letter.
+        ("a\u{3b1}b", "\\mathrm{a\\alpha b}"),
+        ("\u{3b1}x", "\\mathrm{\\alpha x}"),
+        // A glyph that is not in the table is wrapped, not left raw.
+        ("\u{e9}", "\\text{\u{e9}}"),
+        ("a\u{e9}\u{e8}b", "\\mathrm{a\\text{\u{e9}\u{e8}}b}"),
+        ("\u{2603}", "\\text{\u{2603}}"),
+        ("(+ \u{221e} \u{2603})", "\\infty + \\text{\u{2603}}"),
+        ("(bold \u{3b1})", "\\mathbf{\\alpha}"),
+        ("(rm \u{3b1}\u{3b2})", "\\mathrm{\\alpha\\beta}"),
+    ]);
+}
+
+#[test]
+fn every_typed_display_glyph_is_ascii_latex() {
+    for display in display_names() {
+        let out = latex(display.unicode);
+        assert_sane(display.unicode, &out);
+        let out = latex(&format!("(+ {} a)", display.unicode));
+        assert_sane(display.unicode, &out);
+        // The same row's spelling, or an earlier row with the same glyph.
+        assert!(out.contains('\\') || display.latex.is_ascii(), "{}: {out}", display.unicode);
+    }
+}
+
+#[test]
+fn root_index_is_braced() {
+    shows(&[
+        ("(root (bracket y) x)", "\\sqrt[{\\left[y\\right]}]{x}"),
+        ("(root (root 3 a) b)", "\\sqrt[{\\sqrt[{3}]{a}}]{b}"),
+        ("(root 3 x)", "\\sqrt[{3}]{x}"),
+    ]);
+}
+
+#[test]
+fn primes_never_make_a_double_superscript() {
+    shows(&[
+        ("(prime (prime f k))", "{f^{(k)}}'"),
+        ("(prime (prime f k) 2)", "{f^{(k)}}''"),
+        ("(prime (prime f) k)", "{f'}^{(k)}"),
+        ("(prime (prime f))", "f''"),
+        ("(prime (superscript f 2))", "\\left(f^{2}\\right)'"),
+        // The bare sign, as a body or a base.
+        ("(sum prime n)", "\\sum_{n} {}'"),
+        ("(integral prime x)", "\\int {}' \\, \\mathrm{d}x"),
+        ("(^ prime 2)", "{{}'}^{2}"),
+        ("(prime prime)", "{}''"),
+    ]);
+}
+
+#[test]
+fn alphabet_fonts_only_on_what_they_can_typeset() {
+    shows(&[
+        ("(bb R)", "\\mathbb{R}"),
+        ("(cal L)", "\\mathcal{L}"),
+        ("(frak g)", "\\mathfrak{g}"),
+        ("(frak G)", "\\mathfrak{G}"),
+        ("(bold (+ a b))", "\\mathbf{a + b}"),
+        ("(bold 1)", "\\mathbf{1}"),
+        ("(rm (+ a b))", "\\mathrm{a + b}"),
+        ("(rm 12)", "\\mathrm{12}"),
+    ]);
+    // Everything else is shown plain, with one warning naming the keyword.
+    for (src, plain, keyword) in [
+        ("(bb (+ a b))", "a + b", "bb"),
+        ("(bb 1)", "1", "bb"),
+        ("(bb a)", "a", "bb"),
+        ("(bb RR)", "\\mathrm{RR}", "bb"),
+        ("(cal (subscript F n))", "F_{n}", "cal"),
+        ("(cal l)", "l", "cal"),
+        ("(cal 2)", "2", "cal"),
+        ("(frak (+ a b))", "a + b", "frak"),
+        ("(frak 1)", "1", "frak"),
+        ("(bb Reals)", "\\mathbb{R}", "bb"),
+    ] {
+        let (out, diags) = render(src);
+        assert_eq!(out, plain, "{src}");
+        let [diag] = diags.as_slice() else { panic!("{src}: {diags:?}") };
+        assert_eq!(diag.severity, Severity::Warning, "{src}");
+        assert_eq!(diag.code, DiagCode::UnsupportedTarget, "{src}");
+        assert!(diag.message.starts_with(&format!("LaTeX has no `{keyword}` glyph for `")), "{src}: {}", diag.message);
+        assert!(diag.message.ends_with("so it is shown in the ordinary font"), "{src}: {}", diag.message);
+    }
+    // The span is the argument, and nested uses warn once each.
+    let (_, diags) = render("(bb (+ a (cal b)))");
+    assert_eq!(diags.len(), 2);
+}
+
+#[test]
+fn wide_matrices_use_an_array() {
+    let row = |n: usize| format!("({})", (1..=n).map(|i| i.to_string()).collect::<Vec<_>>().join(" "));
+    // Ten columns is the most `pmatrix` takes.
+    let out = latex(&format!("(mat {})", row(10)));
+    assert!(out.starts_with("\\begin{pmatrix}"), "{out}");
+    let out = latex(&format!("(mat {} (1 2))", row(11)));
+    assert_eq!(
+        out,
+        "\\left(\\begin{array}{ccccccccccc} 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 & 11 \\\\ 1 & 2 \\end{array}\\right)"
+    );
+    assert_sane("wide mat", &out);
+    let out = latex(&format!("(det {})", row(12)));
+    assert!(out.starts_with("\\left|\\begin{array}{cccccccccccc} 1 & 2"), "{out}");
+    assert!(out.ends_with("12 \\end{array}\\right|"), "{out}");
+    assert_sane("wide det", &out);
+    // A narrow one still uses the environment.
+    shows(&[("(det (a b) (c d))", "\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}")]);
 }

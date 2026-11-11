@@ -39,7 +39,15 @@ pub fn mathml(src: &str) -> String {
 /// a `<mspace>` shown as one space and the five entities decoded. Asserts
 /// zero diagnostics, like [`mathml`].
 pub fn visible(src: &str) -> String {
-    let xml = mathml(src);
+    let (text, diags) = visible_with_diags(src);
+    assert!(diags.is_empty(), "{src:?} gave diagnostics: {diags:?}");
+    text
+}
+
+/// [`visible`] without the zero-diagnostics assertion: the text and the
+/// diagnostics.
+pub fn visible_with_diags(src: &str) -> (String, Diags) {
+    let (xml, diags) = render(src);
     let mut text = String::new();
     let mut rest = xml.as_str();
     while let Some(start) = rest.find('<') {
@@ -51,11 +59,13 @@ pub fn visible(src: &str) -> String {
         rest = &rest[end + 1..];
     }
     text.push_str(rest);
-    text.replace("&lt;", "<")
+    let text = text
+        .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
-        .replace("&amp;", "&")
+        .replace("&amp;", "&");
+    (text, diags)
 }
 
 /// How many elements sit at the top level of `xml`. Text outside any element

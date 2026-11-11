@@ -32,7 +32,7 @@ use mazer_syntax::{Diag, DiagCode, Diags, Node, NodeKind, Span, Sym};
 use crate::call::{Call, try_bind};
 use crate::display::display_name;
 use crate::keyword::Keyword;
-use crate::mathml::{Assoc, Prec, precedence};
+use crate::mathml::{Assoc, Prec, chain_needs_parens, leads_with_sign, precedence};
 use crate::registry::registry;
 
 /// A keyword's LaTeX emitter.
@@ -276,17 +276,17 @@ impl Latex<'_> {
             self.raw(&latex);
             return;
         }
+        // A character that is a display-table glyph (typed `α`, `→`, `⊢`) is
+        // spelled as its command; any other non-ASCII character is wrapped in
+        // `\text`, so nothing outside `\text` is raw Unicode.
         let text = name.as_str();
-        if !text.chars().any(char::is_alphanumeric) {
-            let escaped = signs::escape_math(text);
-            self.raw(&escaped);
-        } else if text.chars().count() == 1 {
-            let single = signs::plain_name(text);
-            self.raw(&single);
-        } else {
+        let spelled = signs::spell(text);
+        if text.chars().count() > 1 && text.chars().any(char::is_alphanumeric) {
             self.raw("\\mathrm{");
-            self.out.push_str(&signs::escape_math(text));
+            self.out.push_str(&spelled);
             self.out.push('}');
+        } else {
+            self.raw(&spelled);
         }
     }
 
@@ -343,7 +343,10 @@ impl Latex<'_> {
                 }
                 match try_bind(keyword, node) {
                     Ok(call) => match keyword.latex {
-                        Some(emit) => emit(&call, self),
+                        Some(emit) => {
+                            crate::lint::call_warnings(&call, self.diags);
+                            emit(&call, self);
+                        }
                         None => self.error(Diag::error(
                             DiagCode::UnsupportedTarget,
                             node.span,
@@ -354,19 +357,7 @@ impl Latex<'_> {
                 }
                 return;
             }
-            if display_name(name).is_none()
-                && let Some(suggestion) = registry().suggest(name.as_str())
-            {
-                // A hint, not a warning: the name may well be deliberate.
-                self.report(
-                    Diag::hint(
-                        DiagCode::UnknownForm,
-                        head.span,
-                        format!("`{name}` is not a keyword, so this is shown as a function application"),
-                    )
-                    .with_help(format!("did you mean `{suggestion}`?")),
-                );
-            }
+            crate::lint::unknown_head(name, head, self.diags);
         }
         self.application(head, args);
     }
@@ -410,8 +401,22 @@ impl Latex<'_> {
     /// The base of a script: an atom, braced if it already ends in a script
     /// of the same kind (`mark` is `_` or `^`), which TeX rejects.
     fn script_base(&mut self, base: &Node, mark: u8) {
-        let rendered = self.capture(|o| o.operand(base, Prec::Atom));
-        if ends_in_script(&rendered, mark) {
+        self.braced_operand(base, Prec::Atom, mark);
+    }
+
+    /// [`Latex::operand`], braced if what the caller writes next would make a
+    /// double script. `mark` is what follows: `_` (a subscript), `^` (a
+    /// superscript, which also clashes with a trailing prime: `f'^{2}`) or `'`
+    /// (a prime, which clashes with a trailing superscript, `f^{2}'`, but not
+    /// with another prime: `f''`).
+    pub(crate) fn braced_operand(&mut self, node: &Node, min: Prec, mark: u8) {
+        let rendered = self.capture(|o| o.operand(node, min));
+        let clash = match mark {
+            b'\'' => ends_in_script(&rendered, b'^'),
+            b'^' => ends_in_script(&rendered, b'^') || rendered.ends_with('\''),
+            _ => ends_in_script(&rendered, mark),
+        };
+        if clash {
             self.out.push('{');
             self.out.push_str(&rendered);
             self.out.push('}');
@@ -462,81 +467,6 @@ fn ends_in_script(s: &str, mark: u8) -> bool {
         }
     }
     false
-}
-
-// --- Parenthesis rules --------------------------------------------------------
-//
-// These are the rules of `mathml.rs` (`declared`, `see_through`,
-// `leads_with_sign`, `opens_right`, `chain_needs_parens`), which are private
-// there. They are copied rather than re-derived so both targets parenthesise
-// identically; the level table itself is shared (`mathml::precedence`). The
-// tests in `latex/tests.rs` mirror the `parentheses` tests of `mathml.rs`. If
-// those functions become `pub(crate)` this copy can go.
-
-/// The level a keyword file declares for the call `node`, and its arguments.
-fn declared(node: &Node) -> Option<(Prec, &[Node])> {
-    let (head, args) = node.as_list()?.split_first()?;
-    let keyword = registry().get(head.as_ident()?)?;
-    if args.is_empty() && keyword.sign.is_some() {
-        return None;
-    }
-    Some((crate::keywords::precedence(keyword.name, args.len()), args))
-}
-
-/// Strips the wrappers that render exactly as what they wrap.
-fn see_through(node: &Node) -> &Node {
-    let Some((head, args)) = node.as_list().and_then(<[Node]>::split_first) else {
-        return node;
-    };
-    let inner = head.as_ident().and_then(|name| registry().get(name)).map_or_else(
-        || args.is_empty().then_some(head),
-        |keyword| crate::keywords::see_through(keyword.name, args),
-    );
-    inner.map_or(node, see_through)
-}
-
-/// Whether `node` renders starting with a `-` or `+` sign.
-fn leads_with_sign(node: &Node) -> bool {
-    let node = see_through(node);
-    match &node.kind {
-        NodeKind::Number(text) => text.starts_with('-'),
-        NodeKind::List(_) => match declared(node) {
-            Some((Prec::Prefix, _)) => true,
-            Some((level @ (Prec::Additive | Prec::Multiplicative), args @ [first, ..])) => {
-                leads_with_sign(first) && !chain_needs_parens(first, 0, args.len(), level, Assoc::Both)
-            }
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
-/// Whether a signed expression ends in a big operator whose body would run
-/// on into what follows: `-\sum a`.
-fn opens_right(node: &Node) -> bool {
-    match declared(see_through(node)) {
-        Some((Prec::Prefix, [.., last])) => precedence(last) == Prec::BigOp && !leads_with_sign(last),
-        _ => false,
-    }
-}
-
-/// Whether operand `index` of `count` in an infix row at level `prec` needs
-/// parentheses.
-fn chain_needs_parens(node: &Node, index: usize, count: usize, prec: Prec, assoc: Assoc) -> bool {
-    let min = match assoc {
-        Assoc::Both if prec == Prec::Multiplicative && index + 1 == count => Prec::BigOp,
-        Assoc::Both => prec,
-        Assoc::Left if index == 0 => prec,
-        Assoc::Left | Assoc::Neither => prec.tighter(),
-    };
-    let level = precedence(node);
-    if prec < Prec::Additive {
-        return level < min;
-    }
-    if index == 0 {
-        return level < min && (level != Prec::Prefix || opens_right(node));
-    }
-    level < min || leads_with_sign(node)
 }
 
 /// Renders one expression to LaTeX math (no surrounding `$` or environment).

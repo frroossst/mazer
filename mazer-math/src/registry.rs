@@ -117,7 +117,7 @@ const fn max_distance(len: usize) -> usize {
 /// Levenshtein (insert, delete, substitute) plus swapping two neighbouring
 /// characters as a single edit, so `fracc` and `farc` are both one typo away
 /// from `frac`.
-fn edit_distance(a: &str, b: &str) -> usize {
+pub(crate) fn edit_distance(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
     // Rolling rows: two rows back (needed for swaps), the previous row, the current row.

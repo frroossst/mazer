@@ -42,7 +42,8 @@ pub(super) fn sign(sign: &str) -> Option<&'static str> {
         "\u{220f}" => "\\prod",
         "\u{2202}" => "\\partial",
         "!" => "!",
-        "\u{2032}" => "'",
+        // Braced base: a bare prime after `\sum_{i}` would be a second superscript.
+        "\u{2032}" => "{}'",
         "lim" => "\\lim",
         "sin" => "\\sin",
         "cos" => "\\cos",
@@ -97,12 +98,45 @@ static BY_GLYPH: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|
     map
 });
 
-/// A one-character name as math: itself, or the command for the character
-/// if the display table knows it (`α` -> `\alpha`).
-pub(super) fn plain_name(text: &str) -> String {
-    BY_GLYPH
-        .get(text)
-        .map_or_else(|| escape_math(text), |latex| display_latex(latex))
+/// A name as math: ASCII characters as they are (specials escaped), each
+/// character that is a display-table glyph as its command (`α` -> `\alpha`,
+/// `→` -> `\to`, `⊢` -> `\vdash`), and any other non-ASCII character wrapped
+/// in `\text{...}`, so that the output is ASCII outside `\text`.
+///
+/// pdflatex itself cannot typeset such text without a Unicode-capable setup
+/// (a font with the character, or `LuaLaTeX` / `XeLaTeX`); the wrapper only keeps
+/// the rest of the document compiling.
+pub(super) fn spell(text: &str) -> String {
+    fn flush(out: &mut String, pending: &mut String) {
+        if !pending.is_empty() {
+            out.push_str("\\text{");
+            out.push_str(pending);
+            out.push('}');
+            pending.clear();
+        }
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut pending = String::new();
+    let mut buf = [0u8; 4];
+    for ch in text.chars() {
+        let glyph: &str = ch.encode_utf8(&mut buf);
+        let piece = if ch.is_ascii() {
+            escape_math(glyph)
+        } else if let Some(latex) = BY_GLYPH.get(glyph) {
+            display_latex(latex)
+        } else {
+            pending.push(ch);
+            continue;
+        };
+        flush(&mut out, &mut pending);
+        // A control word must not swallow a letter that follows it.
+        if piece.starts_with(|c: char| c.is_ascii_alphabetic()) && super::ends_in_control_word(&out) {
+            out.push(' ');
+        }
+        out.push_str(&piece);
+    }
+    flush(&mut out, &mut pending);
+    out
 }
 
 /// Escapes `text` for inside `\text{...}`: `\ { } $ & # _ % ^ ~` and the
