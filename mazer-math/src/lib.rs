@@ -13,6 +13,9 @@ pub mod keywords;
 pub mod mathml;
 pub mod registry;
 
+#[cfg(test)]
+mod testing;
+
 #[cfg(feature = "latex")]
 pub mod latex;
 
