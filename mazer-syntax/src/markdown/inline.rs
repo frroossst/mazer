@@ -128,6 +128,9 @@ struct Parser<'a> {
     closers: [Vec<usize>; 6],
     /// For each `[`, the unit of its matching `]`.
     brackets: HashMap<usize, usize>,
+    /// For each `(`, the unit of the `)` that balances it without crossing
+    /// whitespace: where a link's URL can end.
+    parens: HashMap<usize, usize>,
     /// Results of trying a style opener: `(unit, end, delim)` to the content
     /// and the unit after the closer, or `None` when it did not close.
     attempts: HashMap<(usize, usize, Delim), Parsed>,
@@ -136,6 +139,10 @@ struct Parser<'a> {
     /// Diagnostics of each code form, by the byte offset of its `(`. Emitted
     /// only for forms that end up in the final tree, each exactly once.
     code_diags: HashMap<usize, Diags>,
+    /// Set when a code form inside link text runs past the closing `]`. The
+    /// link then fails and the content parse stops at once, so the forms
+    /// nested inside that form are not each read again.
+    overrun: bool,
 }
 
 impl<'a> Parser<'a> {
@@ -148,9 +155,11 @@ impl<'a> Parser<'a> {
             units,
             closers: Default::default(),
             brackets: HashMap::new(),
+            parens: HashMap::new(),
             attempts: HashMap::new(),
             codes: HashMap::new(),
             code_diags: HashMap::new(),
+            overrun: false,
         };
         for i in 0..parser.units.len() {
             for delim in Delim::ALL {
@@ -160,6 +169,7 @@ impl<'a> Parser<'a> {
             }
         }
         parser.brackets = match_brackets(&parser.units);
+        parser.parens = match_url_parens(&parser.units);
         parser
     }
 
@@ -191,6 +201,9 @@ impl<'a> Parser<'a> {
         let mut buf = TextBuf::default();
         let mut i = start;
         while i < end {
+            if self.overrun {
+                return None;
+            }
             if let Some(delim) = closer
                 && i > start
                 && i + delim.len() <= end
@@ -272,7 +285,11 @@ impl<'a> Parser<'a> {
         match self.units[i].ch {
             '*' if self.run(i, end, '*') >= 2 => Ok(Delim::Bold),
             '*' => Ok(Delim::Italic),
-            '_' => Ok(Delim::Underline),
+            // `_` has no double form, so a run of them (`__init__`) is text.
+            '_' => match self.run(i, end, '_') {
+                1 => Ok(Delim::Underline),
+                run => Err(run),
+            },
             '~' => match self.run(i, end, '~') {
                 1 => Ok(Delim::Strike1),
                 2 => Ok(Delim::Strike2),
@@ -297,7 +314,7 @@ impl<'a> Parser<'a> {
         }
         let before = i.checked_sub(1).and_then(|k| self.ch(k));
         match delim {
-            Delim::Underline => !self.is_alnum(Some(i + 1)),
+            Delim::Underline => before != Some('_') && self.ch(i + 1) != Some('_') && !self.is_alnum(Some(i + 1)),
             Delim::Strike1 | Delim::Strike2 => before != Some('~') && self.ch(i + len) != Some('~'),
             Delim::Bold | Delim::Italic | Delim::Spoiler => true,
         }
@@ -366,8 +383,13 @@ impl<'a> Parser<'a> {
             self.codes.insert(i, (read.node, next));
         }
         let (node, next) = &self.codes[&i];
-        // A form running past the end of link text cannot be part of it.
-        (*next <= end).then(|| (Inline::new(InlineKind::Code(node.clone()), node.span), *next))
+        if *next > end {
+            // A form running past the end of link text: code binds tighter
+            // than link brackets, so there is no link here.
+            self.overrun = true;
+            return None;
+        }
+        Some((Inline::new(InlineKind::Code(node.clone()), node.span), *next))
     }
 
     /// `[text](url)` at `i`, or `![alt](url)` when the unit at `i` is `!`.
@@ -381,14 +403,19 @@ impl<'a> Parser<'a> {
         if close + 1 >= end || self.units[close + 1].ch != '(' {
             return None;
         }
-        let (url, paren) = self.url(close + 2, end)?;
+        let (url, paren) = self.url(close + 1, end)?;
         let kind = if image {
             InlineKind::Image {
                 alt: self.plain(open + 1, close).into(),
                 url: url.into(),
             }
         } else {
-            let content = self.seq(open + 1, close, None, depth + 1).map_or_default(|(c, _)| c);
+            let outer = std::mem::replace(&mut self.overrun, false);
+            let parsed = self.seq(open + 1, close, None, depth + 1);
+            if std::mem::replace(&mut self.overrun, outer) {
+                return None;
+            }
+            let content = parsed.map_or_default(|(c, _)| c);
             InlineKind::Link {
                 content,
                 url: url.into(),
@@ -401,27 +428,12 @@ impl<'a> Parser<'a> {
         self.brackets.get(&open).copied().filter(|&close| close < end)
     }
 
-    /// A URL from unit `start` up to the `)` that balances the `(` before it:
-    /// the URL and the unit of that `)`.
-    fn url(&self, start: usize, end: usize) -> Option<(String, usize)> {
-        let mut level = 1usize;
-        let mut url = String::new();
-        for (k, unit) in self.units.iter().enumerate().take(end).skip(start) {
-            let ch = unit.ch;
-            match ch {
-                '(' => level += 1,
-                ')' => {
-                    level -= 1;
-                    if level == 0 {
-                        return Some((url, k));
-                    }
-                }
-                c if c.is_whitespace() => return None,
-                _ => {}
-            }
-            url.push(ch);
-        }
-        None
+    /// The URL after the `(` at unit `open`, up to the `)` that balances it
+    /// (before `end`, with no whitespace in between): the URL and the unit of
+    /// that `)`. A lookup, so failed links cost nothing to retry.
+    fn url(&self, open: usize, end: usize) -> Option<(String, usize)> {
+        let close = self.parens.get(&open).copied().filter(|&close| close < end)?;
+        Some((self.units[open + 1..close].iter().map(|u| u.ch).collect(), close))
     }
 
     fn emoji(&self, i: usize, end: usize) -> Option<(Inline, usize)> {
@@ -485,9 +497,31 @@ fn match_brackets(units: &[Unit]) -> HashMap<usize, usize> {
     pairs
 }
 
+/// Pairs each `(` with the `)` that balances it, never across whitespace (a
+/// line break is whitespace too): a URL holds no whitespace, so a `(` with no
+/// partner before the next whitespace cannot start one.
+fn match_url_parens(units: &[Unit]) -> HashMap<usize, usize> {
+    let mut pairs = HashMap::new();
+    let mut open = Vec::new();
+    for (i, unit) in units.iter().enumerate() {
+        match unit.ch {
+            '(' => open.push(i),
+            ')' => {
+                if let Some(start) = open.pop() {
+                    pairs.insert(start, i);
+                }
+            }
+            c if c.is_whitespace() => open.clear(),
+            _ => {}
+        }
+    }
+    pairs
+}
+
 /// Flattens the lines into units. Leading whitespace of each line is dropped;
 /// trailing whitespace too, after deciding whether the line ends in a hard
-/// break (two or more trailing spaces or tabs, or a backslash).
+/// break (two or more trailing spaces or tabs, or one backslash that is not
+/// itself escaped: `a\\` ends in a literal backslash and a soft break).
 fn units(text: &str, segs: &[Seg]) -> Vec<Unit> {
     let mut units = Vec::new();
     for (n, seg) in segs.iter().enumerate() {
@@ -498,7 +532,8 @@ fn units(text: &str, segs: &[Seg]) -> Vec<Unit> {
         let trimmed = body.trim_end_matches([' ', '\t']);
         let mut end = start + trimmed.len();
         let mut hard = body.len() - trimmed.len() >= 2;
-        if !last && !hard && body.len() == trimmed.len() && trimmed.ends_with('\\') {
+        let backslashes = trimmed.bytes().rev().take_while(|&b| b == b'\\').count();
+        if !last && !hard && body.len() == trimmed.len() && backslashes % 2 == 1 {
             hard = true;
             end -= 1;
         }

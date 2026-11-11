@@ -2,7 +2,7 @@
 //! fences. Inline content is handed to [`super::inline`].
 
 use super::{inline, is_blank, is_form_start, read_code};
-use crate::diag::Diags;
+use crate::diag::{DiagCode, Diags};
 use crate::doc::{Block, BlockKind, Inline, InlineKind, ListItem};
 use crate::node::Node;
 use crate::reader::Seg;
@@ -59,6 +59,10 @@ impl<'a, 'd> BlockParser<'a, 'd> {
         let nest = depth < MAX_DEPTH;
         let mut out = Vec::new();
         let mut quote_view: Option<Vec<Seg>> = None;
+        // Lines before `free` were already read as part of an unclosed form
+        // that started in an earlier quote or list item; container scans do
+        // not search them for forms again (see `Src::collect`).
+        let mut free = 0;
         let mut i = 0;
         while i < lines.len() {
             let line = lines[i];
@@ -74,9 +78,9 @@ impl<'a, 'd> BlockParser<'a, 'd> {
                 i + 1
             } else if nest && src.quote_marker(line).is_some() {
                 let view = quote_view.get_or_insert_with(|| lines.iter().map(|&l| src.strip_quote(l)).collect());
-                self.quote(lines, view, i, depth, &mut out)
+                self.quote(lines, view, i, depth, &mut free, &mut out)
             } else if let Some(marker) = src.list_marker(line).filter(|_| nest) {
-                self.list(lines, i, marker, depth, &mut out)
+                self.list(lines, i, marker, depth, &mut free, &mut out)
             } else if let Some(image) = src.image_line(line) {
                 out.push(image);
                 i + 1
@@ -118,7 +122,7 @@ impl<'a, 'd> BlockParser<'a, 'd> {
 
     fn heading(&mut self, lines: &[Seg], i: usize, level: u8, at: usize, first: Seg, out: &mut Vec<Block>) -> usize {
         let src = self.src;
-        let last = src.extent(lines, i, first.start);
+        let (_, last) = src.extent(lines, i, first.start);
         let mut segs = vec![first];
         segs.extend_from_slice(&lines[i + 1..=last]);
         if let Some(seg) = segs.last_mut() {
@@ -132,12 +136,12 @@ impl<'a, 'd> BlockParser<'a, 'd> {
 
     fn paragraph(&mut self, lines: &[Seg], i: usize, depth: usize, out: &mut Vec<Block>) -> usize {
         let src = self.src;
-        let mut last = src.extent(lines, i, lines[i].start);
+        let (_, mut last) = src.extent(lines, i, lines[i].start);
         while let Some(&next) = lines.get(last + 1) {
             if src.is_blank(next) || src.interrupts(next, depth) {
                 break;
             }
-            last = src.extent(lines, last + 1, next.start);
+            (_, last) = src.extent(lines, last + 1, next.start);
         }
         let segs = &lines[i..=last];
         let (_, start) = src.indent(lines[i]);
@@ -151,9 +155,20 @@ impl<'a, 'd> BlockParser<'a, 'd> {
         last + 1
     }
 
-    fn quote(&mut self, lines: &[Seg], view: &[Seg], i: usize, depth: usize, out: &mut Vec<Block>) -> usize {
+    fn quote(
+        &mut self,
+        lines: &[Seg],
+        view: &[Seg],
+        i: usize,
+        depth: usize,
+        free: &mut usize,
+        out: &mut Vec<Block>,
+    ) -> usize {
         let src = self.src;
-        let count = src.collect(&view[i..], view[i].start, |t| src.quote_marker(lines[i + t]).is_some());
+        let (count, next_free) = src.collect(&view[i..], view[i].start, free.saturating_sub(i), |t| {
+            src.quote_marker(lines[i + t]).is_some()
+        });
+        *free = i + next_free;
         let inner = &view[i..i + count];
         let content = self.blocks(inner, depth + 1);
         let at = src.quote_marker(lines[i]).unwrap_or(lines[i].start);
@@ -162,7 +177,15 @@ impl<'a, 'd> BlockParser<'a, 'd> {
         i + count
     }
 
-    fn list(&mut self, lines: &[Seg], i: usize, first: Marker, depth: usize, out: &mut Vec<Block>) -> usize {
+    fn list(
+        &mut self,
+        lines: &[Seg],
+        i: usize,
+        first: Marker,
+        depth: usize,
+        free: &mut usize,
+        out: &mut Vec<Block>,
+    ) -> usize {
         let src = self.src;
         let mut items = Vec::new();
         let mut marker = first;
@@ -170,9 +193,10 @@ impl<'a, 'd> BlockParser<'a, 'd> {
         loop {
             let m = marker;
             let rest = &lines[j..];
-            let count = src.collect(rest, m.content, |t| {
-                t == 0 || src.is_blank(rest[t]) || src.indent(rest[t]).0 >= m.content_col
+            let (count, next_free) = src.collect(rest, m.content, free.saturating_sub(j), |t| {
+                src.is_blank(rest[t]) || src.indent(rest[t]).0 >= m.content_col
             });
+            *free = j + next_free;
             let mut inner = Vec::with_capacity(count);
             inner.push(Seg::new(m.content, rest[0].end, rest[0].eol));
             inner.extend(rest[1..count].iter().map(|&l| src.strip_cols(l, m.content_col)));
@@ -208,12 +232,13 @@ impl<'a, 'd> BlockParser<'a, 'd> {
 }
 
 /// The form of a paragraph whose only content (ignoring whitespace) is one
-/// reserved-head form.
+/// reserved-head form. `ref` is inline only, so a lone `(ref x)` stays in its
+/// paragraph.
 fn sole_code(content: &[Inline]) -> Option<&Node> {
     let mut code = None;
     for inline in content {
         match &inline.kind {
-            InlineKind::Code(node) if code.is_none() => code = Some(node),
+            InlineKind::Code(node) if code.is_none() && !node.is_form("ref") => code = Some(node),
             InlineKind::Text(text) if text.trim().is_empty() => {}
             InlineKind::LineBreak => {}
             _ => return None,
@@ -464,17 +489,26 @@ impl Src<'_> {
     /// Index of the last line covered by the text that starts on line `i` at
     /// byte `from`: line `i` itself, unless a code form starting on it runs
     /// onto later lines (and so on, if a form ends on a line where another
-    /// one starts).
-    fn extent(self, lines: &[Seg], i: usize, from: usize) -> usize {
+    /// one starts). A form never runs past a blank line, so neither does this.
+    ///
+    /// Returns `(closed, reach)`: `closed` is the last line covered by closed
+    /// forms, `reach` the last line read at all. They differ only when the
+    /// last form found is unclosed; it then starts on line `closed` and runs
+    /// to the line before the next blank line (or the last of `lines`).
+    fn extent(self, lines: &[Seg], i: usize, from: usize) -> (usize, usize) {
         let mut k = i;
         let mut pos = from;
         while let Some(at) = self.find_form(lines[k], pos) {
-            let (read, _) = read_code(self.text, self.file, &lines[k..], at);
+            let (read, diags) = read_code(self.text, self.file, &lines[k..], at);
             let end = read.end.to_usize().max(at + 1);
-            k = (k + lines[k..].partition_point(|l| l.end < end)).min(lines.len() - 1);
+            let last = (k + lines[k..].partition_point(|l| l.end < end)).min(lines.len() - 1);
+            if diags.iter().any(|d| d.code == DiagCode::UnclosedParen) {
+                return (k, last);
+            }
+            k = last;
             pos = end.max(lines[k].start);
         }
-        k
+        (k, k)
     }
 
     /// The first code form on `line` at or after `from`, skipping escaped
@@ -498,13 +532,27 @@ impl Src<'_> {
 
     /// How many lines, starting with `view[0]`, belong to a container (quote
     /// or list item). `belongs(t)` says whether line `t` would belong on its
-    /// own; lines covered by a code form that started inside the container
-    /// belong regardless, and code inside a fence is never searched for
-    /// forms. Trailing blank lines are left out.
-    fn collect(self, view: &[Seg], first_start: usize, belongs: impl Fn(usize) -> bool) -> usize {
+    /// own. Lines covered by a *closed* code form that started inside the
+    /// container belong regardless; an unclosed form does not stretch the
+    /// container, so it ends where the container's own lines end (or at a
+    /// blank line). Code inside a fence is never searched for forms.
+    /// Trailing blank lines are left out.
+    ///
+    /// Forms are searched for only on lines from index `free` on: the lines
+    /// before it were already read by an unclosed form that started earlier.
+    /// Returns the line count and the new `free`, so that no line is read
+    /// over and over by one unclosed form after another.
+    fn collect(self, view: &[Seg], first_start: usize, free: usize, belongs: impl Fn(usize) -> bool) -> (usize, usize) {
         let first = Seg::new(first_start, view[0].end, view[0].eol);
         let mut fence = self.fence_open(first);
-        let mut covered = if fence.is_some() { 0 } else { self.extent(view, 0, first_start) };
+        let mut free = free;
+        // Lines up to `covered` are inside a closed form; lines up to
+        // `inside` are inside an unclosed one, so nothing starts on them.
+        let (mut covered, mut inside) = (0, 0);
+        if fence.is_none() && free == 0 {
+            (covered, inside) = self.extent(view, 0, first_start);
+            free = free.max(inside + 1);
+        }
         let mut last = covered;
         let mut t = covered + 1;
         while t < view.len() {
@@ -517,20 +565,23 @@ impl Src<'_> {
                 // Belongs only if something non-blank follows.
             } else {
                 last = t;
-                if let Some(open) = &fence {
+                if t <= inside {
+                    // Part of an unclosed form: no fence or form starts here.
+                } else if let Some(open) = &fence {
                     if self.closes_fence(line, open) {
                         fence = None;
                     }
                 } else if let Some(open) = self.fence_open(line) {
                     fence = Some(open);
-                } else {
-                    covered = self.extent(view, t, line.start);
+                } else if t >= free {
+                    (covered, inside) = self.extent(view, t, line.start);
+                    free = free.max(inside + 1);
                     last = covered;
                 }
             }
             t += 1;
         }
-        last + 1
+        (last + 1, free)
     }
 }
 

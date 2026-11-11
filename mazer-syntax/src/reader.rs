@@ -12,6 +12,10 @@
 //! - An unclosed `(` yields an `Error` node (or a list containing one) plus a
 //!   diagnostic pointing at the opening paren. The reader never panics and
 //!   always returns a tree.
+//! - The markdown parser reads forms with [`Seg`]s and asks the reader to stop
+//!   at a blank segment (a line holding only spaces and tabs): a code form in a
+//!   note never crosses a blank line. [`read_form`] and [`read_str`] read the
+//!   whole text and have no such limit.
 //!
 //! Details this module settles:
 //! - An atom is a maximal run of characters that are not whitespace and not a
@@ -28,16 +32,18 @@
 //! - An atom also ends before a `"` (which starts a string) and before a `'`
 //!   that is followed by something to quote, so `(show'x)` is
 //!   `(show (quote x))`. A run of `'` at the very end of an atom is part of it,
-//!   so primes work: `f'` and `f''` are identifiers. `;` starts a comment only
-//!   at the start of a token; inside an atom it is an ordinary character.
+//!   so primes work: `f'` and `f''` are identifiers. `;` ends an atom and
+//!   starts a comment, so `(a;c` followed by a newline and `b)` reads as
+//!   `(a b)`. Inside a string `;` is an ordinary character.
 //! - `'` with nothing to quote (end of input or a `)`) reads as
 //!   `(quote <error>)` with a diagnostic.
 //! - In a string, `\"` and `\\` are escapes; any other backslash is kept as
 //!   written. A string with no closing quote ends at the end of its line and
 //!   gets an `UnterminatedString` diagnostic.
-//! - An unclosed `(` reads as the list closed at the end of the input. Every
-//!   unclosed `(` gets its own `UnclosedParen` diagnostic spanning that paren,
-//!   and the innermost unclosed list gets an `Error` node as its last child.
+//! - An unclosed `(` reads as the list closed at the end of the input. One
+//!   unclosed form gets exactly one `UnclosedParen` diagnostic, spanning its
+//!   outermost unclosed `(`, however many parens inside it are also unclosed.
+//!   The innermost unclosed list gets an `Error` node as its last child.
 
 use crate::diag::{Diag, DiagCode, Diags};
 use crate::node::Node;
@@ -58,7 +64,7 @@ pub struct Read {
 /// This is what the markdown parser calls when it meets a reserved head.
 pub fn read_form(text: &str, file: FileId, start: ByteOffset, diags: &mut Diags) -> Read {
     let whole = [Seg::new(0, text.len(), text.len())];
-    read_in(text, file, start.to_usize(), &whole, diags)
+    read_in(text, file, start.to_usize(), &whole, false, diags)
 }
 
 /// Reads a whole string as a single form. Convenience for tests and for
@@ -67,7 +73,7 @@ pub fn read_form(text: &str, file: FileId, start: ByteOffset, diags: &mut Diags)
 pub fn read_str(src: &str, diags: &mut Diags) -> Node {
     let file = FileId(0);
     let whole = [Seg::new(0, src.len(), src.len())];
-    let mut reader = Reader::new(src, file, &whole, 0);
+    let mut reader = Reader::new(src, file, &whole, 0, false);
     reader.skip_trivia();
     if reader.peek() == Peek::Eof {
         let span = reader.span(src.len(), src.len());
@@ -112,8 +118,17 @@ impl Seg {
 
 /// Reads one form at `start` from text restricted to `segs`. `segs` must be in
 /// increasing order and on char boundaries; `start` should lie in `segs[0]`.
+/// With `blank_ends`, a segment holding only spaces and tabs after the first
+/// one is the end of the input, so the read never looks past it.
 /// A bad `start` yields an `Error` node and a diagnostic, never a panic.
-pub(crate) fn read_in(text: &str, file: FileId, start: usize, segs: &[Seg], diags: &mut Diags) -> Read {
+pub(crate) fn read_in(
+    text: &str,
+    file: FileId,
+    start: usize,
+    segs: &[Seg],
+    blank_ends: bool,
+    diags: &mut Diags,
+) -> Read {
     let valid = text.is_char_boundary(start)
         && segs.first().is_some_and(|s| s.start <= start && start <= s.end && s.end <= text.len());
     if !valid {
@@ -125,7 +140,7 @@ pub(crate) fn read_in(text: &str, file: FileId, start: usize, segs: &[Seg], diag
             end: ByteOffset::from_usize(at),
         };
     }
-    let mut reader = Reader::new(text, file, segs, start);
+    let mut reader = Reader::new(text, file, segs, start, blank_ends);
     let node = reader.read(diags);
     Read {
         node,
@@ -158,7 +173,7 @@ impl Peek {
     /// Whether this ends an atom.
     const fn ends_atom(self) -> bool {
         match self {
-            Self::Char(c) => c.is_whitespace() || matches!(c, '(' | ')' | '"'),
+            Self::Char(c) => c.is_whitespace() || matches!(c, '(' | ')' | '"' | ';'),
             Self::Gap | Self::Eof => true,
         }
     }
@@ -181,15 +196,18 @@ struct Reader<'a> {
     text: &'a str,
     file: FileId,
     segs: &'a [Seg],
+    /// Whether a blank segment ends the input (see [`read_in`]).
+    blank_ends: bool,
     cur: Cursor,
 }
 
 impl<'a> Reader<'a> {
-    const fn new(text: &'a str, file: FileId, segs: &'a [Seg], start: usize) -> Self {
+    const fn new(text: &'a str, file: FileId, segs: &'a [Seg], start: usize, blank_ends: bool) -> Self {
         Self {
             text,
             file,
             segs,
+            blank_ends,
             cur: Cursor { seg: 0, pos: start },
         }
     }
@@ -209,11 +227,17 @@ impl<'a> Reader<'a> {
                 .and_then(|s| s.chars().next())
                 .map_or(Peek::Eof, Peek::Char);
         }
-        if self.cur.seg + 1 < self.segs.len() {
-            Peek::Gap
-        } else {
-            Peek::Eof
+        match self.segs.get(self.cur.seg + 1) {
+            Some(next) if !(self.blank_ends && self.is_blank(*next)) => Peek::Gap,
+            _ => Peek::Eof,
         }
+    }
+
+    fn is_blank(&self, seg: Seg) -> bool {
+        self.text
+            .as_bytes()
+            .get(seg.start..seg.end)
+            .is_some_and(|line| line.iter().all(|&b| b == b' ' || b == b'\t'))
     }
 
     fn bump(&mut self) {
@@ -349,9 +373,15 @@ impl<'a> Reader<'a> {
         Node::error(self.span(here, here))
     }
 
-    /// Closes everything still open at the end of the input.
+    /// Closes everything still open at the end of the input. Only the
+    /// outermost unclosed `(` is reported: one missing `)` should give one
+    /// diagnostic, not one per paren nested inside it.
     fn unwind(&self, stack: Vec<Frame>, diags: &mut Diags) -> Node {
         let eof = self.cur.pos;
+        let outermost = stack.iter().find_map(|frame| match frame {
+            Frame::List { open, .. } => Some(*open),
+            Frame::Quote { .. } => None,
+        });
         let mut pending: Option<Node> = None;
         let mut innermost = true;
         for frame in stack.into_iter().rev() {
@@ -368,14 +398,16 @@ impl<'a> Reader<'a> {
                         items.push(Node::error(self.span(eof, eof)));
                         innermost = false;
                     }
-                    let paren = self.span(open, open + 1);
-                    diags.push(
-                        Diag::error(DiagCode::UnclosedParen, paren, "this `(` is never closed")
-                            .with_help("add a matching `)`"),
-                    );
                     pending = Some(Node::list(items, self.span(open, eof)));
                 }
             }
+        }
+        if let Some(open) = outermost {
+            let paren = self.span(open, open + 1);
+            diags.push(
+                Diag::error(DiagCode::UnclosedParen, paren, "this `(` is never closed")
+                    .with_help("add a matching `)`"),
+            );
         }
         pending.unwrap_or_else(|| {
             let span = self.span(eof, eof);
