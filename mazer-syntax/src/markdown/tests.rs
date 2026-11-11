@@ -482,56 +482,6 @@ fn fence_show_eval_block_sequence() {
     assert_eq!(eval.args().len(), 3);
 }
 
-/// Byte offsets of every unescaped `(show` outside fenced code and inline
-/// code, found with a simple scan independent of the parser.
-fn show_offsets(text: &str) -> Vec<usize> {
-    let mut found = Vec::new();
-    let mut in_fence = false;
-    let mut line_start = 0;
-    for line in text.split_inclusive('\n') {
-        let trimmed = line.trim_start_matches([' ', '\t', '>']).trim_start();
-        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-            in_fence = !in_fence;
-        } else if !in_fence {
-            for (at, _) in line.match_indices("(show") {
-                let after = line[at + 5..].chars().next();
-                let is_form = after.is_some_and(|c| c.is_ascii_whitespace() || "()".contains(c));
-                let in_inline_code = line[..at].matches('`').count() % 2 == 1;
-                let escaped = line[..at].ends_with('\\');
-                if is_form && !in_inline_code && !escaped {
-                    found.push(line_start + at);
-                }
-            }
-        }
-        line_start += line.len();
-    }
-    found
-}
-
-/// Loose check on the live examples: their contents are free to change, but
-/// they must parse cleanly, have headings, and turn every `(show` into code.
-#[test]
-fn live_examples_parse_cleanly() {
-    for (name, src) in [
-        ("markdown.md", include_str!("../../../examples/markdown.md")),
-        ("docs.md", include_str!("../../../examples/docs.md")),
-    ] {
-        let (doc, diags) = parse_doc(src);
-        assert!(diags.is_empty(), "{name}: {diags:?}");
-        assert!(
-            doc.blocks.iter().any(|b| matches!(b.kind, BlockKind::Heading { .. })),
-            "{name}: no heading"
-        );
-        let spans: Vec<Span> = all_code(&doc.blocks).iter().map(|(_, n)| n.span).collect();
-        for at in show_offsets(src) {
-            assert!(
-                spans.iter().any(|s| s.start.to_usize() <= at && at < s.end.to_usize()),
-                "{name}: `(show` at byte {at} did not become code"
-            );
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Blocks
 // ---------------------------------------------------------------------------

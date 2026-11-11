@@ -46,7 +46,7 @@ fn code_spans(blocks: &[Block], out: &mut Vec<Span>) {
     }
 }
 
-/// Offsets of every `(show` that is outside fenced code and inline code,
+/// Offsets of every unescaped `(show` that is outside fenced code and inline code,
 /// found with a deliberately simple scan independent of the parser.
 fn show_offsets(text: &str) -> Vec<usize> {
     let mut found = Vec::new();
@@ -61,7 +61,8 @@ fn show_offsets(text: &str) -> Vec<usize> {
                 let after = line[at + 5..].chars().next();
                 let is_form = after.is_some_and(|c| c.is_ascii_whitespace() || "()".contains(c));
                 let in_inline_code = line[..at].matches('`').count() % 2 == 1;
-                if is_form && !in_inline_code {
+                let escaped = line[..at].ends_with('\\');
+                if is_form && !in_inline_code && !escaped {
                     found.push(line_start + at);
                 }
             }
@@ -125,6 +126,7 @@ fn repository_examples_parse_cleanly() {
         let mut diags = Diags::new();
         let doc = parse(text, FileId(0), &mut diags);
         assert!(diags.is_empty(), "{diags:?}");
+        assert!(doc.blocks.iter().any(|b| matches!(b.kind, BlockKind::Heading { .. })), "no heading");
         let mut spans = Vec::new();
         code_spans(&doc.blocks, &mut spans);
         for at in show_offsets(text) {
