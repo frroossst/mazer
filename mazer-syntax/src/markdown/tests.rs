@@ -385,21 +385,57 @@ fn test_scheme_in_codeblock() {
 }
 
 #[test]
-fn test_example_markdown_has_single_eval_block() {
-    // Only the inline `(eval (+ 1 1))` is code; the evals inside the
-    // ```scheme fence are not.
-    let doc = blocks(include_str!("../../../examples/markdown.md"));
-    let evals: Vec<(bool, Node)> = all_code(&doc).into_iter().filter(|(_, n)| n.is_form("eval")).collect();
+fn inline_eval_and_fenced_code_are_distinguished() {
+    // Only the inline `(eval (+ 1 1))` is code; the forms inside the
+    // ```scheme fence are plain text.
+    const SRC: &str = "\
+# Foo
+
+look ma! live reload
+
+(show (string f((pow Delta 2))))
+
+```scheme
+(define (factorial n)
+  (if (= n 0)
+      1
+      (* n (factorial (- n 1)))))
+
+(eval
+    (print (string 42))
+)
+
+(show (pow x 2))
+```
+
+I like math such that (show (+ 1 1)) equals to (eval (+ 1 1)).
+
+(show
+    (ellipsis)
+)
+
+- Item A
+
+(show
+    (integral
+        (exp (- (pow x 2)))
+        x
+    )
+)
+";
+    let doc = blocks(SRC);
+    let found = all_code(&doc);
+    let evals: Vec<&(bool, Node)> = found.iter().filter(|(_, n)| n.is_form("eval")).collect();
     assert_eq!(evals.len(), 1, "{evals:?}");
     assert!(!evals[0].0, "the eval is inside a sentence");
     assert_eq!(evals[0].1.to_string(), "(eval (+ 1 1))");
-    // Every `(show` outside fences became code.
-    let found = all_code(&doc);
-    let expected = include_str!("../../../examples/markdown.md").matches("(show").count();
+    assert!(found.iter().all(|(_, n)| !n.is_form("define")), "{found:?}");
+    // Every `(show` outside fences became code (one of the five is fenced).
+    let expected = SRC.matches("(show").count() - 1;
     assert_eq!(found.iter().filter(|(_, n)| n.is_form("show")).count(), expected);
-    let blocks: Vec<String> = found.iter().filter(|(block, _)| *block).map(|(_, n)| n.to_string()).collect();
+    let standalone: Vec<String> = found.iter().filter(|(block, _)| *block).map(|(_, n)| n.to_string()).collect();
     assert_eq!(
-        blocks,
+        standalone,
         vec![
             "(show (string f ((pow Delta 2))))",
             "(show (ellipsis))",
@@ -409,8 +445,27 @@ fn test_example_markdown_has_single_eval_block() {
 }
 
 #[test]
-fn example_docs_md() {
-    let doc = blocks(include_str!("../../../examples/docs.md"));
+fn fence_show_eval_block_sequence() {
+    const SRC: &str = "\
+```scheme
+(show (add 1 2 3))
+```
+(show (add 1 2 3))
+
+```scheme
+(show (add 11 12))
+```
+(show (add 11 12))
+
+(eval
+    (define a 5)
+    (define b 10)
+    (print (add a b))
+)
+
+(show (add a b))
+";
+    let doc = blocks(SRC);
     let kinds: Vec<&str> = doc
         .iter()
         .map(|b| match &b.kind {
@@ -425,6 +480,56 @@ fn example_docs_md() {
         panic!()
     };
     assert_eq!(eval.args().len(), 3);
+}
+
+/// Byte offsets of every unescaped `(show` outside fenced code and inline
+/// code, found with a simple scan independent of the parser.
+fn show_offsets(text: &str) -> Vec<usize> {
+    let mut found = Vec::new();
+    let mut in_fence = false;
+    let mut line_start = 0;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim_start_matches([' ', '\t', '>']).trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_fence = !in_fence;
+        } else if !in_fence {
+            for (at, _) in line.match_indices("(show") {
+                let after = line[at + 5..].chars().next();
+                let is_form = after.is_some_and(|c| c.is_ascii_whitespace() || "()".contains(c));
+                let in_inline_code = line[..at].matches('`').count() % 2 == 1;
+                let escaped = line[..at].ends_with('\\');
+                if is_form && !in_inline_code && !escaped {
+                    found.push(line_start + at);
+                }
+            }
+        }
+        line_start += line.len();
+    }
+    found
+}
+
+/// Loose check on the live examples: their contents are free to change, but
+/// they must parse cleanly, have headings, and turn every `(show` into code.
+#[test]
+fn live_examples_parse_cleanly() {
+    for (name, src) in [
+        ("markdown.md", include_str!("../../../examples/markdown.md")),
+        ("docs.md", include_str!("../../../examples/docs.md")),
+    ] {
+        let (doc, diags) = parse_doc(src);
+        assert!(diags.is_empty(), "{name}: {diags:?}");
+        assert!(
+            doc.blocks.iter().any(|b| matches!(b.kind, BlockKind::Heading { .. })),
+            "{name}: no heading"
+        );
+        let spans: Vec<Span> = all_code(&doc.blocks).iter().map(|(_, n)| n.span).collect();
+        for at in show_offsets(src) {
+            assert!(
+                spans.iter().any(|s| s.start.to_usize() <= at && at < s.end.to_usize()),
+                "{name}: `(show` at byte {at} did not become code"
+            );
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
