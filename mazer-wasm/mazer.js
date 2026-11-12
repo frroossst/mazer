@@ -18,11 +18,17 @@
 //   * The page must be served over http(s) — `fetch()` does not work on file://.
 //   * Code blocks are syntax-highlighted by injecting Arborium after render.
 //     Opt out by setting `window.mazerHighlight = false` before this module loads.
+//   * Equation search: once every block is rendered, `pkg/mazer_search.js`
+//     is loaded, so Ctrl+K (Cmd+K) or `/` opens a box that finds an equation
+//     on the page by its source. If it cannot be loaded, the notes are not
+//     affected (a warning goes to the console). Opt out by setting
+//     `window.mazerSearch = false` before this module loads.
 
 import init, { run_mazer } from './pkg/mazer_wasm.js';
 
 const ARBORIUM =
   'https://cdn.jsdelivr.net/npm/@arborium/arborium/dist/arborium.iife.js';
+const SEARCH_URL = new URL('./pkg/mazer_search.js', import.meta.url);
 
 async function renderAll() {
   // `init()` with no argument resolves `mazer_wasm_bg.wasm` relative to the
@@ -60,6 +66,16 @@ async function renderAll() {
     s.setAttribute('data-selector', 'pre code');
     s.setAttribute('data-theme', 'github-light');
     document.head.appendChild(s);
+  }
+
+  // The search box indexes the page each time it opens, so it only has to
+  // be loaded once; it is imported for its side effect.
+  if (window.mazerSearch !== false) {
+    try {
+      await import(SEARCH_URL.href);
+    } catch (e) {
+      console.warn('[mazer] equation search not available:', e);
+    }
   }
 }
 

@@ -31,10 +31,13 @@ WASM_OPT_FEATURES := --enable-bulk-memory --enable-sign-ext \
 	--enable-nontrapping-float-to-int --enable-mutable-globals \
 	--enable-multivalue --enable-reference-types
 
+# The wasm module and its glue in mazer-wasm/pkg/, plus a copy of the equation
+# search script (assets/mazer-search.js), which mazer.js loads after rendering.
 wasm:
 	wasm-pack build mazer-wasm --target web --out-dir pkg
 	wasm-opt -Oz --converge $(WASM_OPT_FEATURES) \
 		-o mazer-wasm/pkg/mazer_wasm_bg.wasm mazer-wasm/pkg/mazer_wasm_bg.wasm
+	cp assets/mazer-search.js mazer-wasm/pkg/mazer_search.js
 
 # Where the site lives, and what `make deploy` is allowed to touch there.
 SITE ?= /home/home/Desktop/Projects/adhyan.ca
@@ -55,9 +58,11 @@ check-site-notes:
 		exit 1; \
 	fi
 
-# Copies the wasm module and its glue to the site, after the notes check passes.
-# Only these two files are copied; notes are never touched.
+# Copies the wasm module, its glue and the equation search script to the site,
+# after the notes check passes. Only these three files are copied; notes are
+# never touched.
 deploy: check-site-notes ## copies to adhyan.ca
 	$(MAKE) wasm
 	cp ./mazer-wasm/pkg/mazer_wasm_bg.wasm $(SITE)/
 	cp ./mazer-wasm/pkg/mazer_wasm.js $(SITE)/
+	cp ./mazer-wasm/pkg/mazer_search.js $(SITE)/

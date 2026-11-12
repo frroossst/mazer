@@ -16,14 +16,16 @@ cargo install wasm-pack
 make wasm
 ```
 
-This produces `mazer-wasm/pkg/` (the `.wasm` binary and generated ESM glue).
+This produces `mazer-wasm/pkg/` (the `.wasm` binary and generated ESM glue),
+plus `pkg/mazer_search.js`, a copy of the equation search script
+(`assets/mazer-search.js`; see [Search](#search)).
 
 ## Use it in your site
 
 Copy two things into your site — say under `/mazer/`:
 
 - `mazer.js` (the auto-loader)
-- `pkg/` (the wasm module + glue)
+- `pkg/` (the wasm module + glue, and `mazer_search.js`)
 
 Add **one** tag to your page:
 
@@ -40,6 +42,35 @@ Then, anywhere you want a note, reference a `.zr` file:
 On load, the auto-loader boots the wasm compiler, fetches each referenced file,
 compiles it, and replaces the element's contents with the rendered HTML. Your
 notes stay as ordinary `.zr` files; the page inherits your site's styling.
+
+## Search
+
+Every page that shows notes can search its equations by their source.
+Press **Ctrl+K** (**Cmd+K** on macOS), or **/** when you are not typing in a
+field, and type part of an equation as you wrote it: `(funcapp rho x)` finds
+every equation whose source contains that text. Spacing and line breaks do not
+matter, and a lowercase query ignores case while a query with an uppercase
+letter does not (`Delta` and `delta` are different names). The list shows
+each match in page order, with the rendered math, the source with the match
+marked, and the heading above it. **Up**/**Down** move through the list,
+**Enter** (or a click) scrolls to the equation and highlights it for two
+seconds, **Escape** (or Ctrl+K again, or a click outside) closes the box.
+
+- It searches the current page only, whatever was rendered on it, however
+  late; nothing is fetched or indexed ahead of time.
+- It relies on the `data-mazer-src` attribute mazer puts on every rendered
+  equation (`div.mazer-equation` for a display equation, the `math` element
+  for inline math), which holds the source on one line.
+- The script is one file with no dependencies, `assets/mazer-search.js` in
+  this repository. `make wasm` copies it to `pkg/mazer_search.js`, and
+  `mazer.js` loads it with `import()` once every block is rendered. If it is
+  missing, the notes still render and the console gets a warning. Opt out
+  with `window.mazerSearch = false` before the module loads.
+- The CLI's full pages and the language server's live preview carry the same
+  script inline, so they need nothing extra.
+- Its styles use system colours and only classes that start with
+  `mazer-search-`; the jumped-to equation gets `mazer-search-hit` for two
+  seconds, which a site may restyle.
 
 ## Notes
 
@@ -93,7 +124,15 @@ notes stay as ordinary `.zr` files; the page inherits your site's styling.
      finds its `.wasm` by a URL that drops the query string, so also pass the
      versioned address to the initialiser, `await init('./pkg/mazer_wasm_bg.wasm?v=0.16.0')`,
      to get a matching pair.
-2. **Migrate old notes before the new wasm goes live.** Notes written for the
+2. **Deploy `mazer_search.js` next to them.** `make deploy` copies three
+   files to the site: `mazer_wasm_bg.wasm`, `mazer_wasm.js` and
+   `mazer_search.js`. The script does not call into the module; it only reads
+   the `data-mazer-src` attributes in the page, so with a module built before
+   that attribute existed it opens but finds no equations. Give it the same
+   `?v=` query string as the other two in the loader so a browser does not
+   keep an old copy. A loader that does not import it simply has no search
+   box.
+3. **Migrate old notes before the new wasm goes live.** Notes written for the
    old mazer must be updated first: `integral`, `sum` and `prod` now take the
    body and the variable first and the bounds last, and the `string` form is
    gone (write a quoted string instead). `make deploy` runs
