@@ -6,7 +6,8 @@
 //! directory is missing the first test passes without doing anything. The
 //! second test reads `examples/*.md`, which are always present.
 //!
-//! A clean page has no diagnostics of any severity, no element with class
+//! A clean page has no diagnostics of any severity, one non-empty
+//! `data-mazer-src` attribute per `<math` element, no element with class
 //! `mazer-error`, and at least one `<math` element per `(show` form outside
 //! code. Failure messages carry codes, counts and byte offsets only, never
 //! the text of a note. With `MAZER_DOC_DUMP=<dir>` each page is also written
@@ -74,6 +75,23 @@ fn count_shows(src: &str) -> usize {
         .count()
 }
 
+/// The `data-mazer-src` values of a page, with the entities `escape` writes
+/// decoded.
+fn source_values(html: &str) -> Vec<String> {
+    html.split(" data-mazer-src=\"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next())
+        .map(|value| {
+            value
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        })
+        .collect()
+}
+
 /// Compiles one page both ways and returns a list of problems (empty when clean).
 fn problems(name: &str, text: &str, dump: Option<&Path>) -> Vec<String> {
     let mut found = Vec::new();
@@ -106,6 +124,29 @@ fn problems(name: &str, text: &str, dump: Option<&Path>) -> Vec<String> {
             found.push(format!("{name}: page contains an element with class mazer-error"));
         }
         let math = out.html.matches("<math").count();
+        // Every rendered equation carries its source, and none is empty.
+        let sources = out.html.matches("data-mazer-src=").count();
+        if sources != math {
+            found.push(format!("{name}: {sources} data-mazer-src attributes for {math} <math> elements"));
+        }
+        if out.html.contains("data-mazer-src=\"\"") {
+            found.push(format!("{name}: empty data-mazer-src"));
+        }
+        // The sources are as typed: every token of one (outside strings) is
+        // in the note, so nothing was re-spelled (`'x` as `(quote x)`).
+        for (i, value) in source_values(&out.html).into_iter().enumerate() {
+            if value.contains('"') {
+                continue;
+            }
+            let respelled = value
+                .split(|c: char| c.is_whitespace() || c == '(' || c == ')')
+                .filter(|token| !token.is_empty())
+                .filter(|token| !text.contains(token))
+                .count();
+            if respelled > 0 {
+                found.push(format!("{name}: source {i} has {respelled} tokens that are not in the note"));
+            }
+        }
         let shows = count_shows(text);
         if math < shows {
             found.push(format!("{name}: {math} <math> elements for {shows} `(show` forms"));

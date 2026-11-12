@@ -225,6 +225,20 @@ impl Evaluator for Stub {
     }
 }
 
+/// `html` without its `data-mazer-src` attributes, for comparing renderings
+/// of differently written but equal forms.
+fn without_src(html: &str) -> String {
+    let mut out = String::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(" data-mazer-src=\"") {
+        out.push_str(&rest[..at]);
+        let value = &rest[at + " data-mazer-src=\"".len()..];
+        rest = value.find('"').map_or("", |end| &value[end + 1..]);
+    }
+    out.push_str(rest);
+    out
+}
+
 fn with_stub(src: &str) -> (Output, Vec<String>) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let mut opts = Options::new("t.zr");
@@ -243,9 +257,9 @@ fn eval_runs_in_document_order_on_resolved_trees() {
     let html = unwrap_fragment(&out.html);
     assert_eq!(
         html,
-        "<div class=\"mazer-equation\"><math display=\"block\"><mn>42</mn></math></div>\
-         <ul><li><math display=\"inline\"><mstyle displaystyle=\"true\"><mn>42</mn></mstyle></math></li></ul>\
-         <p>Text <math display=\"inline\"><mstyle displaystyle=\"true\"><mn>42</mn></mstyle></math> end.</p>"
+        "<div class=\"mazer-equation\" data-mazer-src=\"(+ x 1)\"><math display=\"block\"><mn>42</mn></math></div>\
+         <ul><li><math display=\"inline\" data-mazer-src=\"a\"><mstyle displaystyle=\"true\"><mn>42</mn></mstyle></math></li></ul>\
+         <p>Text <math display=\"inline\" data-mazer-src=\"(half x)\"><mstyle displaystyle=\"true\"><mn>42</mn></mstyle></math> end.</p>"
     );
 }
 
@@ -344,7 +358,7 @@ fn everything_from_the_note_is_escaped() {
     // Tag names end up in attributes.
     assert_eq!(
         body("(show (tag a<b&) x)\n\n(ref a<b&)"),
-        "<div class=\"mazer-equation\" id=\"eq-a&lt;b&amp;\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
+        "<div class=\"mazer-equation\" id=\"eq-a&lt;b&amp;\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
          <p><a class=\"mazer-ref\" href=\"#eq-a&lt;b&amp;\">(1)</a></p>"
     );
     // Control characters are dropped.
@@ -357,7 +371,7 @@ fn everything_from_the_note_is_escaped() {
 fn headings() {
     assert_eq!(body("# Hi *there*"), "<h1>Hi <em>there</em></h1>");
     assert_eq!(body("###### six"), "<h6>six</h6>");
-    assert_eq!(body("## a (show x)"), "<h2>a <math display=\"inline\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math></h2>");
+    assert_eq!(body("## a (show x)"), "<h2>a <math display=\"inline\" data-mazer-src=\"x\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math></h2>");
 }
 
 #[test]
@@ -381,7 +395,7 @@ fn lists() {
     assert_eq!(body("- (let x 2)\n\n  more"), "<ul><li><p>more</p></li></ul>");
     assert_eq!(
         body("- a (show x)"),
-        "<ul><li>a <math display=\"inline\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math></li></ul>"
+        "<ul><li>a <math display=\"inline\" data-mazer-src=\"x\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math></li></ul>"
     );
 }
 
@@ -439,12 +453,12 @@ fn emoji() {
 
 // ---------------------------------------------------------------- math
 
-const INLINE_X: &str = "<math display=\"inline\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math>";
+const INLINE_X: &str = "<math display=\"inline\" data-mazer-src=\"x\"><mstyle displaystyle=\"true\"><mi>x</mi></mstyle></math>";
 
 #[test]
 fn inline_and_display_math() {
     assert_eq!(body("a (show x) b"), format!("<p>a {INLINE_X} b</p>"));
-    assert_eq!(body("(show x)"), "<div class=\"mazer-equation\"><math display=\"block\"><mi>x</mi></math></div>");
+    assert_eq!(body("(show x)"), "<div class=\"mazer-equation\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math></div>");
     // A show alone inside a list item is inline.
     assert_eq!(body("- (show x)"), format!("<ul><li>{INLINE_X}</li></ul>"));
 }
@@ -458,7 +472,7 @@ fn several_expressions_are_juxtaposed() {
         ("Inline (show x y z).", "Inline (show (jux x y z))."),
         ("(show (tag e) (+ a b) c)", "(show (tag e) (jux (+ a b) c))"),
     ] {
-        assert_eq!(body(several), body(jux), "{several}");
+        assert_eq!(without_src(&body(several)), without_src(&body(jux)), "{several}");
     }
     assert!(body("(show (+ a b) c)").contains("<mo>(</mo>"), "(a+b) c is parenthesised");
     // The resolved tree holds the `jux` node, spanning the expressions, so
@@ -471,8 +485,8 @@ fn several_expressions_are_juxtaposed() {
     let out = compile("(show (frac a) b)", &mut Options::new("t.zr"));
     assert_eq!(codes(&out.diags), [DiagCode::Arity]);
     // A single atom shows just that atom.
-    assert_eq!(body("Group (show G)."), "<p>Group <math display=\"inline\"><mstyle displaystyle=\"true\"><mi>G</mi></mstyle></math>.</p>");
-    assert_eq!(body("(show tau)"), "<div class=\"mazer-equation\"><math display=\"block\"><mi>τ</mi></math></div>");
+    assert_eq!(body("Group (show G)."), "<p>Group <math display=\"inline\" data-mazer-src=\"G\"><mstyle displaystyle=\"true\"><mi>G</mi></mstyle></math>.</p>");
+    assert_eq!(body("(show tau)"), "<div class=\"mazer-equation\" data-mazer-src=\"tau\"><math display=\"block\"><mi>τ</mi></math></div>");
 }
 
 #[test]
@@ -480,8 +494,8 @@ fn tagged_equations_and_references() {
     assert_eq!(
         body("See (ref b) and (ref a).\n\n(show (tag a) x)\n\n(show (tag b) y)"),
         "<p>See <a class=\"mazer-ref\" href=\"#eq-b\">(2)</a> and <a class=\"mazer-ref\" href=\"#eq-a\">(1)</a>.</p>\
-         <div class=\"mazer-equation\" id=\"eq-a\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
-         <div class=\"mazer-equation\" id=\"eq-b\"><math display=\"block\"><mi>y</mi></math><span class=\"mazer-eqno\">(2)</span></div>"
+         <div class=\"mazer-equation\" id=\"eq-a\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
+         <div class=\"mazer-equation\" id=\"eq-b\" data-mazer-src=\"y\"><math display=\"block\"><mi>y</mi></math><span class=\"mazer-eqno\">(2)</span></div>"
     );
     assert_eq!(body("See (ref nope)."), "<p>See <span class=\"mazer-error\">no equation is tagged `nope`</span>.</p>");
     assert_eq!(
@@ -491,7 +505,7 @@ fn tagged_equations_and_references() {
     // The duplicate is boxed; the first keeps its number.
     assert_eq!(
         body("(show (tag a) x)\n\n(show (tag a) y)"),
-        "<div class=\"mazer-equation\" id=\"eq-a\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
+        "<div class=\"mazer-equation\" id=\"eq-a\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
          <pre class=\"mazer-error\">the tag `a` is already used</pre>"
     );
 }
@@ -524,7 +538,7 @@ fn containers_of_only_definitions_vanish() {
     assert_eq!(body("*_(let x 2)_* (let y 3)"), "");
     assert_eq!(body("**(let x 2)**\nfoo"), "<p>foo</p>");
     // The definitions still take effect.
-    assert_eq!(body("# (let x 2)\n\n(show x)"), body("(show 2)"));
+    assert_eq!(without_src(&body("# (let x 2)\n\n(show x)")), without_src(&body("(show 2)")));
     // A broken definition is not silent: its box keeps the container.
     assert_eq!(body("# (let sin 2)"), "<h1><span class=\"mazer-error\">`sin` is a built-in keyword</span></h1>");
     assert_eq!(body("**(let 1 2)**"), "<p><strong><span class=\"mazer-error\">expected the name of the variable</span></strong></p>");
@@ -545,7 +559,7 @@ fn error_boxes() {
     // A keyword problem inside an otherwise fine expression: <merror>, no box.
     assert_eq!(
         body("(show (+ (frac a) b))"),
-        "<div class=\"mazer-equation\"><math display=\"block\"><mrow><merror><mtext>`frac` is missing its `den` argument</mtext></merror><mo>+</mo><mi>b</mi></mrow></math></div>"
+        "<div class=\"mazer-equation\" data-mazer-src=\"(+ (frac a) b)\"><math display=\"block\"><mrow><merror><mtext>`frac` is missing its `den` argument</mtext></merror><mo>+</mo><mi>b</mi></mrow></math></div>"
     );
     // Hints never box: a typo'd head is a hint and a function application.
     let out = compile("(show (fracc a b))", &mut Options::new("t.zr"));
@@ -562,7 +576,7 @@ fn latex_target() {
     let html = unwrap_fragment(&out.html);
     assert_eq!(
         html,
-        "<p>a \\(\\displaystyle x\\) b</p><div class=\"mazer-equation\" id=\"eq-e\">\\[y \\tag{1}\\label{eq-e}\\]</div><p>See \\eqref{eq-e}.</p>"
+        "<p>a <span class=\"mazer-math\" data-mazer-src=\"x\">\\(\\displaystyle x\\)</span> b</p><div class=\"mazer-equation\" id=\"eq-e\" data-mazer-src=\"y\">\\[y \\tag{1}\\label{eq-e}\\]</div><p>See \\eqref{eq-e}.</p>"
     );
 }
 
@@ -574,7 +588,7 @@ fn latex_labels_are_sanitised() {
     let mut opts = Options::new("t.zr");
     opts.target = Target::Latex;
     let out = compile("a (show (sum k k 1 n)) b", &mut opts);
-    assert!(unwrap_fragment(&out.html).starts_with("<p>a \\(\\displaystyle "), "{}", out.html);
+    assert!(unwrap_fragment(&out.html).starts_with("<p>a <span class=\"mazer-math\" data-mazer-src=\"(sum k k 1 n)\">\\(\\displaystyle "), "{}", out.html);
     // A tag name with characters LaTeX would choke on: the label and the
     // reference get the same safe key; the HTML anchor keeps the name.
     let mut opts = Options::new("t.zr");
@@ -646,7 +660,7 @@ fn one_node_budget_for_the_whole_document() {
         assert_eq!(analysis.sources.text(diag.span), "x15", "{kind}: at the expression that crossed the limit");
         // Every show is either rendered or an error box; the output is bounded.
         let html = unwrap_fragment(&out.html);
-        let shown = html.matches("<div class=\"mazer-equation\">").count();
+        let shown = html.matches("<div class=\"mazer-equation\" data-mazer-src=").count();
         let boxed = html.matches("<pre class=\"mazer-error\">").count();
         assert_eq!(shown + boxed, 800, "{kind}");
         assert!(boxed >= 790, "{kind}: {boxed} boxes");
@@ -743,10 +757,10 @@ fn reserved_heads_in_notation_are_rejected_where_defined() {
     assert!(analysis.macros.get(Sym::new("T")).is_none(), "the name is not defined");
     assert!(analysis.labels.is_empty());
     assert_eq!(
-        body(src),
+        without_src(&body(src)),
         format!(
             "<pre class=\"mazer-error\">a tag must be the first item of a display `show`</pre>{}",
-            body("(show (jux T x))")
+            without_src(&body("(show (jux T x))"))
         )
     );
     for (src, code) in [
@@ -832,7 +846,7 @@ fn identical_diagnostics_are_merged() {
 fn a_reference_inside_a_link_is_plain_text() {
     assert_eq!(
         body("(show (tag a) x)\n\n[see (ref a)](u)"),
-        "<div class=\"mazer-equation\" id=\"eq-a\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
+        "<div class=\"mazer-equation\" id=\"eq-a\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>\
          <p><a href=\"u\" target=\"_blank\" rel=\"noopener noreferrer\">see (1)</a></p>"
     );
     // Outside the link it is a link again.
@@ -870,4 +884,216 @@ fn dangerous_urls_are_not_written() {
         assert_eq!(unwrap_fragment(&out.html), want, "{src}");
         assert!(out.diags.is_empty(), "{src}");
     }
+}
+
+// ---------------------------------------------------------------- data-mazer-src
+
+/// The values of every `data-mazer-src` attribute in `html`, in order.
+fn sources(html: &str) -> Vec<&str> {
+    html.split(" data-mazer-src=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
+}
+
+#[test]
+fn source_attribute_placement() {
+    assert_eq!(
+        body("(show (frac 1 2))"),
+        "<div class=\"mazer-equation\" data-mazer-src=\"(frac 1 2)\"><math display=\"block\"><mfrac><mn>1</mn><mn>2</mn></mfrac></math></div>"
+    );
+    assert_eq!(
+        body("(show (tag e) x)"),
+        "<div class=\"mazer-equation\" id=\"eq-e\" data-mazer-src=\"x\"><math display=\"block\"><mi>x</mi></math><span class=\"mazer-eqno\">(1)</span></div>"
+    );
+    assert_eq!(body("a (show x) b"), format!("<p>a {INLINE_X} b</p>"));
+}
+
+#[test]
+fn source_is_one_line_without_comments() {
+    let src = "(show (=\n    (integral\n        (funcapp rho x)    ; density\n        x\n    )\n    m\n))";
+    assert_eq!(sources(&body(src)), ["(= (integral (funcapp rho x) x) m)"]);
+}
+
+#[test]
+fn source_is_the_written_form() {
+    // Alias, macro, let variable and several expressions, by their written names.
+    assert_eq!(sources(&body("(alias R (bb R))\n\n(show (in x R))")), ["(in x R)"]);
+    assert_eq!(sources(&body("(macro (half v) (frac v 2))\n\n(show (half a))")), ["(half a)"]);
+    assert_eq!(sources(&body("(let v 2)\n\n(show (+ v 1))")), ["(+ v 1)"]);
+    assert_eq!(sources(&body("(let v 2)\n\nSee (show v).")), ["v"]);
+    assert_eq!(sources(&body("(show a b c)")), ["a b c"]);
+    assert_eq!(sources(&body("(show (tag e) (+ a b) c)")), ["(+ a b) c"]);
+    assert_eq!(sources(&body("Inline (show x y z).")), ["x y z"]);
+    // The tag is dropped, the id stays.
+    assert!(body("(show (tag e) (+ a b))").contains(" id=\"eq-e\" data-mazer-src=\"(+ a b)\">"));
+}
+
+#[test]
+fn source_is_escaped() {
+    let html = body("(show (text \"a < b & \\\"c\\\"\"))\n\n(show (< a b))");
+    assert_eq!(sources(&html), ["(text &quot;a &lt; b &amp; \\&quot;c\\&quot;&quot;)", "(&lt; a b)"]);
+    assert!(!html.contains("a < b"));
+    // Single quotes and angle brackets cannot end the attribute.
+    let html = body("(show (text \"it's <b>\"))");
+    assert_eq!(sources(&html), ["(text &quot;it&#39;s &lt;b&gt;&quot;)"]);
+    assert!(!html.contains("<b>"));
+}
+
+#[test]
+fn source_of_a_rendered_eval() {
+    let (out, _) = with_stub("(let x 2)\n\n(eval (+ x 1))\n\nSo (eval (half x)).\n\n(macro (half v) (frac v 2))");
+    assert_eq!(sources(unwrap_fragment(&out.html)), ["(+ x 1)", "(half x)"]);
+}
+
+#[test]
+fn error_boxes_have_no_source() {
+    for src in [
+        "(macro (half v) (frac v 2))\n\n(show (half a b))\n\n(show )",
+        "(show (+ 1 (show x)))",
+        "(show (ref a))",
+        "(show (nope",
+        "Inline (show (+ 1 (show x))).",
+        "(eval a b)",
+        "(eval boom)",
+    ] {
+        let (out, _) = with_stub(src);
+        let html = unwrap_fragment(&out.html);
+        assert!(html.contains("mazer-error"), "{src}: {html}");
+        assert!(!html.contains("data-mazer-src"), "{src}: {html}");
+    }
+}
+
+#[test]
+fn source_in_nested_places() {
+    for (src, want) in [
+        ("## Title (show (frac a b))", "(frac a b)"),
+        ("- item (show (sub x 1))", "(sub x 1)"),
+        ("1. item (show (sup x 2))", "(sup x 2)"),
+        ("> quoted (show (sqrt x))", "(sqrt x)"),
+        ("**bold (show (alpha beta))**", "(alpha beta)"),
+        ("[link (show (sqrt y))](u)", "(sqrt y)"),
+        ("*it (show z)*", "z"),
+    ] {
+        let html = body(src);
+        assert_eq!(sources(&html), [want], "{src}");
+        assert!(html.contains(&format!("<math display=\"inline\" data-mazer-src=\"{want}\">")), "{src}: {html}");
+    }
+}
+
+#[test]
+fn source_survives_definitions_and_errors_around_it() {
+    let src = "(let a 1)\n\n(show (frac a))\n\n(show (+ a 1))\n\n(bogus)\n\n(show a)";
+    assert_eq!(sources(&body(src)), ["(frac a)", "(+ a 1)", "a"]);
+}
+
+/// [`sources`] with the five entities `escape` writes decoded.
+fn typed(html: &str) -> Vec<String> {
+    sources(html)
+        .into_iter()
+        .map(|s| {
+            s.replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        })
+        .collect()
+}
+
+#[test]
+fn source_keeps_the_reader_shorthands_as_typed() {
+    // The reader makes `-x` `(- x)` and `'x` `(quote x)`; the source is what
+    // was typed.
+    let html = body("(show (+ -1 -x (- y)))");
+    assert!(!html.contains("mazer-error"), "{html}");
+    assert_eq!(typed(&html), ["(+ -1 -x (- y))"]);
+    assert_eq!(typed(&body("(show (sum k 'k 1 n))")), ["(sum k 'k 1 n)"]);
+    assert_eq!(typed(&body("Inline (show (+ -3.5e2 -alpha 'beta)).")), ["(+ -3.5e2 -alpha 'beta)"]);
+    // A quoted list keeps its own spelling inside.
+    assert_eq!(typed(&body("(show (sum k '( k ) 1 n))")), ["(sum k '(k) 1 n)"]);
+    // Glued tokens stay glued, except `)(`, which the search normalises to `) (`.
+    assert_eq!(typed(&body("(show (+ a(frac 1 2)))")), ["(+ a(frac 1 2))"]);
+    assert_eq!(typed(&body("(show (+ (sqrt x)(sqrt y)))")), ["(+ (sqrt x) (sqrt y))"]);
+}
+
+#[test]
+fn source_keeps_string_literals_as_typed() {
+    // `\n` is not an escape: the reader keeps the backslash, and so does the source.
+    let html = body(r#"(show (text "a\nb"))"#);
+    assert!(!html.contains("mazer-error"), "{html}");
+    assert_eq!(typed(&html), [r#"(text "a\nb")"#]);
+    assert_eq!(typed(&body(r#"(show (text "say \"hi\" \\ there"))"#)), [r#"(text "say \"hi\" \\ there")"#]);
+    // Inside a string `;` is not a comment, and spacing is left alone.
+    let html = body("(show (text \"a ; b  ( c )\") ; a comment\n  x)");
+    assert_eq!(typed(&html), ["(text \"a ; b  ( c )\") x"]);
+}
+
+#[test]
+fn source_collapses_lines_comments_and_crlf() {
+    let src = "(show (=\r\n    (integral\t(funcapp rho x) ; density\r\n        x)\r\n    m\r\n))";
+    assert_eq!(typed(&body(src)), ["(= (integral (funcapp rho x) x) m)"]);
+    // A comment glued to a token, and one on the last line.
+    assert_eq!(typed(&body("(show (+ a;c\nb ; end\n))")), ["(+ a b)"]);
+    // In a block quote each line starts with `>`, which is not part of the form.
+    let html = body("> (show (+ a\n> (frac 1\n>   2)))");
+    assert_eq!(typed(&html), ["(+ a (frac 1 2))"], "{html}");
+    // List item continuation lines.
+    assert_eq!(typed(&body("- (show (+ a\n  b))")), ["(+ a b)"]);
+}
+
+#[test]
+fn source_falls_back_to_the_resolved_form() {
+    // Only an `Analysis` whose written tree does not hold the rendered form
+    // reaches the fallback: here the written tree is emptied.
+    let mut analysis = analyze("(show (+ -x 'y))", "t.zr");
+    analysis.written.blocks.clear();
+    let html = render(&analysis, &mut Options::new("t.zr"), &mut Diags::new());
+    assert_eq!(typed(&html), ["(+ (- x) (quote y))"]);
+}
+
+/// The best of three renderings of `pairs` pairs of equations (one display,
+/// one inline) that use an alias and a `let` variable.
+fn source_render_time(pairs: usize) -> Duration {
+    let mut src = String::from("(let v 2)\n\n(alias R (bb R))");
+    for i in 0..pairs {
+        write!(src, "\n\n(show (in v{i} R))\n\nand (show (+ v {i}))").unwrap();
+    }
+    let analysis = analyze(&src, "t.zr");
+    (0..3)
+        .map(|_| {
+            let start = Instant::now();
+            let html = render(&analysis, &mut Options::new("t.zr"), &mut Diags::new());
+            let elapsed = start.elapsed();
+            assert_eq!(html.matches("data-mazer-src=").count(), 2 * pairs);
+            elapsed
+        })
+        .min()
+        .unwrap_or_default()
+}
+
+#[test]
+fn source_lookup_is_linear() {
+    // Four times the equations should take about four times as long; a
+    // lookup that scans every form for each equation takes sixteen times.
+    // The bound is on the growth, not the speed of the machine, with a
+    // floor for timer noise on tiny durations.
+    let small = source_render_time(2_500);
+    let large = source_render_time(10_000);
+    assert!(
+        large < small * 8 + Duration::from_millis(20),
+        "5,000 equations took {small:?}, 20,000 took {large:?}"
+    );
+}
+
+#[test]
+#[cfg(feature = "latex")]
+fn latex_source_attribute() {
+    let mut opts = Options::new("t.zr");
+    opts.target = Target::Latex;
+    let out = compile("(alias R (bb R))\n\na (show (in x R)) b\n\n(show (tag e) (< a b))", &mut opts);
+    assert_eq!(
+        unwrap_fragment(&out.html),
+        "<p>a <span class=\"mazer-math\" data-mazer-src=\"(in x R)\">\\(\\displaystyle x \\in \\mathbb{R}\\)</span> b</p>\
+         <div class=\"mazer-equation\" id=\"eq-e\" data-mazer-src=\"(&lt; a b)\">\\[a &lt; b \\tag{1}\\label{eq-e}\\]</div>"
+    );
+    let out = compile("(show (+ a b))", &mut opts);
+    assert!(unwrap_fragment(&out.html).starts_with("<div class=\"mazer-equation\" data-mazer-src=\"(+ a b)\">"));
 }

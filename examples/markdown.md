@@ -188,3 +188,7 @@ A `clean` table, with an outer frame and a rule under the header, right-aligned 
 (show (table (style clean) (align left right) (header n (frac 1 n)) (row 1 1) (row 2 (frac 1 2))))
 
 Evaluation with `eval` needs an evaluator, which this build does not ship, so there is no live example here.
+
+## Searching equations
+
+A page made by `mazer` can be searched by the source of its equations: press Ctrl+K (Cmd+K on a Mac) or `/`, or tap the round button in the bottom-right corner, type part of a form as you wrote it, such as `(frac 1 2)` or just `sqrt`, and press Enter to jump to the equation. Spacing and comments do not matter, a whole form pasted from the note (with its `show`) works too, exact and whole-word matches are listed first, and the search covers the current page only.

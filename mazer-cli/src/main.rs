@@ -3,6 +3,7 @@
 mod args;
 mod query;
 mod report;
+mod search;
 
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -174,13 +175,18 @@ fn compile_command(c: &CompileArgs) -> ExitCode {
 
     // `--check` is a full compile whose HTML is thrown away, so it reports
     // exactly what a normal run reports.
-    let out = mazer_doc::compile(&src, &mut opts);
+    let mut out = mazer_doc::compile(&src, &mut opts);
     print_diags(&out.diags, &out.sources, c.strict);
     let code = exit_for(&out.diags, c.strict);
     if c.check {
         return code;
     }
 
+    // A full page with equations also gets the equation search box (Ctrl+K
+    // or `/`).
+    if !c.fragment {
+        out.html = search::with_search(&out.html);
+    }
     let written = match &dest {
         None => write_stdout(&out.html).map_err(|e| ("cannot write to stdout".to_owned(), e)),
         Some(path) => std::fs::write(path, out.html.as_bytes())

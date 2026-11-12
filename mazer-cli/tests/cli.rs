@@ -135,6 +135,108 @@ fn fragment_has_no_wrapper() {
     assert!(!html.contains("<body"), "{html}");
 }
 
+// ---- the equation search box ----
+
+/// The search script, as the CLI embeds it.
+const SEARCH: &str = include_str!("../../assets/mazer-search.js");
+
+/// Checks that `html` is a full page with the search script exactly once,
+/// as the last thing in the body, and that the page is still well-formed
+/// around it.
+fn assert_has_search(html: &str) {
+    assert_eq!(html.matches(SEARCH).count(), 1, "the search script once");
+    let tail = format!("<script>{SEARCH}</script></body></html>");
+    assert!(html.ends_with(&tail), "the script sits just before </body>");
+    assert_eq!(html.matches("</body>").count(), 1);
+    assert_eq!(html.matches("<script").count(), html.matches("</script>").count());
+    assert!(html.starts_with("<!DOCTYPE html>"));
+}
+
+#[test]
+fn full_page_has_the_search_script() {
+    let d = Dir::new();
+    let input = d.write("note.zr", GOOD);
+    let o = mazer(&[&input]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    let html = fs::read_to_string(d.path("note.html")).expect("note.html written");
+    assert_has_search(&html);
+    assert!(html.contains("<mfrac>"), "{html}");
+}
+
+#[test]
+fn full_page_to_stdout_has_the_search_script() {
+    let d = Dir::new();
+    let input = d.write("note.zr", GOOD);
+    let o = mazer(&[&input, Path::new("-o"), Path::new("-")]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    assert_has_search(&out(&o));
+    let piped = mazer_stdin(&["-"], GOOD);
+    assert_eq!(code(&piped), 0, "{}", err(&piped));
+    assert_has_search(&out(&piped));
+}
+
+#[test]
+fn fragment_has_no_search_script() {
+    let d = Dir::new();
+    let input = d.write("note.zr", GOOD);
+    let o = mazer(&[&input, Path::new("--fragment"), Path::new("-o"), Path::new("-")]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    let html = out(&o);
+    assert!(!html.contains("__mazerSearch"), "{html}");
+    assert!(!html.contains("<script"), "{html}");
+    let to_file = mazer(&[&input, Path::new("--fragment")]);
+    assert_eq!(code(&to_file), 0, "{}", err(&to_file));
+    let html = fs::read_to_string(d.path("note.html")).expect("note.html written");
+    assert!(!html.contains("__mazerSearch"), "{html}");
+}
+
+#[test]
+fn full_page_without_equations_has_no_search_script() {
+    let d = Dir::new();
+    // Prose, code and an error box, but no rendered equation.
+    let note = "# Title\n\nJust text, `(show x)` in code, data-mazer-src=\"x\".\n\n```\n(show (frac 1 2))\n```\n\n(show )\n";
+    let input = d.write("note.zr", note);
+    let o = mazer(&[&input, Path::new("-o"), Path::new("-")]);
+    let html = out(&o);
+    assert!(html.starts_with("<!DOCTYPE html>"), "{html}");
+    assert!(html.contains("mazer-error"), "{html}");
+    assert!(!html.contains("__mazerSearch"), "{html}");
+    assert!(!html.contains("<script>"), "only the highlighter's script: {html}");
+    assert!(html.ends_with("</body></html>"), "{html}");
+    // One equation is enough.
+    let input = d.write("one.zr", "Just (show x).\n");
+    let o = mazer(&[&input, Path::new("-o"), Path::new("-")]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    assert_has_search(&out(&o));
+}
+
+#[test]
+fn search_script_is_inlinable() {
+    assert!(!SEARCH.to_ascii_lowercase().contains("</script"));
+    assert!(std::str::from_utf8(include_bytes!("../../assets/mazer-search.js")).is_ok());
+}
+
+#[cfg(feature = "latex")]
+#[test]
+fn latex_full_page_has_the_search_script() {
+    let d = Dir::new();
+    let input = d.write("note.zr", "Inline (show (frac 1 2)).\n\n(show (sqrt x))\n");
+    let o = mazer(&[&input, Path::new("--target"), Path::new("latex"), Path::new("-o"), Path::new("-")]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    let html = out(&o);
+    assert!(html.contains("\\("), "{html}");
+    assert_has_search(&html);
+    let fragment = mazer(&[
+        &input,
+        Path::new("--target"),
+        Path::new("latex"),
+        Path::new("--fragment"),
+        Path::new("-o"),
+        Path::new("-"),
+    ]);
+    assert!(!out(&fragment).contains("__mazerSearch"));
+}
+
 #[test]
 fn check_without_errors_is_silent_and_writes_nothing() {
     let d = Dir::new();

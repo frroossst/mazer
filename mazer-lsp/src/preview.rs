@@ -3,7 +3,10 @@
 //!
 //! - `GET /doc/<id>` is the note rendered as a full page, with a few lines
 //!   of JavaScript that poll `GET /doc/<id>/version` and reload the page when
-//!   the note changes (keeping the scroll position).
+//!   the note changes (keeping the scroll position), and, when the note has
+//!   an equation, the equation search box (`assets/mazer-search.js`, Ctrl+K
+//!   or `/`), as in the CLI's pages. A reload while the search box is open
+//!   closes it.
 //! - `GET /` lists the notes being previewed.
 //! - Anything else is a 404; a malformed request a 400; a request whose
 //!   `Host` is not this loopback address a 403 (so a web page cannot reach
@@ -341,10 +344,21 @@ fn index(shared: &Shared) -> String {
     body
 }
 
-/// The page with the reload script inserted before `</body>` (or appended).
+/// The equation search box, the same file the CLI puts into its pages.
+const SEARCH_JS: &str = include_str!("../../assets/mazer-search.js");
+
+/// The page with the reload script, and the search script when the page has
+/// an equation (an element with `data-mazer-src`; note text is escaped, so
+/// prose cannot contain the attribute with its quote), inserted before
+/// `</body>` (or appended).
 fn with_reload(html: &str, id: u32, version: u64) -> String {
+    let search = if html.contains(" data-mazer-src=\"") {
+        format!("<script>{SEARCH_JS}</script>")
+    } else {
+        String::new()
+    };
     let script = format!(
-        "<script>(function(){{\
+        "{search}<script>(function(){{\
 var v='{version}',k='mazer-scroll-{id}';\
 try{{var y=sessionStorage.getItem(k);if(y!==null){{sessionStorage.removeItem(k);addEventListener('load',function(){{scrollTo(0,+y)}});}}}}catch(e){{}}\
 function poll(){{fetch('/doc/{id}/version',{{cache:'no-store'}}).then(function(r){{return r.ok?r.text():v}}).then(function(t){{\
@@ -389,16 +403,29 @@ mod tests {
     fn serves_pages_and_versions() {
         let preview = Preview::start().unwrap();
         let addr = preview.addr;
-        preview.update(1, "note", "<html><body><math>x</math></body></html>".to_owned());
+        let math = "<math display=\"inline\" data-mazer-src=\"x\">x</math>";
+        preview.update(1, "note", format!("<html><body>{math}</body></html>"));
         let host = format!("Host: 127.0.0.1:{}\r\n", addr.port());
         let page = get(addr, format!("GET /doc/1 HTTP/1.1\r\n{host}\r\n").as_bytes());
         assert!(page.starts_with("HTTP/1.1 200 OK"), "{page}");
-        assert!(page.contains("<math>x</math><script>"), "{page}");
+        assert!(page.contains(&format!("{math}<script>")), "{page}");
         assert!(page.contains("var v='1'"));
+        // The search box, once, before the end of the body.
+        assert_eq!(page.matches(SEARCH_JS).count(), 1);
+        let search = page.find(SEARCH_JS).unwrap();
+        assert!(search < page.rfind("</body>").unwrap());
+        assert_eq!(page.matches("<script>").count(), page.matches("</script>").count());
+        assert!(!SEARCH_JS.to_ascii_lowercase().contains("</script"));
         let version = get(addr, b"GET /doc/1/version HTTP/1.1\r\n\r\n");
         assert!(version.ends_with("\r\n\r\n1"), "{version}");
         preview.update(1, "note", "<html><body>y</body></html>".to_owned());
         assert!(get(addr, b"GET /doc/1/version HTTP/1.1\r\n\r\n").ends_with("\r\n\r\n2"));
+        // No equation: the reload script, but no search box.
+        let page = get(addr, format!("GET /doc/1 HTTP/1.1\r\n{host}\r\n").as_bytes());
+        assert!(page.contains("<body>y<script>(function(){"), "{page}");
+        assert!(page.contains("var v='2'"), "{page}");
+        assert!(!page.contains("__mazerSearch"), "{page}");
+        assert_eq!(page.matches("<script>").count(), 1);
         let index = get(addr, b"GET / HTTP/1.1\r\n\r\n");
         assert!(index.contains("href=\"/doc/1\""));
         preview.stop();
