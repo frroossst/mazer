@@ -21,29 +21,41 @@ import assert from 'node:assert/strict';
 // strict deepEqual tells apart; compare plain copies.
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
+// Whether `el` has the focus. Not `assert.equal`: its message would print
+// two fake DOM trees in full.
+const focused = (p, el, message = 'the focus is elsewhere') => assert.ok(p.doc.activeElement === el, message);
+
 const SCRIPT = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'mazer-search.js'), 'utf8');
 
 // ---- a fake DOM ----
 
 class Event {
   constructor(type, init = {}) {
-    Object.assign(this, { bubbles: true, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false }, init);
+    Object.assign(this, { bubbles: true, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, repeat: false }, init);
     this.type = type;
     this.defaultPrevented = false;
     this.stopped = false;
   }
   preventDefault() { this.defaultPrevented = true; }
   stopPropagation() { this.stopped = true; }
+  // `path` (given in `init`) stands for a path through a shadow root.
+  composedPath() { return this.path || [this.target]; }
 }
 
 class Target {
   constructor() { this.listeners = {}; }
-  addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
-  removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter((f) => f !== fn); }
-  // Bubbles from the target through its ancestors to the document and window.
+  // The capture flag is ignored; `{ once: true }` is honoured.
+  addEventListener(type, fn, opts) {
+    const once = typeof opts === 'object' && opts !== null && opts.once;
+    const listener = once ? Object.assign((e) => { this.removeEventListener(type, listener); fn(e); }, { original: fn }) : fn;
+    (this.listeners[type] ||= []).push(listener);
+  }
+  removeEventListener(type, fn) { this.listeners[type] = (this.listeners[type] || []).filter((f) => f !== fn && f.original !== fn); }
+  // Bubbles from the target through its ancestors to the document and window
+  // (or stays on the target when it does not bubble).
   dispatchEvent(event) {
     event.target = this;
-    for (let node = this; node && !event.stopped; node = node.parentEvent()) {
+    for (let node = this; node && !event.stopped; node = event.bubbles ? node.parentEvent() : null) {
       event.currentTarget = node;
       for (const fn of [...(node.listeners[event.type] || [])]) fn(event);
     }
@@ -52,7 +64,7 @@ class Target {
 }
 
 class Node extends Target {
-  constructor(doc) { super(); this.ownerDocument = doc; this.parentNode = null; this.childNodes = []; }
+  constructor(doc, nodeType) { super(); this.nodeType = nodeType; this.ownerDocument = doc; this.parentNode = null; this.childNodes = []; }
   parentEvent() { return this.parentNode || (this === this.ownerDocument.documentElement ? this.ownerDocument : null); }
   get isConnected() {
     let n = this;
@@ -62,7 +74,7 @@ class Node extends Target {
 }
 
 class Text extends Node {
-  constructor(doc, data) { super(doc); this.data = String(data); }
+  constructor(doc, data) { super(doc, 3); this.data = String(data); }
   get textContent() { return this.data; }
   set textContent(v) { this.data = String(v); }
   cloneNode() { return new Text(this.ownerDocument, this.data); }
@@ -85,9 +97,10 @@ function compile(selector) {
 }
 
 class Element extends Node {
-  constructor(doc, tag) {
-    super(doc);
-    this.tagName = tag.toLowerCase() === 'math' ? 'math' : tag.toUpperCase();
+  constructor(doc, tag, ns) {
+    super(doc, 1);
+    this.namespaceURI = ns || null;
+    this.tagName = ns || tag.toLowerCase() === 'math' ? tag : tag.toUpperCase();
     this.attrs = new Map();
     this.style = {};
     this.value = '';
@@ -153,14 +166,36 @@ class Element extends Node {
   querySelectorAll(sel) { return this.descendants().filter(compile(sel)); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   cloneNode(deep) {
-    const copy = new Element(this.ownerDocument, this.tagName);
+    const copy = new Element(this.ownerDocument, this.tagName, this.namespaceURI);
     copy.attrs = new Map(this.attrs);
     if (deep) for (const c of this.childNodes) copy.appendChild(c.cloneNode(true));
     return copy;
   }
-  focus() { this.ownerDocument.activeElement = this; }
-  blur() { if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body; }
+  // As in a browser: focusable natively (0) or by a tabindex, else -1.
+  get tabIndex() {
+    if (this.hasAttribute('tabindex')) return Number(this.getAttribute('tabindex'));
+    return /^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(this.tagName) ? 0 : -1;
+  }
+  // Records the options of every call; the element that loses the focus
+  // gets a `blur` event.
+  focus(opts) {
+    this.focusCalls = [...(this.focusCalls || []), opts];
+    const doc = this.ownerDocument;
+    const old = doc.activeElement;
+    doc.activeElement = this;
+    if (old && old !== this) old.dispatchEvent(new Event('blur', { bubbles: false }));
+  }
+  blur() {
+    const doc = this.ownerDocument;
+    if (doc.activeElement !== this) return;
+    doc.activeElement = doc.body;
+    this.dispatchEvent(new Event('blur', { bubbles: false }));
+  }
   select() { this.selected = true; }
+  setRangeText(text, start, end, mode) {
+    this.value = this.value.slice(0, start) + text + this.value.slice(end);
+    if (mode === 'end') this.selectionStart = this.selectionEnd = start + text.length;
+  }
   scrollIntoView(opts) { this.scrolled.push(opts); }
 }
 
@@ -175,6 +210,7 @@ class Document extends Target {
   }
   parentEvent() { return this.win; }
   createElement(tag) { return new Element(this, tag); }
+  createElementNS(ns, tag) { return new Element(this, tag, ns); }
   createTextNode(text) { return new Text(this, text); }
   querySelectorAll(sel) { return [this.documentElement, ...this.documentElement.descendants()].filter(compile(sel)); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
@@ -200,7 +236,8 @@ class Window extends Target {
 }
 
 // A page: `h(tag, attrs, ...children)` builds elements.
-function page(build, opts) {
+// `opts.globals` are set on the global object before the script runs.
+function page(build, opts = {}) {
   const win = new Window(opts);
   const doc = win.document;
   const h = (tag, attrs = {}, ...kids) => {
@@ -210,7 +247,10 @@ function page(build, opts) {
     return e;
   };
   if (build) doc.body.append(...build(h));
-  const ctx = vm.createContext({ window: win, document: doc, setTimeout: (f, ms) => win.setTimeout(f, ms), clearTimeout: (t) => win.clearTimeout(t) });
+  const ctx = vm.createContext({
+    window: win, document: doc, setTimeout: (f, ms) => win.setTimeout(f, ms), clearTimeout: (t) => win.clearTimeout(t),
+    ...opts.globals,
+  });
   // The script reads `requestAnimationFrame`/`matchMedia` from the global.
   ctx.requestAnimationFrame = (f) => win.requestAnimationFrame(f);
   ctx.matchMedia = (q) => win.matchMedia(q);
@@ -231,7 +271,15 @@ function page(build, opts) {
     input().dispatchEvent(new Event('input'));
   };
   const text = (sel) => (doc.querySelector(sel) || { textContent: '' }).textContent;
-  return { win, doc, ctx, h, api, load, box, input, isOpen, rows, key, type, text };
+  // A paste of `clip` into the box's input; returns the event.
+  const paste = (clip) => {
+    const e = new Event('paste', { clipboardData: { getData: (t) => (t === 'text/plain' ? clip : '') } });
+    input().dispatchEvent(e);
+    return e;
+  };
+  const srcs = () => rows().map((r) => r.querySelector('.mazer-search-src').textContent);
+  const button = () => doc.querySelectorAll('.mazer-search-fab');
+  return { win, doc, ctx, h, api, load, box, input, isOpen, rows, key, type, text, paste, srcs, button };
 }
 
 // A note: two headings, display and inline equations, one LaTeX span.
@@ -313,6 +361,92 @@ test('folding keeps indices for characters whose lower case is longer', () => {
   assert.equal(hit.start, 3);
 });
 
+test('normalize puts a space between ) and (', () => {
+  const { normalize, matches } = pure();
+  assert.equal(normalize('(f x)(g y)'), '(f x) (g y)');
+  assert.equal(normalize('a)()(b'), 'a) () (b');
+  assert.equal(normalize('x) \n (integral'), 'x) (integral');
+  assert.ok(matches('x)(integral', '(+ (funcapp rho x) (integral y))'));
+  assert.ok(matches('(funcapp rho x) (integral', '(+ (funcapp rho x)(integral y))'));
+  // Only `)(`: a name glued to a paren stays glued.
+  assert.equal(normalize('f(x)'), 'f(x)');
+});
+
+test('a whole copied form searches for its expressions', () => {
+  const { unwrap, normalize, matches } = pure();
+  const u = (q) => unwrap(normalize(q));
+  assert.equal(u('(show (frac 1 2))'), '(frac 1 2)');
+  assert.equal(u('(eval (+ x 1))'), '(+ x 1)');
+  assert.equal(u('(show a b c)'), 'a b c');
+  assert.equal(u('(show (tag mass) (= (funcapp Delta x) (funcapp delta x)))'), '(= (funcapp Delta x) (funcapp delta x))');
+  // Partial pastes: no closing paren yet, or not even a whole expression.
+  assert.equal(u('(show (frac 1 2)'), '(frac 1 2)');
+  assert.equal(u('(show (tag mass) (= (funcapp Delta x)'), '(= (funcapp Delta x)');
+  assert.equal(u('(show (tag e) x'), 'x');
+  assert.equal(u('(show (tag "a b\\" c") (= q 1))'), '(= q 1)');
+  // Nothing left: every equation, as for an empty query.
+  for (const q of ['(show', '(show ', '(eval', '(show (tag', '(show (tag ma', '(show (tag mass)', '(show (tag mass))']) {
+    assert.equal(u(q), '', q);
+  }
+  // Not a show: left alone.
+  for (const q of ['(shower x)', '(sh', 'show (frac 1 2))', '(frac 1 2))', '(+ (show']) assert.equal(u(q), normalize(q), q);
+  // A paren in a string does not count.
+  assert.equal(u('(show (text ")"))'), '(text ")")');
+  assert.equal(u('(show (text "("))'), '(text "(")');
+  // Through `search`, with the stored sources (no show, no tag).
+  assert.ok(matches('(show (frac 1 2))', '(frac 1 2)'));
+  assert.ok(matches('(show (tag mass) (= (funcapp Delta x)', '(= (funcapp Delta x) (funcapp delta x))'));
+  assert.ok(matches('  ( show   (frac 1 2) ) ', '(+ (frac 1 2) 1)'));
+  assert.ok(!matches('(show (frac 1 3))', '(frac 1 2)'));
+  const { search } = pure();
+  const items = [{ src: '(a)' }, { src: '(b)' }];
+  assert.equal(search('(show', items).length, 2);
+});
+
+test('comments are stripped outside strings; pasted lines become spaces', () => {
+  const { stripComments, pasteText, matches } = pure();
+  assert.equal(stripComments('(a ; c\n b)'), '(a \n b)');
+  assert.equal(stripComments('(a;c\nb) ; last'), '(a\nb) ');
+  assert.equal(stripComments('(text "a ; b") ; c'), '(text "a ; b") ');
+  assert.equal(stripComments('(text "a\\" ; b") ; c'), '(text "a\\" ; b") ');
+  assert.equal(stripComments('(text "a\\\\") ; c'), '(text "a\\\\") ');
+  assert.equal(pasteText('(funcapp\nrho x)'), '(funcapp rho x)');
+  assert.equal(pasteText('(funcapp\r\nrho\rx) ; c\r\n'), '(funcapp rho x)  ');
+  const typed = '(show (= (integral (funcapp rho x) x)\n         (integral (jux m (funcapp delta (- x a))) x)   ; a comment\n         m))';
+  assert.ok(matches(pasteText(typed), USER));
+});
+
+test('ranking: exact sources, then whole tokens, then the rest, in document order', () => {
+  const { search } = pure();
+  const items = [{ src: '(+ nn 1)' }, { src: '(+ a n)' }, { src: 'n' }, { src: '(f n)' }, { src: 'nm' }];
+  const hits = search('n', items);
+  assert.deepEqual(plain(hits.map((h) => h.item.src)), ['n', '(+ a n)', '(f n)', '(+ nn 1)', 'nm']);
+  assert.deepEqual(plain(hits.map((h) => h.rank)), [0, 1, 1, 2, 2]);
+  // The highlighted match is the first one on token boundaries.
+  const [hit] = search('n', [{ src: '(+ nn n)' }]);
+  assert.equal(hit.start, 6);
+  // A query that starts or ends with a paren is on a boundary there.
+  assert.equal(search('(frac 1', [{ src: 'a(frac 1 2)' }])[0].rank, 1);
+  assert.equal(search('2)', [{ src: '(frac 1 2)b' }])[0].rank, 1);
+  // Case-insensitive exact match.
+  assert.equal(search('delta', [{ src: 'Delta' }])[0].rank, 0);
+});
+
+test('a short equation after 60 longer ones is the first row', () => {
+  const p = page((h) => [
+    ...Array.from({ length: 60 }, (_, i) => h('math', { display: 'inline', 'data-mazer-src': `(+ n ${i})` })),
+    h('div', { class: 'mazer-equation', 'data-mazer-src': 'n' }),
+  ]);
+  p.key('k', { ctrlKey: true });
+  p.type('n');
+  assert.equal(p.srcs()[0], 'n');
+  assert.equal(p.rows().length, 50);
+  assert.equal(p.text('.mazer-search-count'), '61 of 61', 'the count is the total');
+  const target = p.doc.querySelector('div.mazer-equation');
+  p.key('Enter');
+  assert.ok(target.classList.contains('mazer-search-hit'));
+});
+
 // ---- the box, through the fake DOM ----
 
 test('Ctrl+K opens, a second Ctrl+K closes and focus returns', () => {
@@ -322,11 +456,11 @@ test('Ctrl+K opens, a second Ctrl+K closes and focus returns', () => {
   const e = p.key('k', { ctrlKey: true });
   assert.ok(e.defaultPrevented, 'the browser shortcut is prevented');
   assert.ok(p.isOpen());
-  assert.equal(p.doc.activeElement, p.input());
+  focused(p, p.input());
   assert.equal(p.rows().length, 4);
   p.key('k', { ctrlKey: true });
   assert.ok(!p.isOpen());
-  assert.equal(p.doc.activeElement, before);
+  focused(p, before);
 });
 
 test('Cmd+K (Meta) opens; Ctrl+Shift+K and Ctrl+Alt+K do not', () => {
@@ -593,7 +727,7 @@ test('a box removed by the page comes back on the next open', () => {
 test('loading the script twice installs one box and one set of listeners', () => {
   const p = page(NOTE);
   p.load();
-  assert.equal(p.ctx.__mazerSearch, p.api, 'the second copy did nothing');
+  assert.ok(p.ctx.__mazerSearch === p.api, 'the second copy did nothing');
   assert.equal(p.doc.listeners.keydown.length, 1);
   p.key('k', { ctrlKey: true });
   assert.equal(p.box().length, 1);
@@ -615,17 +749,289 @@ test('the script builds markup only through the DOM', () => {
   assert.ok(!/<!--/.test(SCRIPT));
 });
 
+test('holding Ctrl+K does not toggle the box', () => {
+  const p = page(NOTE);
+  p.key('k', { ctrlKey: true });
+  for (let i = 0; i < 5; i++) {
+    const e = p.key('k', { ctrlKey: true, repeat: true });
+    assert.ok(e.defaultPrevented, 'the browser shortcut stays prevented');
+    assert.ok(p.isOpen(), `repeat ${i}`);
+  }
+  p.key('k', { ctrlKey: true });
+  assert.ok(!p.isOpen());
+  for (let i = 0; i < 3; i++) p.key('k', { ctrlKey: true, repeat: true }, p.doc.body);
+  assert.ok(!p.isOpen(), 'a repeat does not open it either');
+  // A held `/` opens nothing on its repeats.
+  p.key('/', { repeat: true }, p.doc.body);
+  assert.ok(!p.isOpen());
+});
+
+test('/ in an input inside a shadow root does not open the box', () => {
+  const p = page((h) => [...NOTE(h), h('my-widget')]);
+  const host = p.doc.querySelector('my-widget');
+  const inner = p.doc.createElement('input'); // in the shadow tree, not a child
+  const e = new Event('keydown', { key: '/', path: [inner, host, p.doc.body] });
+  host.dispatchEvent(e);
+  assert.ok(!p.isOpen());
+  assert.ok(!e.defaultPrevented);
+  // A non-editable element in the shadow tree: it opens.
+  const span = p.doc.createElement('span');
+  host.dispatchEvent(new Event('keydown', { key: '/', path: [span, host, p.doc.body] }));
+  assert.ok(p.isOpen());
+});
+
+test('composition: isComposing and keyCode 229 keys are left alone', () => {
+  const p = page(NOTE);
+  // Not opened while composing.
+  assert.ok(!p.key('k', { ctrlKey: true, isComposing: true }, p.doc.body).defaultPrevented);
+  assert.ok(!p.isOpen());
+  assert.ok(!p.key('/', { isComposing: true }, p.doc.body).defaultPrevented);
+  assert.ok(!p.isOpen());
+  p.key('k', { ctrlKey: true });
+  // The Enter that commits a composition does not jump, from the input...
+  for (const mods of [{ isComposing: true }, { keyCode: 229 }]) {
+    const e = p.key('Enter', mods);
+    assert.ok(p.isOpen(), JSON.stringify(mods));
+    assert.ok(!e.defaultPrevented, JSON.stringify(mods));
+    assert.ok(p.isOpen());
+    p.key('ArrowDown', mods);
+    assert.equal(p.rows().filter((r) => r.getAttribute('aria-selected') === 'true').length, 0);
+  }
+  // ... and an Escape that ends one does not close the box.
+  p.key('Escape', { isComposing: true });
+  p.key('Escape', { keyCode: 229 });
+  p.key('Escape', { isComposing: true }, p.doc.body);
+  assert.ok(p.isOpen());
+  p.key('Escape');
+  assert.ok(!p.isOpen());
+});
+
+test('Tab stays in the input', () => {
+  const p = page(NOTE);
+  p.key('k', { ctrlKey: true });
+  for (const mods of [{}, { shiftKey: true }]) {
+    const e = p.key('Tab', mods);
+    assert.ok(e.defaultPrevented, 'the focus does not leave the dialog');
+    assert.ok(p.isOpen());
+    focused(p, p.input());
+  }
+});
+
+test('reopening selects the last query, ready to be replaced', () => {
+  const p = page(NOTE);
+  p.key('k', { ctrlKey: true });
+  p.type('(frac');
+  p.key('Escape');
+  p.input().selected = false;
+  p.key('k', { ctrlKey: true });
+  assert.ok(p.input().selected);
+  assert.equal(p.input().value, '(frac');
+  assert.equal(p.rows().length, 1, 'and its results are shown');
+});
+
+test('closing restores the focus without scrolling', () => {
+  const p = page((h) => [...NOTE(h), h('a', { href: '#x' }, 'link')]);
+  const link = p.doc.querySelector('a');
+  link.focus();
+  link.focusCalls = [];
+  p.key('k', { ctrlKey: true });
+  p.key('Escape');
+  focused(p, link);
+  assert.deepEqual(plain(link.focusCalls), [{ preventScroll: true }]);
+});
+
+test('after a jump the focus is on the equation, which gets a tabindex while highlighted', () => {
+  const p = page((h) => [...NOTE(h), h('a', { href: '#x' }, 'link')]);
+  const link = p.doc.querySelector('a');
+  link.focus();
+  const target = p.doc.querySelectorAll('[data-mazer-src]')[2];
+  p.key('k', { ctrlKey: true });
+  p.type('Delta');
+  p.key('Enter');
+  focused(p, target, 'not back on the link');
+  assert.equal(target.getAttribute('tabindex'), '-1');
+  assert.deepEqual(plain(target.focusCalls), [{ preventScroll: true }]);
+  assert.deepEqual(plain(target.scrolled), [{ block: 'center', behavior: 'smooth' }]);
+  // The highlight goes; the tabindex stays while the equation has the focus.
+  p.win.runTimers();
+  assert.ok(!target.classList.contains('mazer-search-hit'));
+  assert.equal(target.getAttribute('tabindex'), '-1');
+  link.focus();
+  assert.equal(target.getAttribute('tabindex'), null, 'gone with the focus');
+  // Focus moved away before the highlight ends: gone with the highlight.
+  p.key('k', { ctrlKey: true }, link);
+  p.type('Delta');
+  p.key('Enter');
+  focused(p, target);
+  link.focus();
+  assert.equal(target.getAttribute('tabindex'), '-1');
+  p.win.runTimers();
+  assert.equal(target.getAttribute('tabindex'), null);
+});
+
+test('a tabindex the equation already had is kept; a second jump clears the first', () => {
+  const p = page((h) => [
+    h('div', { class: 'mazer-equation', 'data-mazer-src': '(a)', tabindex: '0' }),
+    h('div', { class: 'mazer-equation', 'data-mazer-src': '(b)' }),
+    h('div', { class: 'mazer-equation', 'data-mazer-src': '(c)' }),
+  ]);
+  const [a, b, c] = p.doc.querySelectorAll('[data-mazer-src]');
+  p.key('k', { ctrlKey: true });
+  p.type('(a');
+  p.key('Enter');
+  focused(p, a);
+  p.win.runTimers();
+  p.doc.body.focus();
+  assert.equal(a.getAttribute('tabindex'), '0');
+  p.key('k', { ctrlKey: true }, p.doc.body);
+  p.type('(b');
+  p.key('Enter');
+  assert.equal(b.getAttribute('tabindex'), '-1');
+  p.key('k', { ctrlKey: true });
+  p.type('(c');
+  p.key('Enter');
+  focused(p, c);
+  assert.equal(b.getAttribute('tabindex'), null);
+  assert.equal(c.getAttribute('tabindex'), '-1');
+});
+
+test('the page re-rendered while the box was open: Enter finds the new equation', () => {
+  const p = page(NOTE);
+  p.key('k', { ctrlKey: true });
+  p.type('frac');
+  // The page renders its notes again: new elements, same sources.
+  const old = p.doc.querySelector('math[data-mazer-src]');
+  const fresh = p.h('math', { display: 'inline', 'data-mazer-src': '(frac 1 2)' });
+  old.parentNode.appendChild(fresh);
+  old.remove();
+  p.key('Enter');
+  assert.ok(!p.isOpen());
+  assert.ok(fresh.classList.contains('mazer-search-hit'));
+  assert.equal(fresh.scrolled.length, 1);
+});
+
+test('the page re-rendered without the match: the box stays open with the new results', () => {
+  const p = page(NOTE);
+  p.key('k', { ctrlKey: true });
+  p.type('frac');
+  assert.equal(p.rows().length, 1);
+  p.doc.querySelector('math[data-mazer-src]').remove();
+  p.key('Enter');
+  assert.ok(p.isOpen());
+  assert.equal(p.rows().length, 0);
+  assert.equal(p.text('.mazer-search-note'), 'No equation matches.');
+  assert.equal(p.text('.mazer-search-count'), '0 of 3');
+});
+
+test('a heading with math shows the math by its source', () => {
+  const p = page((h) => [
+    h('h2', {}, 'About ', h('math', { display: 'inline', 'data-mazer-src': '(frac 1 2)' }, h('mn', {}, '1'), h('mn', {}, '2')), ' and ', h('em', {}, 'more')),
+    h('div', { class: 'mazer-equation', 'data-mazer-src': '(sqrt x)' }),
+  ]);
+  p.key('k', { ctrlKey: true });
+  assert.deepEqual(p.rows().map((r) => r.querySelector('.mazer-search-ctx').textContent), ['About (frac 1 2) and more', 'About (frac 1 2) and more']);
+});
+
+test('a pasted form loses comments and line breaks and is found', () => {
+  const p = page((h) => [
+    h('div', { class: 'mazer-equation', 'data-mazer-src': USER }),
+    h('div', { class: 'mazer-equation', 'data-mazer-src': '(funcapp rho x)' }),
+  ]);
+  const [user] = p.doc.querySelectorAll('[data-mazer-src]');
+  p.key('k', { ctrlKey: true });
+  const clip = '(show (= (integral (funcapp rho x) x)\n         (integral (jux m (funcapp delta (- x a))) x)   ; a comment\n         m))';
+  const e = p.paste(clip);
+  assert.ok(e.defaultPrevented, 'the browser does not paste it as well');
+  assert.ok(!p.input().value.includes('\n'));
+  assert.ok(!p.input().value.includes('comment'));
+  assert.deepEqual(p.srcs(), [USER]);
+  p.key('Enter');
+  assert.ok(user.classList.contains('mazer-search-hit'));
+  // At the caret, replacing the selection.
+  p.key('k', { ctrlKey: true });
+  p.type('(funcapp  x)');
+  p.input().selectionStart = 9;
+  p.input().selectionEnd = 10;
+  p.paste('rho ; the density\n');
+  assert.equal(p.input().value, '(funcapp rho  x)');
+  assert.equal(p.rows().length, 2);
+  // Without text on the clipboard the browser handles it.
+  const none = new Event('paste', { clipboardData: { getData: () => '' } });
+  p.input().dispatchEvent(none);
+  assert.ok(!none.defaultPrevented);
+});
+
+test('the floating button opens the box', () => {
+  const p = page(NOTE);
+  const [button] = p.button();
+  assert.equal(p.button().length, 1);
+  assert.equal(button.tagName, 'BUTTON');
+  assert.equal(button.getAttribute('type'), 'button');
+  assert.equal(button.getAttribute('aria-label'), 'Search equations');
+  assert.equal(button.children[0].tagName, 'svg');
+  assert.equal(button.children[0].namespaceURI, 'http://www.w3.org/2000/svg');
+  assert.equal(p.doc.querySelectorAll('style').length, 1, 'its styles are there before any open');
+  button.focus();
+  button.dispatchEvent(new Event('click'));
+  assert.ok(p.isOpen());
+  focused(p, p.input());
+  p.key('Escape');
+  focused(p, button);
+  assert.ok(/@media print\{[^}]*\.mazer-search-fab[^}]*display:none/.test(SCRIPT), 'not printed');
+});
+
+test('no button without equations, until they are rendered; none when turned off', () => {
+  const p = page(null);
+  assert.equal(p.button().length, 0);
+  p.doc.dispatchEvent(new Event('pointerdown'));
+  assert.equal(p.button().length, 0);
+  p.doc.body.append(p.h('math', { display: 'inline', 'data-mazer-src': 'x' }));
+  p.doc.dispatchEvent(new Event('pointerdown'));
+  assert.equal(p.button().length, 1, 'added at the first interaction after the render');
+  p.doc.dispatchEvent(new Event('keydown', { key: 'a' }));
+  assert.equal(p.button().length, 1);
+  assert.equal(p.doc.listeners.pointerdown.length, 0, 'and stops listening');
+  const off = page(NOTE, { globals: { mazerSearchButton: false } });
+  assert.equal(off.button().length, 0);
+  off.doc.dispatchEvent(new Event('pointerdown'));
+  assert.equal(off.button().length, 0);
+  off.key('k', { ctrlKey: true });
+  assert.ok(off.isOpen(), 'the keyboard still works');
+});
+
 // ---- a real page, if given ----
 
-const pagePath = process.argv[2];
-if (pagePath) {
-  test(`every equation of ${pagePath} finds itself`, () => {
-    const html = readFileSync(pagePath, 'utf8');
+// Arguments come in pairs, `page.html forms.json`: a full MathML page from
+// the CLI, and the `show`/`eval` forms of its note exactly as typed (with
+// the wrapper, tags, comments and line breaks), in document order, as a JSON
+// array of strings. Every form, pasted into the box, must find the equation
+// it rendered: the one at the same position on the page.
+const args = process.argv.slice(2);
+for (let a = 0; a < args.length; a += 2) {
+  const pagePath = args[a];
+  const formsPath = args[a + 1];
+  test(`every equation of ${pagePath} is found by its form as typed`, () => {
+    const html = readFileSync(pagePath, 'utf8').replace(/<script\b[\s\S]*?<\/script>/gi, '');
     const decode = (s) => s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]);
-    const values = [...html.matchAll(/data-mazer-src="([^"]*)"/g)].map((m) => decode(m[1])).filter((v) => v.trim());
-    const { matches } = pure();
-    for (const v of values) assert.ok(matches(v, v), v);
-    console.log(`# ${values.length} data-mazer-src values checked`);
+    const values = [...html.matchAll(/ data-mazer-src="([^"]*)"/g)].map((m) => decode(m[1]));
+    assert.ok(values.length > 0, 'the page has equations');
+    assert.equal(values.length, (html.match(/<math[\s>]/g) || []).length, 'one source per <math> element');
+    const { matches, normalize, search, pasteText } = pure();
+    for (const v of values) {
+      assert.ok(v.trim(), 'no empty source');
+      assert.ok(matches(v, v), v);
+      // Outside strings, the stored source is already in normal form.
+      if (!v.includes('"')) assert.equal(normalize(v), v);
+    }
+    assert.ok(formsPath, 'a forms file goes with every page');
+    const forms = JSON.parse(readFileSync(formsPath, 'utf8'));
+    assert.equal(forms.length, values.length, 'one rendered equation per form');
+    const items = values.map((src, i) => ({ src, i }));
+    for (const [i, form] of forms.entries()) {
+      const hits = search(pasteText(form), items);
+      assert.ok(hits.some((h) => h.item.i === i), `form ${i} ${JSON.stringify(form)} does not find ${JSON.stringify(values[i])}`);
+    }
+    console.log(`# ${pagePath}: ${values.length} equations, each found by its form as typed`);
   });
 }
 

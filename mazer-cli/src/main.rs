@@ -182,7 +182,8 @@ fn compile_command(c: &CompileArgs) -> ExitCode {
         return code;
     }
 
-    // A full page also gets the equation search box (Ctrl+K or `/`).
+    // A full page with equations also gets the equation search box (Ctrl+K
+    // or `/`).
     if !c.fragment {
         out.html = search::with_search(&out.html);
     }

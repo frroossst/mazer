@@ -47,27 +47,46 @@ notes stay as ordinary `.zr` files; the page inherits your site's styling.
 
 Every page that shows notes can search its equations by their source.
 Press **Ctrl+K** (**Cmd+K** on macOS), or **/** when you are not typing in a
-field, and type part of an equation as you wrote it: `(funcapp rho x)` finds
-every equation whose source contains that text. Spacing and line breaks do not
-matter, and a lowercase query ignores case while a query with an uppercase
-letter does not (`Delta` and `delta` are different names). The list shows
-each match in page order, with the rendered math, the source with the match
-marked, and the heading above it. **Up**/**Down** move through the list,
-**Enter** (or a click) scrolls to the equation and highlights it for two
-seconds, **Escape** (or Ctrl+K again, or a click outside) closes the box.
+field, or tap the small round magnifying-glass button in the bottom-right
+corner (for phones and tablets), and type part of an equation as you wrote
+it: `(funcapp rho x)` finds every equation whose source contains that text.
+
+- **Spacing.** Spacing and line breaks do not matter, nor does a space
+  between `)` and `(`: `x)(integral` finds `x) (integral`.
+- **Case.** A lowercase query ignores case; a query with an uppercase letter
+  does not (`Delta` and `delta` are different names).
+- **Whole forms.** A form copied whole from a note works as it is:
+  `(show (tag mass) (= (funcapp Delta x) (funcapp delta x)))` searches for
+  the expression, without the `(show`, the tag and the closing paren, also
+  when the copy stops half-way. A paste loses its `;` comments, and its line
+  breaks become spaces (a browser would otherwise glue the lines together).
+- **Order.** Equations whose whole source is the query come first, then
+  those where the query matches whole tokens (it starts and ends at a space, a
+  paren or the end of the source), then the rest, each group in page order.
+  The list shows at most 50 rows; the count is the total. Each row has the
+  rendered math, the source with the match marked, and the heading above it.
+- **Keys.** **Up**/**Down** move through the list, **Enter** (or a click)
+  scrolls to the equation, highlights it for two seconds and moves the
+  keyboard focus to it; **Escape** (or Ctrl+K again, or a click outside)
+  closes the box and puts the focus back where it was.
 
 - It searches the current page only, whatever was rendered on it, however
   late; nothing is fetched or indexed ahead of time.
 - It relies on the `data-mazer-src` attribute mazer puts on every rendered
   equation (`div.mazer-equation` for a display equation, the `math` element
-  for inline math), which holds the source on one line.
+  for inline math, `span.mazer-math` for inline math with the LaTeX target),
+  which holds the source as typed, on one line, without comments.
 - The script is one file with no dependencies, `assets/mazer-search.js` in
   this repository. `make wasm` copies it to `pkg/mazer_search.js`, and
   `mazer.js` loads it with `import()` once every block is rendered. If it is
   missing, the notes still render and the console gets a warning. Opt out
   with `window.mazerSearch = false` before the module loads.
+- The button appears once the page has an equation (at load, or at the first
+  click, tap or key after the notes are rendered), is not printed, and can be
+  turned off with `window.mazerSearchButton = false` before the script loads;
+  the keyboard shortcuts stay.
 - The CLI's full pages and the language server's live preview carry the same
-  script inline, so they need nothing extra.
+  script inline when the note has an equation, so they need nothing extra.
 - Its styles use system colours and only classes that start with
   `mazer-search-`; the jumped-to equation gets `mazer-search-hit` for two
   seconds, which a site may restyle.
