@@ -984,20 +984,103 @@ fn source_survives_definitions_and_errors_around_it() {
     assert_eq!(sources(&body(src)), ["(frac a)", "(+ a 1)", "a"]);
 }
 
+/// [`sources`] with the five entities `escape` writes decoded.
+fn typed(html: &str) -> Vec<String> {
+    sources(html)
+        .into_iter()
+        .map(|s| {
+            s.replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        })
+        .collect()
+}
+
 #[test]
-fn source_lookup_is_linear() {
+fn source_keeps_the_reader_shorthands_as_typed() {
+    // The reader makes `-x` `(- x)` and `'x` `(quote x)`; the source is what
+    // was typed.
+    let html = body("(show (+ -1 -x (- y)))");
+    assert!(!html.contains("mazer-error"), "{html}");
+    assert_eq!(typed(&html), ["(+ -1 -x (- y))"]);
+    assert_eq!(typed(&body("(show (sum k 'k 1 n))")), ["(sum k 'k 1 n)"]);
+    assert_eq!(typed(&body("Inline (show (+ -3.5e2 -alpha 'beta)).")), ["(+ -3.5e2 -alpha 'beta)"]);
+    // A quoted list keeps its own spelling inside.
+    assert_eq!(typed(&body("(show (sum k '( k ) 1 n))")), ["(sum k '(k) 1 n)"]);
+    // Glued tokens stay glued, except `)(`, which the search normalises to `) (`.
+    assert_eq!(typed(&body("(show (+ a(frac 1 2)))")), ["(+ a(frac 1 2))"]);
+    assert_eq!(typed(&body("(show (+ (sqrt x)(sqrt y)))")), ["(+ (sqrt x) (sqrt y))"]);
+}
+
+#[test]
+fn source_keeps_string_literals_as_typed() {
+    // `\n` is not an escape: the reader keeps the backslash, and so does the source.
+    let html = body(r#"(show (text "a\nb"))"#);
+    assert!(!html.contains("mazer-error"), "{html}");
+    assert_eq!(typed(&html), [r#"(text "a\nb")"#]);
+    assert_eq!(typed(&body(r#"(show (text "say \"hi\" \\ there"))"#)), [r#"(text "say \"hi\" \\ there")"#]);
+    // Inside a string `;` is not a comment, and spacing is left alone.
+    let html = body("(show (text \"a ; b  ( c )\") ; a comment\n  x)");
+    assert_eq!(typed(&html), ["(text \"a ; b  ( c )\") x"]);
+}
+
+#[test]
+fn source_collapses_lines_comments_and_crlf() {
+    let src = "(show (=\r\n    (integral\t(funcapp rho x) ; density\r\n        x)\r\n    m\r\n))";
+    assert_eq!(typed(&body(src)), ["(= (integral (funcapp rho x) x) m)"]);
+    // A comment glued to a token, and one on the last line.
+    assert_eq!(typed(&body("(show (+ a;c\nb ; end\n))")), ["(+ a b)"]);
+    // In a block quote each line starts with `>`, which is not part of the form.
+    let html = body("> (show (+ a\n> (frac 1\n>   2)))");
+    assert_eq!(typed(&html), ["(+ a (frac 1 2))"], "{html}");
+    // List item continuation lines.
+    assert_eq!(typed(&body("- (show (+ a\n  b))")), ["(+ a b)"]);
+}
+
+#[test]
+fn source_falls_back_to_the_resolved_form() {
+    // Only an `Analysis` whose written tree does not hold the rendered form
+    // reaches the fallback: here the written tree is emptied.
+    let mut analysis = analyze("(show (+ -x 'y))", "t.zr");
+    analysis.written.blocks.clear();
+    let html = render(&analysis, &mut Options::new("t.zr"), &mut Diags::new());
+    assert_eq!(typed(&html), ["(+ (- x) (quote y))"]);
+}
+
+/// The best of three renderings of `pairs` pairs of equations (one display,
+/// one inline) that use an alias and a `let` variable.
+fn source_render_time(pairs: usize) -> Duration {
     let mut src = String::from("(let v 2)\n\n(alias R (bb R))");
-    for i in 0..10_000 {
+    for i in 0..pairs {
         write!(src, "\n\n(show (in v{i} R))\n\nand (show (+ v {i}))").unwrap();
     }
     let analysis = analyze(&src, "t.zr");
-    let start = Instant::now();
-    let mut extra = Diags::new();
-    let html = render(&analysis, &mut Options::new("t.zr"), &mut extra);
-    let elapsed = start.elapsed();
-    assert_eq!(html.matches("data-mazer-src=").count(), 20_000);
-    // A quadratic lookup over 20,000 equations would take far longer.
-    assert!(elapsed < Duration::from_secs(1), "rendering 20,000 equations took {elapsed:?}");
+    (0..3)
+        .map(|_| {
+            let start = Instant::now();
+            let html = render(&analysis, &mut Options::new("t.zr"), &mut Diags::new());
+            let elapsed = start.elapsed();
+            assert_eq!(html.matches("data-mazer-src=").count(), 2 * pairs);
+            elapsed
+        })
+        .min()
+        .unwrap_or_default()
+}
+
+#[test]
+fn source_lookup_is_linear() {
+    // Four times the equations should take about four times as long; a
+    // lookup that scans every form for each equation takes sixteen times.
+    // The bound is on the growth, not the speed of the machine, with a
+    // floor for timer noise on tiny durations.
+    let small = source_render_time(2_500);
+    let large = source_render_time(10_000);
+    assert!(
+        large < small * 8 + Duration::from_millis(20),
+        "5,000 equations took {small:?}, 20,000 took {large:?}"
+    );
 }
 
 #[test]

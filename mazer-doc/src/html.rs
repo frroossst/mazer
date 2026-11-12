@@ -24,11 +24,13 @@
 //! | line break       | `<br/>` |
 //! | inline math      | `<math display="inline" data-mazer-src="src"><mstyle displaystyle="true">..</mstyle></math>`; LaTeX: `<span class="mazer-math" data-mazer-src="src">\(..\)</span>` |
 //! | display math     | `<div class="mazer-equation" id="eq-name" data-mazer-src="src"><math display="block">..</math><span class="mazer-eqno">(n)</span></div>` (no id or number when untagged) |
-//!
-//! `data-mazer-src` is the equation as the author typed it (see `written_source`);
-//! error boxes have none.
 //! | reference        | `<a class="mazer-ref" href="#eq-name">(n)</a>`; plain `(n)` inside link text |
 //! | error            | `<span class="mazer-error">` inline, `<pre class="mazer-error">` as a block (`<pre class="mazer-error" id="eq-name">` for a tagged display equation) |
+//!
+//! `data-mazer-src` is the equation as the author typed it (see
+//! [`typed_source`]): its expressions, without `show`/`eval` and a leading
+//! `(tag name)`, comments dropped and whitespace collapsed onto one line.
+//! Error boxes have none.
 //!
 //! A heading, list item, block quote or inline style whose content writes
 //! nothing (only sound definitions and whitespace) is left out entirely, and
@@ -42,7 +44,9 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::hash::{Hash, Hasher};
 
-use mazer_syntax::{Block, BlockKind, Diag, DiagCode, Diags, Inline, InlineKind, Node, Severity, Span, emoji};
+use mazer_syntax::{
+    Block, BlockKind, Diag, DiagCode, Diags, FileId, Inline, InlineKind, Node, NodeKind, Severity, Span, emoji,
+};
 
 use crate::eval::Evaluator;
 use crate::labels::{Label, tag_name};
@@ -68,6 +72,7 @@ pub fn body(
         out: String::new(),
         errors,
         written: code_forms(analysis).into_iter().map(|(form, _)| (form.span, form)).collect(),
+        note: analysis.sources.file(FileId(0)).map_or("", |f| f.text.as_str()),
         known: None,
         reported,
         in_link: false,
@@ -163,6 +168,8 @@ struct Writer<'a, 'e> {
     /// The code forms of the note as written, by span; built once, so finding
     /// the written form of each equation is a hash lookup.
     written: HashMap<Span, &'a Node>,
+    /// The text of the note (file 0), which the written forms' spans index.
+    note: &'a str,
     /// The analysis diagnostics as a set, built the first time it is needed.
     known: Option<HashSet<Key>>,
     /// What `diags` holds.
@@ -531,14 +538,23 @@ impl Writer<'_, '_> {
         false
     }
 
-    /// The expressions of `node` as the author typed them: printed on one
-    /// line, comments and a leading `(tag name)` dropped, joined by a space.
-    /// `node` is a resolved `show` or `eval`; its span is that of the written
-    /// form, which is looked up (aliases, macros and `let` variables by their
-    /// written names). Falls back to `node` itself when there is no such form.
+    /// The expressions of `node` as the author typed them (see
+    /// [`typed_source`]). `node` is a resolved `show` or `eval`; its span is
+    /// that of the written form, which is looked up, so aliases, macros and
+    /// `let` variables keep their written names, and `-x`, `'x` and strings
+    /// their written spelling.
+    ///
+    /// `analyze` makes the resolved tree as a copy of the written one and
+    /// changes only what is inside a form, so every rendered form has a
+    /// written counterpart in the note. The fallback (the resolved
+    /// expressions printed with `Display`) is for an `Analysis` whose two
+    /// trees do not correspond, which a caller can build because its fields
+    /// are public; a test renders one.
     fn written_source(&self, node: &Node) -> String {
-        let form = self.written.get(&node.span).copied().unwrap_or(node);
-        shown(form).iter().map(ToString::to_string).collect::<Vec<_>>().join(" ")
+        self.written.get(&node.span).map_or_else(
+            || shown(node).iter().map(ToString::to_string).collect::<Vec<_>>().join(" "),
+            |form| typed_source(self.note, shown(form)),
+        )
     }
 
     fn show(&mut self, node: &Node, place: Place) {
@@ -705,7 +721,7 @@ impl Writer<'_, '_> {
     }
 
     /// Wraps rendered expressions: inline or display, numbered if `label`.
-    /// `src` is the equation as written (see `written_source`), written to
+    /// `src` is the equation as written (see [`typed_source`]), written to
     /// `data-mazer-src` unless empty.
     fn math(&mut self, place: Place, bodies: &[String], label: Option<&Label>, src: &str) {
         match self.target {
@@ -806,6 +822,72 @@ impl Writer<'_, '_> {
                 self.push("</span>");
             }
         }
+    }
+}
+
+/// The expressions `exprs` of a written form as the author typed them, on
+/// one line: the note's text token by token, where whatever separates two
+/// tokens (whitespace, line breaks, `;` comments) becomes one space, except
+/// just inside a paren (`( a )` is `(a)`), and `)(` gets a space (`) (`), as
+/// the search script normalises it. Tokens are copied exactly as typed: `-x`,
+/// `'x`, numbers, and string literals with their quotes, escapes, `;` and
+/// spacing untouched. Tokens typed without a space between them (`f(x)`)
+/// stay that way, also across expressions.
+///
+/// It goes token by token rather than over the text of the whole span
+/// because a form in a block quote may run over several lines, and the `>`
+/// that starts each of them is in that text but is not part of the form.
+/// Between two tokens the reader skips only whitespace, comments and such
+/// line starts, so a non-empty gap is always one space.
+fn typed_source(text: &str, exprs: &[Node]) -> String {
+    let mut tokens = Vec::new();
+    for expr in exprs {
+        typed_tokens(text, expr, &mut tokens);
+    }
+    let mut out = String::new();
+    let mut previous: Option<(usize, &str)> = None;
+    for (start, end) in tokens {
+        let Some(token) = text.get(start..end) else { continue };
+        if let Some((before_end, before)) = previous {
+            let apart = before_end < start;
+            if (apart && before != "(" && token != ")") || (before == ")" && token == "(") {
+                out.push(' ');
+            }
+        }
+        out.push_str(token);
+        previous = Some((end, token));
+    }
+    out
+}
+
+/// The tokens of a written expression as byte ranges of the note, in order:
+/// each paren of a paren list, the `'` of a quote, and every atom, string
+/// and `-name` (which the reader makes a list but which is one atom in the
+/// text). The reader's empty `Error` placeholders have no text.
+fn typed_tokens(text: &str, node: &Node, out: &mut Vec<(usize, usize)>) {
+    let start = node.span.start.to_usize();
+    let end = node.span.end.to_usize();
+    match (&node.kind, text.as_bytes().get(start)) {
+        (NodeKind::List(items), Some(b'(')) => {
+            out.push((start, start + 1));
+            for item in items {
+                typed_tokens(text, item, out);
+            }
+            // An unclosed list has no `)`: its last child reaches its end.
+            let inner_end = items.last().map_or(start + 1, |item| item.span.end.to_usize());
+            if end > inner_end && text.as_bytes().get(end - 1) == Some(&b')') {
+                out.push((end - 1, end));
+            }
+        }
+        // `'x` reads as `(quote x)`, its `quote` spanning the `'`.
+        (NodeKind::List(items), Some(b'\'')) => {
+            out.push((start, start + 1));
+            for item in items.iter().skip(1) {
+                typed_tokens(text, item, out);
+            }
+        }
+        _ if start < end => out.push((start, end)),
+        _ => {}
     }
 }
 

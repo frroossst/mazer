@@ -75,6 +75,23 @@ fn count_shows(src: &str) -> usize {
         .count()
 }
 
+/// The `data-mazer-src` values of a page, with the entities `escape` writes
+/// decoded.
+fn source_values(html: &str) -> Vec<String> {
+    html.split(" data-mazer-src=\"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next())
+        .map(|value| {
+            value
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        })
+        .collect()
+}
+
 /// Compiles one page both ways and returns a list of problems (empty when clean).
 fn problems(name: &str, text: &str, dump: Option<&Path>) -> Vec<String> {
     let mut found = Vec::new();
@@ -114,6 +131,21 @@ fn problems(name: &str, text: &str, dump: Option<&Path>) -> Vec<String> {
         }
         if out.html.contains("data-mazer-src=\"\"") {
             found.push(format!("{name}: empty data-mazer-src"));
+        }
+        // The sources are as typed: every token of one (outside strings) is
+        // in the note, so nothing was re-spelled (`'x` as `(quote x)`).
+        for (i, value) in source_values(&out.html).into_iter().enumerate() {
+            if value.contains('"') {
+                continue;
+            }
+            let respelled = value
+                .split(|c: char| c.is_whitespace() || c == '(' || c == ')')
+                .filter(|token| !token.is_empty())
+                .filter(|token| !text.contains(token))
+                .count();
+            if respelled > 0 {
+                found.push(format!("{name}: source {i} has {respelled} tokens that are not in the note"));
+            }
         }
         let shows = count_shows(text);
         if math < shows {
