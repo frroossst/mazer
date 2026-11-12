@@ -16,9 +16,10 @@
 //!   `(show (tag name) expr ...)` as a block is a numbered display equation.
 //!   `(show)`, or a tag with nothing after it, is an `Arity` error.
 //! - A `show` alone in a top-level paragraph is a display equation
-//!   (`<div class="mazer-equation"><math display="block">`); anywhere else it
-//!   is inline math in the old wrapper
-//!   (`<math display="inline"><mstyle displaystyle="true">`).
+//!   (`<div class="mazer-equation" data-mazer-src="..."><math display="block">`);
+//!   anywhere else it is inline math in the old wrapper
+//!   (`<math display="inline" data-mazer-src="..."><mstyle displaystyle="true">`).
+//!   `data-mazer-src` is the equation as written; error boxes have none.
 //! - `(eval expr)` takes exactly one expression (`Arity` otherwise).
 //!   The evaluator's result is rendered like a `show`: as a display equation
 //!   for a block `eval`, inline otherwise.

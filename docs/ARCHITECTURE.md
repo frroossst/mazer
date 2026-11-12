@@ -342,8 +342,8 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 
    This applies to definitions too: a broken `let`, `alias` or `macro` shows a box where a good one shows nothing. A `let` renders no expression, so a keyword problem in its value boxes it. Warnings and hints never box. An `eval` that boxes for reason 1 or 2 is not evaluated. The box of a tagged display equation keeps the equation's `id`, so references to it still land on it.
 10. Markup:
-    - display equation: `<div class="mazer-equation" id="eq-name"><math display="block">..</math><span class="mazer-eqno">(n)</span></div>`, with no `id` or number when untagged; its error box is `<pre class="mazer-error" id="eq-name">`;
-    - inline math: `<math display="inline"><mstyle displaystyle="true">..</mstyle></math>`;
+    - display equation: `<div class="mazer-equation" id="eq-name" data-mazer-src="src"><math display="block">..</math><span class="mazer-eqno">(n)</span></div>`, with no `id` or number when untagged; its error box is `<pre class="mazer-error" id="eq-name">` (no `data-mazer-src`);
+    - inline math: `<math display="inline" data-mazer-src="src"><mstyle displaystyle="true">..</mstyle></math>`; with the LaTeX target, display math is the same `div` and inline math is wrapped as `<span class="mazer-math" data-mazer-src="src">\(\displaystyle ..\)</span>`;
     - tag: `(tag name)` only as the first item of a display `show`; the anchor is `eq-` followed by the name as written; numbers count tagged equations in document order from 1;
     - reference: `<a class="mazer-ref" href="#eq-name">(n)</a>`; inside the text of a link just `(n)`, since links do not nest;
     - checklist item: `<li><input type="checkbox" disabled> text</li>` (`checked disabled` when ticked); a list of only checklist items is `<ul class="mazer-checklist">`;
@@ -378,6 +378,10 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 - LaTeX full pages do not load a TeX renderer.
 - The global symbol interner never shrinks; this matters only for the long-running language server, and the growth is small.
 - None of the CSS (`docs/site-styles.css`, the full-page template) has been verified in a browser.
+
+### Decisions made after the rewrite
+
+1. **Equation search.** Every successfully rendered `show` and `eval` carries `data-mazer-src`, the equation's source as typed: the expressions of the form (a leading `(tag name)` dropped), each printed on one line with single spaces and no comments, joined by one space. The text comes from the written tree, not the resolved one, so an alias, a macro call or a `let` variable appears as the author wrote it, and `(show a b c)` reads `a b c`, not `(jux a b c)`; if the written form cannot be found, the resolved expressions are printed instead. The writer finds the written form through a span-keyed map built once per render, so the cost stays linear. The attribute is always written (there is no option), goes through the same attribute escaping as every other value, and is left out only for an empty source. Error boxes have none. The search UI is a separate script, `assets/mazer-search.js` (current page only, substring match on the whitespace-normalised source, opened with Ctrl+K or `/`); the CLI's full pages, the LSP preview and the site loader load it, and it is never compiled into the wasm module.
 
 ### Public helper APIs
 

@@ -22,8 +22,11 @@
 //! | inline code      | `<code>` |
 //! | emoji            | the character itself |
 //! | line break       | `<br/>` |
-//! | inline math      | `<math display="inline"><mstyle displaystyle="true">..</mstyle></math>` |
-//! | display math     | `<div class="mazer-equation" id="eq-name"><math display="block">..</math><span class="mazer-eqno">(n)</span></div>` (no id or number when untagged) |
+//! | inline math      | `<math display="inline" data-mazer-src="src"><mstyle displaystyle="true">..</mstyle></math>`; LaTeX: `<span class="mazer-math" data-mazer-src="src">\(..\)</span>` |
+//! | display math     | `<div class="mazer-equation" id="eq-name" data-mazer-src="src"><math display="block">..</math><span class="mazer-eqno">(n)</span></div>` (no id or number when untagged) |
+//!
+//! `data-mazer-src` is the equation as the author typed it (see `written_source`);
+//! error boxes have none.
 //! | reference        | `<a class="mazer-ref" href="#eq-name">(n)</a>`; plain `(n)` inside link text |
 //! | error            | `<span class="mazer-error">` inline, `<pre class="mazer-error">` as a block (`<pre class="mazer-error" id="eq-name">` for a tagged display equation) |
 //!
@@ -35,7 +38,7 @@
 //! indexed by position once per [`body`] call, and "already reported" is a
 //! hash set.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::hash::{Hash, Hasher};
 
@@ -44,6 +47,7 @@ use mazer_syntax::{Block, BlockKind, Diag, DiagCode, Diags, Inline, InlineKind, 
 use crate::eval::Evaluator;
 use crate::labels::{Label, tag_name};
 use crate::pipeline::{Analysis, Target, shown};
+use crate::query::code_forms;
 use crate::walk::{self, Place};
 
 /// Writes the body of a note (no page wrapper).
@@ -63,6 +67,7 @@ pub fn body(
         diags,
         out: String::new(),
         errors,
+        written: code_forms(analysis).into_iter().map(|(form, _)| (form.span, form)).collect(),
         known: None,
         reported,
         in_link: false,
@@ -155,6 +160,9 @@ struct Writer<'a, 'e> {
     out: String,
     /// The error diagnostics of the analysis, sorted by where they start.
     errors: Vec<&'a Diag>,
+    /// The code forms of the note as written, by span; built once, so finding
+    /// the written form of each equation is a hash lookup.
+    written: HashMap<Span, &'a Node>,
     /// The analysis diagnostics as a set, built the first time it is needed.
     known: Option<HashSet<Key>>,
     /// What `diags` holds.
@@ -523,6 +531,16 @@ impl Writer<'_, '_> {
         false
     }
 
+    /// The expressions of `node` as the author typed them: printed on one
+    /// line, comments and a leading `(tag name)` dropped, joined by a space.
+    /// `node` is a resolved `show` or `eval`; its span is that of the written
+    /// form, which is looked up (aliases, macros and `let` variables by their
+    /// written names). Falls back to `node` itself when there is no such form.
+    fn written_source(&self, node: &Node) -> String {
+        let form = self.written.get(&node.span).copied().unwrap_or(node);
+        shown(form).iter().map(ToString::to_string).collect::<Vec<_>>().join(" ")
+    }
+
     fn show(&mut self, node: &Node, place: Place) {
         let exprs = shown(node);
         let mut emitted = Diags::new();
@@ -540,7 +558,8 @@ impl Writer<'_, '_> {
             return;
         }
         self.report_unchecked(emitted, &checked);
-        self.math(place, &bodies, label);
+        let src = self.written_source(node);
+        self.math(place, &bodies, label, &src);
     }
 
     fn eval(&mut self, node: &Node, place: Place) {
@@ -582,7 +601,8 @@ impl Writer<'_, '_> {
             let mut emitted = Diags::new();
             let body = self.emit(&value, &mut emitted);
             self.report_new(emitted);
-            self.math(place, &[body], None);
+            let src = self.written_source(node);
+            self.math(place, &[body], None, &src);
             return;
         }
         if failures.is_empty() {
@@ -685,7 +705,9 @@ impl Writer<'_, '_> {
     }
 
     /// Wraps rendered expressions: inline or display, numbered if `label`.
-    fn math(&mut self, place: Place, bodies: &[String], label: Option<&Label>) {
+    /// `src` is the equation as written (see `written_source`), written to
+    /// `data-mazer-src` unless empty.
+    fn math(&mut self, place: Place, bodies: &[String], label: Option<&Label>, src: &str) {
         match self.target {
             Target::MathMl => {
                 let joined = if let [single] = bodies {
@@ -695,12 +717,14 @@ impl Writer<'_, '_> {
                 };
                 match place {
                     Place::Inline => {
-                        self.push("<math display=\"inline\"><mstyle displaystyle=\"true\">");
+                        self.push("<math display=\"inline\"");
+                        self.source_attr(src);
+                        self.push("><mstyle displaystyle=\"true\">");
                         self.push(&joined);
                         self.push("</mstyle></math>");
                     }
                     Place::Block => {
-                        self.equation_open(label);
+                        self.equation_open(label, src);
                         self.push("<math display=\"block\">");
                         self.push(&joined);
                         self.push("</math>");
@@ -715,9 +739,15 @@ impl Writer<'_, '_> {
             Target::Latex => {
                 let joined = bodies.join(" ");
                 match place {
-                    Place::Inline => self.escaped(&format!("\\(\\displaystyle {joined}\\)")),
+                    Place::Inline => {
+                        self.push("<span class=\"mazer-math\"");
+                        self.source_attr(src);
+                        self.push(">");
+                        self.escaped(&format!("\\(\\displaystyle {joined}\\)"));
+                        self.push("</span>");
+                    }
                     Place::Block => {
-                        self.equation_open(label);
+                        self.equation_open(label, src);
                         let tag = label.map_or_else(String::new, |l| {
                             format!(" \\tag{{{}}}\\label{{{}}}", l.number, latex_label(&l.anchor))
                         });
@@ -729,13 +759,24 @@ impl Writer<'_, '_> {
         }
     }
 
-    fn equation_open(&mut self, label: Option<&Label>) {
+    /// ` data-mazer-src="..."`, escaped; nothing for an empty `src`.
+    fn source_attr(&mut self, src: &str) {
+        if src.is_empty() {
+            return;
+        }
+        self.push(" data-mazer-src=\"");
+        self.escaped(src);
+        self.push("\"");
+    }
+
+    fn equation_open(&mut self, label: Option<&Label>, src: &str) {
         self.push("<div class=\"mazer-equation\"");
         if let Some(label) = label {
             self.push(" id=\"");
             self.escaped(&label.anchor);
             self.push("\"");
         }
+        self.source_attr(src);
         self.push(">");
     }
 

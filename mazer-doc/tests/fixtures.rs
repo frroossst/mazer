@@ -6,7 +6,8 @@
 //! directory is missing the first test passes without doing anything. The
 //! second test reads `examples/*.md`, which are always present.
 //!
-//! A clean page has no diagnostics of any severity, no element with class
+//! A clean page has no diagnostics of any severity, one non-empty
+//! `data-mazer-src` attribute per `<math` element, no element with class
 //! `mazer-error`, and at least one `<math` element per `(show` form outside
 //! code. Failure messages carry codes, counts and byte offsets only, never
 //! the text of a note. With `MAZER_DOC_DUMP=<dir>` each page is also written
@@ -106,6 +107,14 @@ fn problems(name: &str, text: &str, dump: Option<&Path>) -> Vec<String> {
             found.push(format!("{name}: page contains an element with class mazer-error"));
         }
         let math = out.html.matches("<math").count();
+        // Every rendered equation carries its source, and none is empty.
+        let sources = out.html.matches("data-mazer-src=").count();
+        if sources != math {
+            found.push(format!("{name}: {sources} data-mazer-src attributes for {math} <math> elements"));
+        }
+        if out.html.contains("data-mazer-src=\"\"") {
+            found.push(format!("{name}: empty data-mazer-src"));
+        }
         let shows = count_shows(text);
         if math < shows {
             found.push(format!("{name}: {math} <math> elements for {shows} `(show` forms"));
