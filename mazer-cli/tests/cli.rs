@@ -191,6 +191,26 @@ fn fragment_has_no_search_script() {
 }
 
 #[test]
+fn full_page_without_equations_has_no_search_script() {
+    let d = Dir::new();
+    // Prose, code and an error box, but no rendered equation.
+    let note = "# Title\n\nJust text, `(show x)` in code, data-mazer-src=\"x\".\n\n```\n(show (frac 1 2))\n```\n\n(show )\n";
+    let input = d.write("note.zr", note);
+    let o = mazer(&[&input, Path::new("-o"), Path::new("-")]);
+    let html = out(&o);
+    assert!(html.starts_with("<!DOCTYPE html>"), "{html}");
+    assert!(html.contains("mazer-error"), "{html}");
+    assert!(!html.contains("__mazerSearch"), "{html}");
+    assert!(!html.contains("<script>"), "only the highlighter's script: {html}");
+    assert!(html.ends_with("</body></html>"), "{html}");
+    // One equation is enough.
+    let input = d.write("one.zr", "Just (show x).\n");
+    let o = mazer(&[&input, Path::new("-o"), Path::new("-")]);
+    assert_eq!(code(&o), 0, "{}", err(&o));
+    assert_has_search(&out(&o));
+}
+
+#[test]
 fn search_script_is_inlinable() {
     assert!(!SEARCH.to_ascii_lowercase().contains("</script"));
     assert!(std::str::from_utf8(include_bytes!("../../assets/mazer-search.js")).is_ok());
