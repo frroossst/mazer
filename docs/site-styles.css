@@ -11,6 +11,10 @@
      bullets and indent, and a nested checklist still works.
    Not tested in a browser; check a checklist with a nested bullet list, and a
    block error box, after appending.
+   NEW since the copy on the site: the `.mazer-search-hit .mazer-eqno` line
+   below (next to the `:target` one), so the number's Canvas background does
+   not paint over the search highlight of a numbered equation. Add just that
+   line to the site's copy.
    Markup produced by mazer:
      <div class="mazer-equation"><math display="block">..</math></div>
      <div class="mazer-equation" id="eq-x"><math display="block">..</math><span class="mazer-eqno">(1)</span></div>
@@ -50,6 +54,7 @@
     border-radius: 4px;
 }
 .note .mazer-equation:target .mazer-eqno { background: transparent; }
+.note .mazer-equation.mazer-search-hit .mazer-eqno { background: transparent; }
 
 /* Reference: inherits the site's link look, never wraps inside "(1)". */
 .note a.mazer-ref { white-space: nowrap; }
