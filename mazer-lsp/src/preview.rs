@@ -3,7 +3,9 @@
 //!
 //! - `GET /doc/<id>` is the note rendered as a full page, with a few lines
 //!   of JavaScript that poll `GET /doc/<id>/version` and reload the page when
-//!   the note changes (keeping the scroll position).
+//!   the note changes (keeping the scroll position), and the equation search
+//!   box (`assets/mazer-search.js`, Ctrl+K or `/`), as in the CLI's pages.
+//!   A reload while the search box is open closes it.
 //! - `GET /` lists the notes being previewed.
 //! - Anything else is a 404; a malformed request a 400; a request whose
 //!   `Host` is not this loopback address a 403 (so a web page cannot reach
@@ -341,10 +343,14 @@ fn index(shared: &Shared) -> String {
     body
 }
 
-/// The page with the reload script inserted before `</body>` (or appended).
+/// The equation search box, the same file the CLI puts into its pages.
+const SEARCH_JS: &str = include_str!("../../assets/mazer-search.js");
+
+/// The page with the search and reload scripts inserted before `</body>`
+/// (or appended).
 fn with_reload(html: &str, id: u32, version: u64) -> String {
     let script = format!(
-        "<script>(function(){{\
+        "<script>{SEARCH_JS}</script><script>(function(){{\
 var v='{version}',k='mazer-scroll-{id}';\
 try{{var y=sessionStorage.getItem(k);if(y!==null){{sessionStorage.removeItem(k);addEventListener('load',function(){{scrollTo(0,+y)}});}}}}catch(e){{}}\
 function poll(){{fetch('/doc/{id}/version',{{cache:'no-store'}}).then(function(r){{return r.ok?r.text():v}}).then(function(t){{\
@@ -395,6 +401,12 @@ mod tests {
         assert!(page.starts_with("HTTP/1.1 200 OK"), "{page}");
         assert!(page.contains("<math>x</math><script>"), "{page}");
         assert!(page.contains("var v='1'"));
+        // The search box, once, before the end of the body.
+        assert_eq!(page.matches(SEARCH_JS).count(), 1);
+        let search = page.find(SEARCH_JS).unwrap();
+        assert!(search < page.rfind("</body>").unwrap());
+        assert_eq!(page.matches("<script>").count(), page.matches("</script>").count());
+        assert!(!SEARCH_JS.to_ascii_lowercase().contains("</script"));
         let version = get(addr, b"GET /doc/1/version HTTP/1.1\r\n\r\n");
         assert!(version.ends_with("\r\n\r\n1"), "{version}");
         preview.update(1, "note", "<html><body>y</body></html>".to_owned());
