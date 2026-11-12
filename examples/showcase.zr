@@ -122,7 +122,7 @@ Three properties do most of the work:
 
 The bar is the complex conjugate, so the transform of a real signal takes conjugate values at conjugate points. For the derivatives of a product, such as a smooth function times a delta, the Leibniz rule is the tool. The comments inside this form explain its parts, and none of them reach the page:
 
-(show (= (derivative (paren (jux f g)) t n)   ; n-th derivative of a product
+(show (= (derivative (jux f g) t n)   ; n-th derivative of a product
          (sum (jux (binom n k)        ; how many ways to pick k factors
                    (derivative f t k)
                    (derivative g t (- n k)))

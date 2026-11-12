@@ -359,6 +359,7 @@ const OUTPUTS: &[(&str, &str)] = &[
     ("(lim x 0)", "\\lim_{x \\to 0}"),
     ("(derivative (sin x) x)", "\\frac{\\mathrm{d}}{\\mathrm{d}x} \\sin\\left(x\\right)"),
     ("(deriv f t 2)", "\\frac{\\mathrm{d}^{2}}{\\mathrm{d}t^{2}} f"),
+    ("(derivative (jux f g) t)", "\\frac{\\mathrm{d}}{\\mathrm{d}t} \\left(f \\, g\\right)"),
     ("(partial f x)", "\\frac{\\partial}{\\partial x} f"),
     ("(dd y x)", "\\frac{\\mathrm{d}y}{\\mathrm{d}x}"),
     ("(dd x t 2)", "\\frac{\\mathrm{d}^{2}x}{\\mathrm{d}t^{2}}"),

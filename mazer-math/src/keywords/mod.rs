@@ -166,7 +166,7 @@
 //! | big operator, limits under/over: `sum`, `prod` | `BigOp` | copy `sum`: `out.row(\|o\| { o.under_over(..) or o.under(..); o.operand(body, Prec::BigOp); })` |
 //! | big operator, scripts: `integral` | `BigOp` | the `integral` exemplar |
 //! | `limit` | `BigOp` | `out.row(\|o\| { o.under(\|o\| o.mi("lim"), \|o\| o.row(..var → to..)); o.operand(body, Prec::BigOp); })` |
-//! | derivative operator: `derivative`, `partial` | `BigOp` | `out.row(\|o\| { o.tag("mfrac", ..d.. / ..dx..); o.operand(body, Prec::BigOp); })` |
+//! | derivative operator: `derivative`, `partial` | `BigOp` | `out.row(\|o\| { o.tag("mfrac", ..d.. / ..dx..); o.operand(body, Prec::Fraction); })`. The body is wrapped unless it is a fraction or tighter, because nothing closes a derivative: `d/dt (f g)` |
 //! | fraction: `frac`, `/`, `dd` | `Fraction` | `out.frac(num, den)` (or `out.tag("mfrac", ..)` for built-up parts) |
 //! | power: `^`, `superscript`, `exp` | `Power` | `out.sup(base, script)` (base parenthesised unless an atom) |
 //! | subscript | `Atom` | `out.sub(base, script)` |

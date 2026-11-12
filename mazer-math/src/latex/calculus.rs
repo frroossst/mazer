@@ -167,7 +167,8 @@ fn operator_fraction(call: &Call<'_>, out: &mut Latex<'_>, partial: bool) {
     out.group(|o| mark(o, partial, order));
     out.group(|o| denominator(o, partial, order, var));
     out.space();
-    out.operand(body, Prec::BigOp);
+    // Same rule as the MathML emitter: no closing mark, so wrap a product.
+    out.operand(body, Prec::Fraction);
 }
 
 /// `dy/dx`: the quantity is inside the numerator.
@@ -177,7 +178,7 @@ fn dd(call: &Call<'_>, out: &mut Latex<'_>) {
     out.raw("\\frac");
     out.group(|o| {
         mark(o, false, order);
-        o.operand(y, Prec::Multiplicative);
+        o.operand(y, Prec::Fraction);
     });
     out.group(|o| denominator(o, false, order, var));
 }

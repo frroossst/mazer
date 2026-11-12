@@ -352,6 +352,11 @@ fn denominator(out: &mut MathMl<'_>, partial: bool, order: Option<&Node>, var: &
 }
 
 /// `d/dx body` (or `∂/∂x`): the operator as a fraction, then the body.
+///
+/// Unlike an integral, a derivative has no closing mark (no `dx` after the
+/// body), so `d/dt f g` could be read as `(d/dt f) g`. The body is therefore
+/// parenthesised unless it is a fraction or tighter: a product, a sum, a
+/// signed term and another big operator are all wrapped, `d/dt (f g)`.
 fn operator_fraction(call: &Call<'_>, out: &mut MathMl<'_>, partial: bool) {
     let (body, var) = (call.req(0), call.req(1));
     let order = call.opt(2);
@@ -360,7 +365,7 @@ fn operator_fraction(call: &Call<'_>, out: &mut MathMl<'_>, partial: bool) {
             mark(o, partial, order);
             denominator(o, partial, order, var);
         });
-        o.operand(body, Prec::BigOp);
+        o.operand(body, Prec::Fraction);
     });
 }
 
@@ -373,13 +378,17 @@ fn partial(call: &Call<'_>, out: &mut MathMl<'_>) {
 }
 
 /// `dy/dx`: the quantity is inside the numerator.
+///
+/// It follows the `d` directly, so a product there would read as `d` times
+/// each factor (`d f g`): anything looser than a fraction is parenthesised,
+/// `d(f g)/dt`.
 fn dd(call: &Call<'_>, out: &mut MathMl<'_>) {
     let (y, var) = (call.req(0), call.req(1));
     let order = call.opt(2);
     out.tag("mfrac", |o| {
         o.row(|o| {
             mark(o, false, order);
-            o.operand(y, Prec::Multiplicative);
+            o.operand(y, Prec::Fraction);
         });
         denominator(o, false, order, var);
     });
@@ -604,6 +613,17 @@ mod tests {
             "<mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>x</mi></mrow></mfrac>\
              <mfrac><mn>1</mn><mi>x</mi></mfrac></mrow>"
         );
+        // Nothing closes a derivative, so a product is parenthesised too
+        // (`d/dt f g` could be `(d/dt f) g`), as are another big operator and
+        // a signed term. A power and a function call stay bare.
+        assert_eq!(visible("(derivative (jux f g) t)"), "ddt(f g)");
+        assert_eq!(visible("(derivative (* f g) t)"), "ddt(f×g)");
+        assert_eq!(visible("(deriv (jux f g) t n)"), "dndtn(f g)");
+        assert_eq!(visible("(derivative (derivative f t) t)"), "ddt(ddtf)");
+        assert_eq!(visible("(derivative (integral f x) t)"), "ddt(∫f dx)");
+        assert_eq!(visible("(derivative (^ x 2) t)"), "ddtx2");
+        assert_eq!(visible("(derivative (f t) t)"), "ddtf(t)");
+        assert_eq!(visible("(derivative (paren (jux f g)) t)"), "ddt(f g)");
         // A compound variable gets parentheses, also under the order (and a
         // warning: it is not a name).
         let (text, diags) = visible_with_diags("(derivative f (+ a b) 2)");
@@ -621,6 +641,9 @@ mod tests {
         );
         assert_eq!(visible("(partial (sin x) t)"), "∂∂tsin(x)");
         assert_eq!(visible("(partial (+ a b) t)"), "∂∂t(a+b)");
+        // A product is parenthesised, as for `derivative`.
+        assert_eq!(visible("(partial (jux f g) x)"), "∂∂x(f g)");
+        assert_eq!(visible("(partial (^ u 2) x)"), "∂∂xu2");
         // The bare keyword is the sign.
         assert_eq!(mathml("partial"), "<mo>∂</mo>");
         let (_, diags) = render("(partial f)");
@@ -638,6 +661,11 @@ mod tests {
             "<mfrac><mrow><msup><mi>d</mi><mn>2</mn></msup><mi>x</mi></mrow>\
              <mrow><mi>d</mi><msup><mi>t</mi><mn>2</mn></msup></mrow></mfrac>"
         );
+        // A product in the numerator is parenthesised, since it follows the
+        // `d` directly: d(f g)/dt, not d f g/dt. A power stays bare.
+        assert_eq!(visible("(dd (jux f g) t)"), "d(f g)dt");
+        assert_eq!(visible("(dd (* f g) t)"), "d(f×g)dt");
+        assert_eq!(visible("(dd (^ x 2) t)"), "dx2dt");
         // A sum in the numerator is parenthesised: d(a + b)/dt.
         assert_eq!(visible("(dd (+ a b) t)"), "d(a+b)dt");
         // Nested fractions.
