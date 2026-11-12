@@ -1,0 +1,609 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>showcase</title><link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2232%22 font-size=%2232%22>🍁</text></svg>"><script src="https://cdn.jsdelivr.net/npm/@arborium/arborium/dist/arborium.iife.js" data-theme="github-light" data-selector="pre code"></script><style>.mazer-equation{display:flex;justify-content:center;align-items:center;position:relative;margin:1em 0}.mazer-eqno{position:absolute;right:0}.mazer-ref{text-decoration:none}.mazer-checklist{list-style:none;padding-left:0}.mazer-error{color:#b00020;background:#fff0f0;border-radius:4px;white-space:pre-wrap;padding:0 0.2em}pre.mazer-error{padding:0.5em}</style></head><body><div id="mazer-meta" style="display:none" data-source-path="examples/showcase.zr" data-version="0.16.0"></div><h1>The Dirac delta and the Laplace transform</h1><p>These are my working notes on impulses and how the Laplace transform treats them. 🤔<br/>The aim is a damped oscillator hit by a hammer, and the answer is boxed as equation <a class="mazer-ref" href="#eq-result">(7)</a> at the end.<br/>I wrote the notes in mazer, so every formula below is source that the page was built from.</p><p>Two spaces at the end of this line make a hard break.<br/>This line follows it. A single backslash does the same here.<br/>And this one follows that.</p><p>The <strong>delta is not a function</strong>, it is a <u>distribution</u>, so <em>what it does</em> matters more than what it is, and <s>calling it a spike of infinite height</s> is only a picture. Math sits inside styles too: <strong>the pulse of width <math display="inline" data-mazer-src="w"><mstyle displaystyle="true"><mi>w</mi></mstyle></math> has area <math display="inline" data-mazer-src="1"><mstyle displaystyle="true"><mn>1</mn></mstyle></math></strong>, and the <a href="https://en.wikipedia.org/wiki/Dirac_delta_function" target="_blank" rel="noopener noreferrer"><strong>Dirac delta</strong> article</a> has the history. Why does the transform of a unit pulse tend to one? <span style="background:#2f3136;color:transparent;border-radius:3px;padding:0 4px;cursor:pointer" onmouseover="this.style.color='#dcddde'" onmouseout="this.style.color='transparent'">Because the exponential is close to one while the pulse lasts.</span></p><h2>Notation used below</h2><p>Definitions apply to the whole note, including the text above them, so I define a few names up front and picked ones that are not used for anything else. <code>Rline</code> and <code>Cline</code> are aliases, <code>lap</code> is a macro with a doc string, <code>pulses</code> collects any number of arguments, and <code>linear</code> is a macro that calls <code>lap</code>. Definitions render nothing.</p><pre><code class="language-scheme">(macro (lap f s)
+    &quot;The Laplace transform of f, evaluated at s.&quot;
+    (jux (cal L) (brace f) (paren s)))
+</code></pre><p>A prose parenthesis stays prose (like this one, even with f(t) = 0 for t &lt; 0 inside it). Only a parenthesis that opens with <code>show</code>, <code>eval</code>, <code>let</code>, <code>alias</code>, <code>macro</code> or <code>ref</code> is code. To start a sentence in parentheses with one of those words, put a backslash in front: (show that the integral converges) is prose because of the <code>\</code>.</p><h2>The sifting property</h2><p>The delta is defined by what it does under an integral. For any smooth <math display="inline" data-mazer-src="(f t)"><mstyle displaystyle="true"><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mstyle></math>,</p><div class="mazer-equation" id="eq-sifting" data-mazer-src="(= (integral (jux (f t) (delta t)) t (- infinity) infinity) (f 0))"><math display="block"><mrow><mrow><msubsup><mo>∫</mo><mrow><mo>−</mo><mi>∞</mi></mrow><mi>∞</mi></msubsup><mrow><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow><mo>=</mo><mrow><mi>f</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow></math><span class="mazer-eqno">(1)</span></div><p>and shifting the spike to <math display="inline" data-mazer-src="a"><mstyle displaystyle="true"><mi>a</mi></mstyle></math> picks out <math display="inline" data-mazer-src="(f a)"><mstyle displaystyle="true"><mrow><mi>f</mi><mrow><mo>(</mo><mi>a</mi><mo>)</mo></mrow></mrow></mstyle></math> instead. The next section turns this into a transform, and <a class="mazer-ref" href="#eq-lapdelta">(3)</a> is the one-line consequence. The sketch below is from <code>./figure.png</code>, a placeholder path that does not exist in the repository.</p><p><img alt="Pulses of height 1/w and width w shrinking toward the origin" src="./figure.png"/></p><p>One way to see the delta is as the limit of rectangular pulses of unit area:</p><div class="mazer-equation" data-mazer-src="(= (funcapp (subscript p w) t) (cases ((frac 1 w) (&lt;= 0 t w)) (0 &quot;otherwise&quot;)))"><math display="block"><mrow><mrow><msub><mi>p</mi><mi>w</mi></msub><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left left" columnspacing="1em" rowspacing="0.4em"><mtr><mtd><mfrac><mn>1</mn><mi>w</mi></mfrac></mtd><mtd><mrow><mn>0</mn><mo>≤</mo><mi>t</mi><mo>≤</mo><mi>w</mi></mrow></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow></math></div><p>Each pulse has area one, because its height is the reciprocal of its width:</p><div class="mazer-equation" data-mazer-src="(= (integral (funcapp (subscript p w) t) t 0 w) (integral (frac 1 w) t 0 w) 1)"><math display="block"><mrow><mrow><msubsup><mo>∫</mo><mn>0</mn><mi>w</mi></msubsup><mrow><msub><mi>p</mi><mi>w</mi></msub><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow><mo>=</mo><mrow><msubsup><mo>∫</mo><mn>0</mn><mi>w</mi></msubsup><mfrac><mn>1</mn><mi>w</mi></mfrac><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow><mo>=</mo><mn>1</mn></mrow></math></div><p>and the delta is what is left when the width is sent to zero from above:</p><div class="mazer-equation" data-mazer-src="(= (delta t) (limit w 0 (funcapp (subscript p w) t) +))"><math display="block"><mrow><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><munder><mi>lim</mi><mrow><mi>w</mi><mo>→</mo><msup><mn>0</mn><mo>+</mo></msup></mrow></munder><mrow><msub><mi>p</mi><mi>w</mi></msub><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow></mrow></math></div><p>The pulse lives on the interval <math display="inline" data-mazer-src="(in t (bracket (jux 0 &quot;,&quot; w)))"><mstyle displaystyle="true"><mrow><mi>t</mi><mo>∈</mo><mrow><mo>[</mo><mrow><mn>0</mn><mspace width="0.167em"/><mtext>,</mtext><mspace width="0.167em"/><mi>w</mi></mrow><mo>]</mo></mrow></mrow></mstyle></math>, and its transform is easy to write down:</p><div class="mazer-equation" data-mazer-src="(= (lap (funcapp (subscript p w) t) s) (frac (- 1 (exp (- (jux w s)))) (jux w s)))"><math display="block"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mrow><msub><mi>p</mi><mi>w</mi></msub><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mfrac><mrow><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>w</mi><mspace width="0.167em"/><mi>s</mi></mrow></mrow></msup></mrow><mrow><mi>w</mi><mspace width="0.167em"/><mi>s</mi></mrow></mfrac></mrow></math></div><p>When <math display="inline" data-mazer-src="(jux w s)"><mstyle displaystyle="true"><mrow><mi>w</mi><mspace width="0.167em"/><mi>s</mi></mrow></mstyle></math> is small this is close to one, which is the transform of the delta: <math display="inline" data-mazer-src="(approx (frac (- 1 (exp (- (jux w s)))) (jux w s)) 1)"><mstyle displaystyle="true"><mrow><mfrac><mrow><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>w</mi><mspace width="0.167em"/><mi>s</mi></mrow></mrow></msup></mrow><mrow><mi>w</mi><mspace width="0.167em"/><mi>s</mi></mrow></mfrac><mo>≈</mo><mn>1</mn></mrow></mstyle></math>.</p><p>A narrow pulse needs a wide spectrum. With energy and angular frequency tied by <math display="inline" data-mazer-src="(= E (jux hbar omega))"><mstyle displaystyle="true"><mrow><mi>E</mi><mo>=</mo><mrow><mi>ℏ</mi><mspace width="0.167em"/><mi>ω</mi></mrow></mrow></mstyle></math>, the pulse duration and the spread of energies obey</p><div class="mazer-equation" data-mazer-src="(&gt;= (jux Delta E Delta t) (frac hbar 2))"><math display="block"><mrow><mrow><mi>Δ</mi><mspace width="0.167em"/><mi>E</mi><mspace width="0.167em"/><mi>Δ</mi><mspace width="0.167em"/><mi>t</mi></mrow><mo>≥</mo><mfrac><mi>ℏ</mi><mn>2</mn></mfrac></mrow></math></div><p>and the same rule in plain signal terms is <math display="inline" data-mazer-src="(&gt;= (jux Delta t Delta omega) (frac 1 2))"><mstyle displaystyle="true"><mrow><mrow><mi>Δ</mi><mspace width="0.167em"/><mi>t</mi><mspace width="0.167em"/><mi>Δ</mi><mspace width="0.167em"/><mi>ω</mi></mrow><mo>≥</mo><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow></mstyle></math>. The period of a wave is <math display="inline" data-mazer-src="(= T (frac (jux 2 π) ω))"><mstyle displaystyle="true"><mrow><mi>T</mi><mo>=</mo><mfrac><mrow><mn>2</mn><mspace width="0.167em"/><mi>π</mi></mrow><mi>ω</mi></mfrac></mrow></mstyle></math>, typed here with the characters π and ω instead of the names <code>pi</code> and <code>omega</code>. They look the same, but they are different variables to the tool.</p><h3>Unit step: <math display="inline" data-mazer-src="(funcapp H t)"><mstyle displaystyle="true"><mrow><mi>H</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mstyle></math></h3><p>The antiderivative of the delta is the unit step:</p><div class="mazer-equation" data-mazer-src="(= (funcapp H t) (cases (1 (&gt;= t 0)) (0 (&lt; t 0))))"><math display="block"><mrow><mrow><mi>H</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mo>{</mo><mtable columnalign="left left" columnspacing="1em" rowspacing="0.4em"><mtr><mtd><mn>1</mn></mtd><mtd><mrow><mi>t</mi><mo>≥</mo><mn>0</mn></mrow></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mrow><mi>t</mi><mo>&lt;</mo><mn>0</mn></mrow></mtd></mtr></mtable></mrow></mrow></math></div><p>Written as a derivative, it says <math display="inline" data-mazer-src="(= (derivative (funcapp H t) t) (delta t))"><mstyle displaystyle="true"><mrow><mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>t</mi></mrow></mfrac><mrow><mi>H</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow><mo>=</mo><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow></mstyle></math>, or in Leibniz form <math display="inline" data-mazer-src="(= (dd H t) (delta t))"><mstyle displaystyle="true"><mrow><mfrac><mrow><mi>d</mi><mi>H</mi></mrow><mrow><mi>d</mi><mi>t</mi></mrow></mfrac><mo>=</mo><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow></mstyle></math>, or with a prime <math display="inline" data-mazer-src="(= (prime H) delta)"><mstyle displaystyle="true"><mrow><msup><mi>H</mi><mo>′</mo></msup><mo>=</mo><mi>δ</mi></mrow></mstyle></math>. The step is not continuous at the origin, so the one-sided limit matters: <math display="inline" data-mazer-src="(= (lim t 0 (funcapp H t) +) 1)"><mstyle displaystyle="true"><mrow><mrow><munder><mi>lim</mi><mrow><mi>t</mi><mo>→</mo><msup><mn>0</mn><mo>+</mo></msup></mrow></munder><mrow><mi>H</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow><mo>=</mo><mn>1</mn></mrow></mstyle></math>.</p><blockquote><p><strong>Remark.</strong> The step needs a convention at zero.</p><ul><li>Some books put <math display="inline" data-mazer-src="(= (funcapp H 0) 0)"><mstyle displaystyle="true"><mrow><mrow><mi>H</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow><mo>=</mo><mn>0</mn></mrow></mstyle></math>.</li><li>Others put <math display="inline" data-mazer-src="(= (funcapp H 0) (frac 1 2))"><mstyle displaystyle="true"><mrow><mrow><mi>H</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow><mo>=</mo><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow></mstyle></math>.</li></ul><p>The transform does not care, because a single point has no integral.</p><pre><code class="language-python">def H(t):
+    return 1.0 if t &gt;= 0 else 0.0
+</code></pre></blockquote><h2>The Laplace transform</h2><p>The transform sends a signal to a function of a complex frequency <math display="inline" data-mazer-src="s"><mstyle displaystyle="true"><mi>s</mi></mstyle></math>:</p><div class="mazer-equation" id="eq-lapdef" data-mazer-src="(= (lap f s) (integral (jux (f t) (exp (- (jux s t)))) t (superscript 0 -) infinity))"><math display="block"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><msubsup><mo>∫</mo><msup><mn>0</mn><mo>−</mo></msup><mi>∞</mi></msubsup><mrow><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>s</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow></mrow></math><span class="mazer-eqno">(2)</span></div><p>The lower limit is <math display="inline" data-mazer-src="(superscript 0 -)"><mstyle displaystyle="true"><msup><mn>0</mn><mo>−</mo></msup></mstyle></math> so that a delta sitting at the origin is counted fully. With that, the sifting property gives the first entry of the table directly:</p><div class="mazer-equation" id="eq-lapdelta" data-mazer-src="(= (lap (delta t) s) (integral (jux (delta t) (exp (- (jux s t)))) t (superscript 0 -) infinity) (evalat (exp (- (jux s t))) t 0) 1)"><math display="block"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><msubsup><mo>∫</mo><msup><mn>0</mn><mo>−</mo></msup><mi>∞</mi></msubsup><mrow><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>s</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow><mo>=</mo><msub><mrow><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>s</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup><mo>|</mo></mrow><mrow><mi>t</mi><mo>=</mo><mn>0</mn></mrow></msub><mo>=</mo><mn>1</mn></mrow></math><span class="mazer-eqno">(3)</span></div><p>The transform of the delta has no poles at all, <math display="inline" data-mazer-src="(= (Pol 1) emptyset)"><mstyle displaystyle="true"><mrow><mrow><mi>Pol</mi><mrow><mo>(</mo><mn>1</mn><mo>)</mo></mrow></mrow><mo>=</mo><mi>∅</mi></mrow></mstyle></math>. The transform itself is a map, <math display="inline" data-mazer-src="(jux (cal L) &quot;:&quot; (cal E) to (cal F))"><mstyle displaystyle="true"><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mtext>:</mtext><mspace width="0.167em"/><mstyle mathvariant="script"><mi>ℰ</mi></mstyle><mspace width="0.167em"/><mo>→</mo><mspace width="0.167em"/><mstyle mathvariant="script"><mi>ℱ</mi></mstyle></mrow></mstyle></math>, and a signal goes to its transform by <math display="inline" data-mazer-src="(jux f mapsto (lap f s))"><mstyle displaystyle="true"><mrow><mi>f</mi><mspace width="0.167em"/><mo>↦</mo><mspace width="0.167em"/><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow></mstyle></math>.</p><div class="mazer-equation" data-mazer-src="(table (style clean) (align center left) (header (f t) (F s)) (row (delta t) 1) (row (funcapp H t) (frac 1 s)) (row (^ t n) (frac (fact n) (^ s (+ n 1)))) (row (exp (- (jux a t))) (frac 1 (+ s a))) (row (sin (jux omega t)) (frac omega (+ (^ s 2) (^ omega 2)))) (row (cos (jux omega t)) (frac s (+ (^ s 2) (^ omega 2)))))"><math display="block"><mtable columnspacing="1em" rowspacing="0.5em" columnalign="center left" frame="solid" columnlines="none" rowlines="solid none"><mtr><mtd><mstyle mathvariant="bold"><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mstyle></mtd><mtd><mstyle mathvariant="bold"><mrow><mi>F</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mstyle></mtd></mtr><mtr><mtd><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mrow><mi>H</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mtd><mtd><mfrac><mn>1</mn><mi>s</mi></mfrac></mtd></mtr><mtr><mtd><msup><mi>t</mi><mi>n</mi></msup></mtd><mtd><mfrac><mrow><mi>n</mi><mo>!</mo></mrow><msup><mi>s</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msup></mfrac></mtd></mtr><mtr><mtd><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>a</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup></mtd><mtd><mfrac><mn>1</mn><mrow><mi>s</mi><mo>+</mo><mi>a</mi></mrow></mfrac></mtd></mtr><mtr><mtd><mrow><mi>sin</mi><mrow><mo>(</mo><mrow><mi>ω</mi><mspace width="0.167em"/><mi>t</mi></mrow><mo>)</mo></mrow></mrow></mtd><mtd><mfrac><mi>ω</mi><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>+</mo><msup><mi>ω</mi><mn>2</mn></msup></mrow></mfrac></mtd></mtr><mtr><mtd><mrow><mi>cos</mi><mrow><mo>(</mo><mrow><mi>ω</mi><mspace width="0.167em"/><mi>t</mi></mrow><mo>)</mo></mrow></mrow></mtd><mtd><mfrac><mi>s</mi><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>+</mo><msup><mi>ω</mi><mn>2</mn></msup></mrow></mfrac></mtd></mtr></mtable></math></div><p>Three properties do most of the work:</p><ol><li>Linearity, which the macro <code>linear</code> states: <math display="inline" data-mazer-src="(linear f g s)"><mstyle displaystyle="true"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mrow><mi>f</mi><mo>+</mo><mi>g</mi></mrow><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>g</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>.</li><li>Differentiation in time.<ul><li>First order: <math display="inline" data-mazer-src="(= (lap (prime f) s) (- (jux s (lap f s)) (f 0)))"><mstyle displaystyle="true"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><msup><mi>f</mi><mo>′</mo></msup><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mi>s</mi><mspace width="0.167em"/><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow><mo>−</mo><mrow><mi>f</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>.</li><li>Second order: <math display="inline" data-mazer-src="(= (lap (prime f 2) s) (- (jux (^ s 2) (lap f s)) (jux s (f 0)) (funcapp (prime f) 0)))"><mstyle displaystyle="true"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><msup><mi>f</mi><mo>′′</mo></msup><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><msup><mi>s</mi><mn>2</mn></msup><mspace width="0.167em"/><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow><mo>−</mo><mrow><mi>s</mi><mspace width="0.167em"/><mrow><mi>f</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow><mo>−</mo><mrow><msup><mi>f</mi><mo>′</mo></msup><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>.</li></ul></li><li>Reality: for real <math display="inline" data-mazer-src="f"><mstyle displaystyle="true"><mi>f</mi></mstyle></math>, <math display="inline" data-mazer-src="(= (F (bar s)) (bar (F s)))"><mstyle displaystyle="true"><mrow><mrow><mi>F</mi><mrow><mo>(</mo><mover><mi>s</mi><mo>¯</mo></mover><mo>)</mo></mrow></mrow><mo>=</mo><mover><mrow><mi>F</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>¯</mo></mover></mrow></mstyle></math>.</li></ol><p>The bar is the complex conjugate, so the transform of a real signal takes conjugate values at conjugate points. For the derivatives of a product, such as a smooth function times a delta, the Leibniz rule is the tool. The comments inside this form explain its parts, and none of them reach the page:</p><div class="mazer-equation" data-mazer-src="(= (derivative (paren (jux f g)) t n) (sum (jux (binom n k) (derivative f t k) (derivative g t (- n k))) k 0 n))"><math display="block"><mrow><mrow><mfrac><msup><mi>d</mi><mi>n</mi></msup><mrow><mi>d</mi><msup><mi>t</mi><mi>n</mi></msup></mrow></mfrac><mrow><mo>(</mo><mrow><mi>f</mi><mspace width="0.167em"/><mi>g</mi></mrow><mo>)</mo></mrow></mrow><mo>=</mo><mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mi>n</mi></munderover><mrow><mrow><mo>(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo>)</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mrow><mfrac><msup><mi>d</mi><mi>k</mi></msup><mrow><mi>d</mi><msup><mi>t</mi><mi>k</mi></msup></mrow></mfrac><mi>f</mi></mrow><mo>)</mo></mrow><mspace width="0.167em"/><mrow><mfrac><msup><mi>d</mi><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup><mrow><mi>d</mi><msup><mi>t</mi><mrow><mi>n</mi><mo>−</mo><mi>k</mi></mrow></msup></mrow></mfrac><mi>g</mi></mrow></mrow></mrow></mrow></math></div><p>Integrating by parts once puts the derivative of the delta onto the test function:</p><div class="mazer-equation" id="eq-dprime" data-mazer-src="(= (integral (jux (f t) (derivative (delta t) t)) t (- infinity) infinity) (- (funcapp (prime f) 0)))"><math display="block"><mrow><mrow><msubsup><mo>∫</mo><mrow><mo>−</mo><mi>∞</mi></mrow><mi>∞</mi></msubsup><mrow><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>t</mi></mrow></mfrac><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mi>t</mi></mrow></mrow><mo>=</mo><mrow><mo>−</mo><mrow><msup><mi>f</mi><mo>′</mo></msup><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow></mrow></math><span class="mazer-eqno">(4)</span></div><p>Each time a decaying exponential is differentiated it brings down a factor of <math display="inline" data-mazer-src="(- a)"><mstyle displaystyle="true"><mrow><mo>−</mo><mi>a</mi></mrow></mstyle></math>, so the second derivative is <math display="inline" data-mazer-src="(= (derivative (exp (- (jux a t))) t 2) (jux (^ (- a) 2) (exp (- (jux a t)))))"><mstyle displaystyle="true"><mrow><mrow><mfrac><msup><mi>d</mi><mn>2</mn></msup><mrow><mi>d</mi><msup><mi>t</mi><mn>2</mn></msup></mrow></mfrac><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>a</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup></mrow><mo>=</mo><mrow><msup><mrow><mo>(</mo><mrow><mo>−</mo><mi>a</mi></mrow><mo>)</mo></mrow><mn>2</mn></msup><mspace width="0.167em"/><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>a</mi><mspace width="0.167em"/><mi>t</mi></mrow></mrow></msup></mrow></mrow></mstyle></math>. The parentheses around the <math display="inline" data-mazer-src="(- a)"><mstyle displaystyle="true"><mrow><mo>−</mo><mi>a</mi></mrow></mstyle></math> were not written in the source: the renderer adds them to a negative base. The decay rate gives a time constant, <math display="inline" data-mazer-src="(= tau (/ 1 a))"><mstyle displaystyle="true"><mrow><mi>τ</mi><mo>=</mo><mfrac><mn>1</mn><mi>a</mi></mfrac></mrow></mstyle></math>.</p><h3>Pulse trains</h3><p>A train of deltas spaced by <math display="inline" data-mazer-src="T"><mstyle displaystyle="true"><mi>T</mi></mstyle></math> transforms to a geometric series:</p><div class="mazer-equation" id="eq-comb" data-mazer-src="(= (lap (sum (delta (- t (jux k T))) k 0 infinity) s) (sum (exp (- (jux k T s))) k 0 infinity) (frac 1 (- 1 (exp (- (jux T s))))))"><math display="block"><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mi>∞</mi></munderover><mrow><mi>δ</mi><mrow><mo>(</mo><mrow><mi>t</mi><mo>−</mo><mrow><mi>k</mi><mspace width="0.167em"/><mi>T</mi></mrow></mrow><mo>)</mo></mrow></mrow></mrow><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>0</mn></mrow><mi>∞</mi></munderover><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>k</mi><mspace width="0.167em"/><mi>T</mi><mspace width="0.167em"/><mi>s</mi></mrow></mrow></msup></mrow><mo>=</mo><mfrac><mn>1</mn><mrow><mn>1</mn><mo>−</mo><msup><mi>e</mi><mrow><mo>−</mo><mrow><mi>T</mi><mspace width="0.167em"/><mi>s</mi></mrow></mrow></msup></mrow></mfrac></mrow></math><span class="mazer-eqno">(5)</span></div><p>Its first three pulses are <math display="inline" data-mazer-src="(= (subscript u 3) (pulses (delta t) (delta (- t T)) (delta (- t (* 2 T)))))"><mstyle displaystyle="true"><mrow><msub><mi>u</mi><mn>3</mn></msub><mo>=</mo><mrow><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>δ</mi><mrow><mo>(</mo><mrow><mi>t</mi><mo>−</mo><mi>T</mi></mrow><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mi>δ</mi><mrow><mo>(</mo><mrow><mi>t</mi><mo>−</mo><mrow><mn>2</mn><mo>×</mo><mi>T</mi></mrow></mrow><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>. The number of pulses that have arrived by time <math display="inline" data-mazer-src="t"><mstyle displaystyle="true"><mi>t</mi></mstyle></math> is <math display="inline" data-mazer-src="(add (floor (frac t T)) 1)"><mstyle displaystyle="true"><mrow><mrow><mo>⌊</mo><mfrac><mi>t</mi><mi>T</mi></mfrac><mo>⌋</mo></mrow><mo>+</mo><mn>1</mn></mrow></mstyle></math>, and a sampler that has to resolve a dynamic range <math display="inline" data-mazer-src="(frac (subscript A max) (subscript A min))"><mstyle displaystyle="true"><mfrac><msub><mi>A</mi><mi>max</mi></msub><msub><mi>A</mi><mi>min</mi></msub></mfrac></mstyle></math> needs <math display="inline" data-mazer-src="(ceil (log 2 (frac (subscript A max) (subscript A min))))"><mstyle displaystyle="true"><mrow><mo>⌈</mo><mrow><msub><mi>log</mi><mn>2</mn></msub><mrow><mo>(</mo><mfrac><msub><mi>A</mi><mi>max</mi></msub><msub><mi>A</mi><mi>min</mi></msub></mfrac><mo>)</mo></mrow></mrow><mo>⌉</mo></mrow></mstyle></math> bits.</p><p>A chain of <math display="inline" data-mazer-src="n"><mstyle displaystyle="true"><mi>n</mi></mstyle></math> first-order filters multiplies the factors:</p><div class="mazer-equation" data-mazer-src="(= (funcapp H s) (prod (frac 1 (+ 1 (jux s (subscript tau j)))) j 1 n))"><math display="block"><mrow><mrow><mi>H</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><munderover><mo>∏</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><mfrac><mn>1</mn><mrow><mn>1</mn><mo>+</mo><mrow><mi>s</mi><mspace width="0.167em"/><msub><mi>τ</mi><mi>j</mi></msub></mrow></mrow></mfrac></mrow></mrow></math></div><p>If the stages are identical and the whole chain has a gain of <math display="inline" data-mazer-src="(subscript G total)"><mstyle displaystyle="true"><msub><mi>G</mi><mi>total</mi></msub></mstyle></math> at zero frequency, each stage has the gain <math display="inline" data-mazer-src="(root n (subscript G total))"><mstyle displaystyle="true"><mroot><msub><mi>G</mi><mi>total</mi></msub><mi>n</mi></mroot></mstyle></math>.</p><h2>The damped oscillator</h2><p>A mass on a spring with damping, hit by an impulse of size <math display="inline" data-mazer-src="J"><mstyle displaystyle="true"><mi>J</mi></mstyle></math>, obeys</p><div class="mazer-equation" id="eq-motion" data-mazer-src="(= (+ (jux m (ddot x)) (jux c (dot x)) (jux k x)) (jux J (delta t)))"><math display="block"><mrow><mrow><mrow><mi>m</mi><mspace width="0.167em"/><mover><mi>x</mi><mo>¨</mo></mover></mrow><mo>+</mo><mrow><mi>c</mi><mspace width="0.167em"/><mover><mi>x</mi><mo>˙</mo></mover></mrow><mo>+</mo><mrow><mi>k</mi><mspace width="0.167em"/><mi>x</mi></mrow></mrow><mo>=</mo><mrow><mi>J</mi><mspace width="0.167em"/><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow></mrow></mrow></math><span class="mazer-eqno">(6)</span></div><p>With zero initial conditions, <a class="mazer-ref" href="#eq-lapdef">(2)</a> turns each derivative into a power of <math display="inline" data-mazer-src="s"><mstyle displaystyle="true"><mi>s</mi></mstyle></math>, and with <math display="inline" data-mazer-src="(= m 1)"><mstyle displaystyle="true"><mrow><mi>m</mi><mo>=</mo><mn>1</mn></mrow></mstyle></math> from here on the equation becomes algebra:</p><div class="mazer-equation" data-mazer-src="(= (jux (+ (^ s 2) (jux c s) k) (funcapp X s)) J)"><math display="block"><mrow><mrow><mrow><mo>(</mo><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>+</mo><mrow><mi>c</mi><mspace width="0.167em"/><mi>s</mi></mrow><mo>+</mo><mi>k</mi></mrow><mo>)</mo></mrow><mspace width="0.167em"/><mrow><mi>X</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow><mo>=</mo><mi>J</mi></mrow></math></div><p>The sum in front of <math display="inline" data-mazer-src="(funcapp X s)"><mstyle displaystyle="true"><mrow><mi>X</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mstyle></math> is wrapped in parentheses, and again they were not written: a sum under a product gets them. The roots of that sum are the poles. They depend on</p><div class="mazer-equation" data-mazer-src="(= D (- (^ (frac c 2) 2) k))"><math display="block"><mrow><mi>D</mi><mo>=</mo><mrow><msup><mrow><mo>(</mo><mfrac><mi>c</mi><mn>2</mn></mfrac><mo>)</mo></mrow><mn>2</mn></msup><mo>−</mo><mi>k</mi></mrow></mrow></math></div><p>where the renderer put parentheses around the fraction because it is raised to a power. One pole is at</p><div class="mazer-equation" data-mazer-src="(= s (+ (- (frac c 2)) (sqrt D)))"><math display="block"><mrow><mi>s</mi><mo>=</mo><mrow><mrow><mo>−</mo><mfrac><mi>c</mi><mn>2</mn></mfrac></mrow><mo>+</mo><msqrt><mi>D</mi></msqrt></mrow></mrow></math></div><p>and the other has the opposite sign in front of the root. Together they form a set, <math display="inline" data-mazer-src="(= (Pol H) (set (subscript p 1) (subscript p 2)))"><mstyle displaystyle="true"><mrow><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>H</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mo>{</mo><msub><mi>p</mi><mn>1</mn></msub><mo>,</mo><msub><mi>p</mi><mn>2</mn></msub><mo>}</mo></mrow></mrow></mstyle></math>. The sign of <math display="inline" data-mazer-src="D"><mstyle displaystyle="true"><mi>D</mi></mstyle></math> decides what happens, and exactly one of the cases holds:</p><div class="mazer-equation" data-mazer-src="(iff (not (&lt; D 0)) (or (&gt; D 0) (= D 0)))"><math display="block"><mrow><mrow><mo>¬</mo><mrow><mi>D</mi><mo>&lt;</mo><mn>0</mn></mrow></mrow><mo>⟺</mo><mrow><mrow><mi>D</mi><mo>&gt;</mo><mn>0</mn></mrow><mo>∨</mo><mrow><mi>D</mi><mo>=</mo><mn>0</mn></mrow></mrow></mrow></math></div><p>The poles are real exactly when <math display="inline" data-mazer-src="D"><mstyle displaystyle="true"><mi>D</mi></mstyle></math> is not negative:</p><div class="mazer-equation" data-mazer-src="(iff (subset (Pol H) Rline) (not (&lt; D 0)))"><math display="block"><mrow><mrow><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>H</mi><mo>)</mo></mrow></mrow><mo>⊆</mo><mstyle mathvariant="double-struck"><mi>ℝ</mi></mstyle></mrow><mo>⟺</mo><mrow><mo>¬</mo><mrow><mi>D</mi><mo>&lt;</mo><mn>0</mn></mrow></mrow></mrow></math></div><p>Stability of the damped system, with a plain-words side, comes down to the signs of the coefficients:</p><div class="mazer-equation" data-mazer-src="(iff (text the system is stable) (and (&gt; c 0) (&gt; k 0)))"><math display="block"><mrow><mtext>the system is stable</mtext><mo>⟺</mo><mrow><mrow><mi>c</mi><mo>&gt;</mo><mn>0</mn></mrow><mo>∧</mo><mrow><mi>k</mi><mo>&gt;</mo><mn>0</mn></mrow></mrow></mrow></math></div><p>The same system in first-order form uses a state vector and a matrix. Here the state is the pair of position and velocity:</p><div class="mazer-equation" data-mazer-src="(= (derivative (vec x1 x2) t) (jux (matrix (0 1) ((- k) (- c))) (vec x1 x2)))"><math display="block"><mrow><mrow><mfrac><mi>d</mi><mrow><mi>d</mi><mi>t</mi></mrow></mfrac><mrow><mo>(</mo><mtable><mtr><mtd><mi>x1</mi></mtd></mtr><mtr><mtd><mi>x2</mi></mtd></mtr></mtable><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mo>(</mo><mtable><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mrow><mo>−</mo><mi>k</mi></mrow></mtd><mtd><mrow><mo>−</mo><mi>c</mi></mrow></mtd></mtr></mtable><mo>)</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mtable><mtr><mtd><mi>x1</mi></mtd></mtr><mtr><mtd><mi>x2</mi></mtd></mtr></mtable><mo>)</mo></mrow></mrow></mrow></math></div><p>The matrix whose determinant matters is <math display="inline" data-mazer-src="s"><mstyle displaystyle="true"><mi>s</mi></mstyle></math> times the identity minus that one:</p><div class="mazer-equation" data-mazer-src="(= (mat (s -1) (k (+ s c))) (- (jux s (matrix (1 0) (0 1))) (matrix (0 1) ((- k) (- c)))))"><math display="block"><mrow><mrow><mo>(</mo><mtable><mtr><mtd><mi>s</mi></mtd><mtd><mrow><mo>−</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mi>k</mi></mtd><mtd><mrow><mi>s</mi><mo>+</mo><mi>c</mi></mrow></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mrow><mi>s</mi><mspace width="0.167em"/><mrow><mo>(</mo><mtable><mtr><mtd><mn>1</mn></mtd><mtd><mn>0</mn></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr></mtable><mo>)</mo></mrow></mrow><mo>−</mo><mrow><mo>(</mo><mtable><mtr><mtd><mn>0</mn></mtd><mtd><mn>1</mn></mtd></mtr><mtr><mtd><mrow><mo>−</mo><mi>k</mi></mrow></mtd><mtd><mrow><mo>−</mo><mi>c</mi></mrow></mtd></mtr></mtable><mo>)</mo></mrow></mrow></mrow></math></div><p>and its determinant is the same polynomial as before:</p><div class="mazer-equation" data-mazer-src="(= (det (s -1) (k (+ s c))) (+ (^ s 2) (jux c s) k))"><math display="block"><mrow><mrow><mo>|</mo><mtable><mtr><mtd><mi>s</mi></mtd><mtd><mrow><mo>−</mo><mn>1</mn></mrow></mtd></mtr><mtr><mtd><mi>k</mi></mtd><mtd><mrow><mi>s</mi><mo>+</mo><mi>c</mi></mrow></mtd></mtr></mtable><mo>|</mo></mrow><mo>=</mo><mrow><msup><mi>s</mi><mn>2</mn></msup><mo>+</mo><mrow><mi>c</mi><mspace width="0.167em"/><mi>s</mi></mrow><mo>+</mo><mi>k</mi></mrow></mrow></math></div><p>For <math display="inline" data-mazer-src="(&lt; D 0)"><mstyle displaystyle="true"><mrow><mi>D</mi><mo>&lt;</mo><mn>0</mn></mrow></mstyle></math> the poles are complex, with imaginary part <math display="inline" data-mazer-src="(= (subscript omega d) (sqrt (- k (frac (^ c 2) 4))))"><mstyle displaystyle="true"><mrow><msub><mi>ω</mi><mi>d</mi></msub><mo>=</mo><msqrt><mrow><mi>k</mi><mo>−</mo><mfrac><msup><mi>c</mi><mn>2</mn></msup><mn>4</mn></mfrac></mrow></msqrt></mrow></mstyle></math>. A first-order lag with time constant <math display="inline" data-mazer-src="tau"><mstyle displaystyle="true"><mi>τ</mi></mstyle></math> has the frequency response <math display="inline" data-mazer-src="(frac 1 (+ 1 (jux i omega tau)))"><mstyle displaystyle="true"><mfrac><mn>1</mn><mrow><mn>1</mn><mo>+</mo><mrow><mi>i</mi><mspace width="0.167em"/><mi>ω</mi><mspace width="0.167em"/><mi>τ</mi></mrow></mrow></mfrac></mstyle></math>, whose phase lag can be written with an arcsine:</p><div class="mazer-equation" data-mazer-src="(= phi (- (arcsin (frac (jux omega tau) (sqrt (+ 1 (^ (jux omega tau) 2)))))))"><math display="block"><mrow><mi>φ</mi><mo>=</mo><mrow><mo>−</mo><mrow><msup><mi>sin</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup><mrow><mo>(</mo><mfrac><mrow><mi>ω</mi><mspace width="0.167em"/><mi>τ</mi></mrow><msqrt><mrow><mn>1</mn><mo>+</mo><msup><mrow><mo>(</mo><mrow><mi>ω</mi><mspace width="0.167em"/><mi>τ</mi></mrow><mo>)</mo></mrow><mn>2</mn></msup></mrow></msqrt></mfrac><mo>)</mo></mrow></mrow></mrow></mrow></math></div><p>The same angle is more often given by its tangent, <math display="inline" data-mazer-src="(= (tan phi) (- (jux omega tau)))"><mstyle displaystyle="true"><mrow><mrow><mi>tan</mi><mrow><mo>(</mo><mi>φ</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mo>−</mo><mrow><mi>ω</mi><mspace width="0.167em"/><mi>τ</mi></mrow></mrow></mrow></mstyle></math>, or as an arctangent, <math display="inline" data-mazer-src="(= phi (- (arctan (jux omega tau))))"><mstyle displaystyle="true"><mrow><mi>φ</mi><mo>=</mo><mrow><mo>−</mo><mrow><msup><mi>tan</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup><mrow><mo>(</mo><mrow><mi>ω</mi><mspace width="0.167em"/><mi>τ</mi></mrow><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>. The envelope of the oscillation shrinks to a fraction <math display="inline" data-mazer-src="epsilon"><mstyle displaystyle="true"><mi>ε</mi></mstyle></math> of its start after</p><div class="mazer-equation" data-mazer-src="(= (subscript t settle) (frac (jux 2 (ln (frac 1 epsilon))) c))"><math display="block"><mrow><msub><mi>t</mi><mi>settle</mi></msub><mo>=</mo><mfrac><mrow><mn>2</mn><mspace width="0.167em"/><mrow><mi>ln</mi><mrow><mo>(</mo><mfrac><mn>1</mn><mi>ε</mi></mfrac><mo>)</mo></mrow></mrow></mrow><mi>c</mi></mfrac></mrow></math></div><p>The result: for <math display="inline" data-mazer-src="(&lt; D 0)"><mstyle displaystyle="true"><mrow><mi>D</mi><mo>&lt;</mo><mn>0</mn></mrow></mstyle></math> and zero start, the displacement after the hammer blow is the impulse response, boxed because it is what the note was for:</p><div class="mazer-equation" id="eq-result" data-mazer-src="(box (= (funcapp h t) (jux (frac 1 (subscript omega d)) (exp (- (frac (jux c t) 2))) (sin (jux (subscript omega d) t)))))"><math display="block"><mrow style="border: 1px solid black; padding: 0.2em;"><mrow><mrow><mi>h</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mfrac><mn>1</mn><msub><mi>ω</mi><mi>d</mi></msub></mfrac><mspace width="0.167em"/><msup><mi>e</mi><mrow><mo>−</mo><mfrac><mrow><mi>c</mi><mspace width="0.167em"/><mi>t</mi></mrow><mn>2</mn></mfrac></mrow></msup><mspace width="0.167em"/><mrow><mi>sin</mi><mrow><mo>(</mo><mrow><msub><mi>ω</mi><mi>d</mi></msub><mspace width="0.167em"/><mi>t</mi></mrow><mo>)</mo></mrow></mrow></mrow></mrow></mrow></math><span class="mazer-eqno">(7)</span></div><p>Equation <a class="mazer-ref" href="#eq-motion">(6)</a> came first and <a class="mazer-ref" href="#eq-result">(7)</a> answers it. The Fourier version sets <math display="inline" data-mazer-src="(= s (jux i omega))"><mstyle displaystyle="true"><mrow><mi>s</mi><mo>=</mo><mrow><mi>i</mi><mspace width="0.167em"/><mi>ω</mi></mrow></mrow></mstyle></math> and reads <math display="inline" data-mazer-src="(= (funcapp (hat f) omega) (lap f (jux i omega)))"><mstyle displaystyle="true"><mrow><mrow><mover><mi>f</mi><mo>^</mo></mover><mrow><mo>(</mo><mi>ω</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mrow><mi>i</mi><mspace width="0.167em"/><mi>ω</mi></mrow><mo>)</mo></mrow></mrow></mrow></mstyle></math>. The same transform in space and time, for a transport equation with a source that fires once at <math display="inline" data-mazer-src="(= t 0)"><mstyle displaystyle="true"><mrow><mi>t</mi><mo>=</mo><mn>0</mn></mrow></mstyle></math>:</p><div class="mazer-equation" data-mazer-src="(= (+ (partial u t) (jux c (partial u x))) (jux (delta t) (g x)))"><math display="block"><mrow><mrow><mrow><mfrac><mo>∂</mo><mrow><mo>∂</mo><mi>t</mi></mrow></mfrac><mi>u</mi></mrow><mo>+</mo><mrow><mi>c</mi><mspace width="0.167em"/><mrow><mfrac><mo>∂</mo><mrow><mo>∂</mo><mi>x</mi></mrow></mfrac><mi>u</mi></mrow></mrow></mrow><mo>=</mo><mrow><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mrow><mi>g</mi><mrow><mo>(</mo><mi>x</mi><mo>)</mo></mrow></mrow></mrow></mrow></math></div><p>and transformed in time it becomes an ordinary equation in <math display="inline" data-mazer-src="x"><mstyle displaystyle="true"><mi>x</mi></mstyle></math>:</p><div class="mazer-equation" data-mazer-src="(= (+ (jux s (U x s)) (jux c (partial U x))) (g x))"><math display="block"><mrow><mrow><mrow><mi>s</mi><mspace width="0.167em"/><mrow><mi>U</mi><mrow><mo>(</mo><mi>x</mi><mo>,</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow><mo>+</mo><mrow><mi>c</mi><mspace width="0.167em"/><mrow><mfrac><mo>∂</mo><mrow><mo>∂</mo><mi>x</mi></mrow></mfrac><mi>U</mi></mrow></mrow></mrow><mo>=</mo><mrow><mi>g</mi><mrow><mo>(</mo><mi>x</mi><mo>)</mo></mrow></mrow></mrow></math></div><p>In three dimensions, with the position as a vector, the sifting property integrates over all of space:</p><div class="mazer-equation" data-mazer-src="(= (integral (jux (f (arrow r)) (delta (arrow r))) (arrow r) (^ Rline 3)) (f 0))"><math display="block"><mrow><mrow><msub><mo>∫</mo><msup><mstyle mathvariant="double-struck"><mi>ℝ</mi></mstyle><mn>3</mn></msup></msub><mrow><mrow><mi>f</mi><mrow><mo>(</mo><mover><mi>r</mi><mo>→</mo></mover><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mrow><mi>δ</mi><mrow><mo>(</mo><mover><mi>r</mi><mo>→</mo></mover><mo>)</mo></mrow></mrow></mrow><mspace width="0.167em"/><mrow><mi>d</mi><mover><mi>r</mi><mo>→</mo></mover></mrow></mrow><mo>=</mo><mrow><mi>f</mi><mrow><mo>(</mo><mn>0</mn><mo>)</mo></mrow></mrow></mrow></math></div><h2>Aside: signs and rules</h2><p>The transform is only defined for signals that do not grow faster than an exponential. Let <math display="inline" data-mazer-src="(cal E)"><mstyle displaystyle="true"><mstyle mathvariant="script"><mi>ℰ</mi></mstyle></mstyle></math> be that class:</p><div class="mazer-equation" data-mazer-src="(iff (in f (cal E)) (exists M (exists a (forall t (implies (&gt;= t 0) (&lt;= (abs (f t)) (jux M (exp (jux a t)))))))))"><math display="block"><mrow><mrow><mi>f</mi><mo>∈</mo><mstyle mathvariant="script"><mi>ℰ</mi></mstyle></mrow><mo>⟺</mo><mrow><mo>(</mo><mrow><mo>∃</mo><mi>M</mi><mo>.</mo><mrow><mo>∃</mo><mi>a</mi><mo>.</mo><mrow><mo>∀</mo><mi>t</mi><mo>.</mo><mrow><mrow><mi>t</mi><mo>≥</mo><mn>0</mn></mrow><mo>⟹</mo><mrow><mrow><mo>|</mo><mrow><mi>f</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mo>|</mo></mrow><mo>≤</mo><mrow><mi>M</mi><mspace width="0.167em"/><msup><mi>e</mi><mrow><mi>a</mi><mspace width="0.167em"/><mi>t</mi></mrow></msup></mrow></mrow></mrow></mrow></mrow></mrow><mo>)</mo></mrow></mrow></math></div><p>The region of convergence of a sum contains the overlap of the two regions, and the poles of a product are among the poles of its factors:</p><div class="mazer-equation" data-mazer-src="(superset (ROC (+ f g)) (intersect (ROC f) (ROC g)))"><math display="block"><mrow><mrow><mi>ROC</mi><mrow><mo>(</mo><mrow><mi>f</mi><mo>+</mo><mi>g</mi></mrow><mo>)</mo></mrow></mrow><mo>⊇</mo><mrow><mrow><mi>ROC</mi><mrow><mo>(</mo><mi>f</mi><mo>)</mo></mrow></mrow><mo>∩</mo><mrow><mi>ROC</mi><mrow><mo>(</mo><mi>g</mi><mo>)</mo></mrow></mrow></mrow></mrow></math></div><div class="mazer-equation" data-mazer-src="(subset (Pol (jux F G)) (union (Pol F) (Pol G)))"><math display="block"><mrow><mrow><mi>Pol</mi><mrow><mo>(</mo><mrow><mi>F</mi><mspace width="0.167em"/><mi>G</mi></mrow><mo>)</mo></mrow></mrow><mo>⊆</mo><mrow><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>F</mi><mo>)</mo></mrow></mrow><mo>∪</mo><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>G</mi><mo>)</mo></mrow></mrow></mrow></mrow></math></div><p>Stability of the damped system is a statement with a quantifier and a hypothesis: if both coefficients are positive, every pole has a negative real part.</p><div class="mazer-equation" data-mazer-src="(implies (and (&gt; c 0) (&gt; k 0)) (forall p (implies (in p (Pol H)) (&lt; (Re p) 0))))"><math display="block"><mrow><mrow><mrow><mi>c</mi><mo>&gt;</mo><mn>0</mn></mrow><mo>∧</mo><mrow><mi>k</mi><mo>&gt;</mo><mn>0</mn></mrow></mrow><mo>⟹</mo><mrow><mo>(</mo><mrow><mo>∀</mo><mi>p</mi><mo>.</mo><mrow><mrow><mi>p</mi><mo>∈</mo><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>H</mi><mo>)</mo></mrow></mrow></mrow><mo>⟹</mo><mrow><mrow><mi>Re</mi><mrow><mo>(</mo><mi>p</mi><mo>)</mo></mrow></mrow><mo>&lt;</mo><mn>0</mn></mrow></mrow></mrow><mo>)</mo></mrow></mrow></math></div><p>When the spring is present the origin is never a pole: <math display="inline" data-mazer-src="(implies (!= k 0) (notin 0 (Pol H)))"><mstyle displaystyle="true"><mrow><mrow><mi>k</mi><mo>≠</mo><mn>0</mn></mrow><mo>⟹</mo><mrow><mn>0</mn><mo>∉</mo><mrow><mi>Pol</mi><mrow><mo>(</mo><mi>H</mi><mo>)</mo></mrow></mrow></mrow></mrow></mstyle></math>, because at the origin the denominator is just <math display="inline" data-mazer-src="k"><mstyle displaystyle="true"><mi>k</mi></mstyle></math>.</p><p>Typing rules for the transform are written as inference rules. The rule name goes on the right, the premises are a list above the bar:</p><div class="mazer-equation" data-mazer-src="(ty-judge T-Lap ((in f (cal E)) (in s Cline)) (in (lap f s) Cline))"><math display="block"><mrow><mfrac><mrow><mrow><mi>f</mi><mo>∈</mo><mstyle mathvariant="script"><mi>ℰ</mi></mstyle></mrow><mspace width="2em"/><mrow><mi>s</mi><mo>∈</mo><mstyle mathvariant="double-struck"><mi>ℂ</mi></mstyle></mrow></mrow><mrow><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>∈</mo><mstyle mathvariant="double-struck"><mi>ℂ</mi></mstyle></mrow></mrow></mfrac><mspace width="0.5em"/><mtext>T-Lap</mtext></mrow></math></div><div class="mazer-equation" data-mazer-src="(ty-judge T-Delta ((in t Rline)) (jux (Gamma) turnstile (delta t) &quot;:&quot; (cal D)))"><math display="block"><mrow><mfrac><mrow><mrow><mi>t</mi><mo>∈</mo><mstyle mathvariant="double-struck"><mi>ℝ</mi></mstyle></mrow></mrow><mrow><mrow><mi>Γ</mi><mspace width="0.167em"/><mo>⊢</mo><mspace width="0.167em"/><mrow><mi>δ</mi><mrow><mo>(</mo><mi>t</mi><mo>)</mo></mrow></mrow><mspace width="0.167em"/><mtext>:</mtext><mspace width="0.167em"/><mstyle mathvariant="script"><mi>𝒟</mi></mstyle></mrow></mrow></mfrac><mspace width="0.5em"/><mtext>T-Delta</mtext></mrow></math></div><div class="mazer-equation" data-mazer-src="(ty-judge T-Lin ((in f (cal E)) (in g (cal E)) (in s Cline)) (linear f g s))"><math display="block"><mrow><mfrac><mrow><mrow><mi>f</mi><mo>∈</mo><mstyle mathvariant="script"><mi>ℰ</mi></mstyle></mrow><mspace width="2em"/><mrow><mi>g</mi><mo>∈</mo><mstyle mathvariant="script"><mi>ℰ</mi></mstyle></mrow><mspace width="2em"/><mrow><mi>s</mi><mo>∈</mo><mstyle mathvariant="double-struck"><mi>ℂ</mi></mstyle></mrow></mrow><mrow><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mrow><mi>f</mi><mo>+</mo><mi>g</mi></mrow><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mrow><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>f</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>+</mo><mrow><mstyle mathvariant="script"><mi>ℒ</mi></mstyle><mspace width="0.167em"/><mrow><mo>{</mo><mi>g</mi><mo>}</mo></mrow><mspace width="0.167em"/><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow></mrow></mrow></mrow></mfrac><mspace width="0.5em"/><mtext>T-Lin</mtext></mrow></math></div><p>Fonts mark the kind of object: <math display="inline" data-mazer-src="(bb R)"><mstyle displaystyle="true"><mstyle mathvariant="double-struck"><mi>ℝ</mi></mstyle></mstyle></math> for numbers, <math display="inline" data-mazer-src="(cal L)"><mstyle displaystyle="true"><mstyle mathvariant="script"><mi>ℒ</mi></mstyle></mstyle></math> for operators, <math display="inline" data-mazer-src="(frak S)"><mstyle displaystyle="true"><mstyle mathvariant="fraktur"><mi>𝔖</mi></mstyle></mstyle></math> for signal spaces, <math display="inline" data-mazer-src="(bold x)"><mstyle displaystyle="true"><mstyle mathvariant="bold"><mi>𝐱</mi></mstyle></mstyle></math> for the state, and <math display="inline" data-mazer-src="(rm e)"><mstyle displaystyle="true"><mstyle mathvariant="normal"><mtext>e</mtext></mstyle></mstyle></math> for the constant, as in <math display="inline" data-mazer-src="(= (rm e) (exp 1))"><mstyle displaystyle="true"><mrow><mstyle mathvariant="normal"><mtext>e</mtext></mstyle><mo>=</mo><msup><mi>e</mi><mn>1</mn></msup></mrow></mstyle></math>. The differential is upright too, <math display="inline" data-mazer-src="(jux (rm d) t)"><mstyle displaystyle="true"><mrow><mstyle mathvariant="normal"><mtext>d</mtext></mstyle><mspace width="0.167em"/><mi>t</mi></mrow></mstyle></math>.</p><p>A bare keyword shows its sign, and a quoted one shows its name. The table below uses both spellings of quote, the apostrophe and the word:</p><div class="mazer-equation" data-mazer-src="(table (style plain) (header (text word) (text sign)) (row &#39;in in) (row (quote partial) partial) (row &#39;arrow arrow) (row &#39;integral integral))"><math display="block"><mtable columnspacing="1em" rowspacing="0.5em" columnalign="left"><mtr><mtd><mstyle mathvariant="bold"><mtext>word</mtext></mstyle></mtd><mtd><mstyle mathvariant="bold"><mtext>sign</mtext></mstyle></mtd></mtr><mtr><mtd><mi>in</mi></mtd><mtd><mo>∈</mo></mtd></mtr><mtr><mtd><mi>partial</mi></mtd><mtd><mo>∂</mo></mtd></mtr><mtr><mtd><mi>arrow</mi></mtd><mtd><mo>→</mo></mtd></mtr><mtr><mtd><mi>integral</mi></mtd><mtd><mo>∫</mo></mtd></mtr></mtable></math></div><h2>What is left</h2><ul class="mazer-checklist"><li><input type="checkbox" checked disabled> the sifting property</li><li><input type="checkbox" checked disabled> the table of transforms</li><li><input type="checkbox" disabled> the inverse transform</li><li><input type="checkbox" disabled> repeated poles</li></ul><p>The remaining notes are in a bullet list of their own:</p><ul><li>Ordered by how much I trust them:<ol><li>the table, checked by hand</li><li>the pole analysis</li><li>the matrix form</li></ol></li><li>Others: ✨ ☕ 🧠 ❤️ 👀 🚀 👍 and a name :banana: that is not one of the thirteen and stays as text.</li></ul><hr/><h2>Fixing a gain with let</h2><p><code>let</code> binds a variable for the rest of the note, and every use after it is replaced by the value, so I keep it for the end and use names that appear nowhere else. A gain of 4 in front of a first-order lag:</p><div class="mazer-equation" data-mazer-src="(= (funcapp G s) (frac gain (+ s 2)))"><math display="block"><mrow><mrow><mi>G</mi><mrow><mo>(</mo><mi>s</mi><mo>)</mo></mrow></mrow><mo>=</mo><mfrac><mn>4</mn><mrow><mi>s</mi><mo>+</mo><mn>2</mn></mrow></mfrac></mrow></math></div><p>The next binding captures the value of <code>gain</code> as it is now, and then <code>gain</code> is reassigned:</p><div class="mazer-equation" data-mazer-src="(= &#39;gain gain)"><math display="block"><mrow><mi>gain</mi><mo>=</mo><mn>10</mn></mrow></math></div><div class="mazer-equation" data-mazer-src="(= &#39;boost boost)"><math display="block"><mrow><mi>boost</mi><mo>=</mo><mrow><mn>2</mn><mo>×</mo><mn>4</mn></mrow></mrow></math></div><p>The quoted name stays a name and the unquoted one shows its value. <code>boost</code> still holds the old gain, because it was captured at its <code>let</code>.</p><h2>Evaluation, broken forms and tooling</h2><p>No evaluator ships yet, so a live form headed by <code>eval</code> would render an error box. It is written like this and has to stand alone:</p><pre><code class="language-scheme">(eval (+ 1 2))
+</code></pre><p>A form with a mistake in it, such as a keyword with the wrong number of arguments, becomes a red error box in place of that one form, with the message inside it, and the rest of the note renders as usual. The command line prints the same message with its position. This is what a broken form looks like, shown only as source:</p><pre><code class="language-scheme">(show (frac 1))
+</code></pre><p>To build this note, run <code>mazer examples/showcase.zr --open</code>. To check it without writing a page, use <code>--check --strict</code>, which fails on warnings too. To look up a keyword, a display name or one of the macros above, use <code>query</code>.</p><pre><code class="language-sh">mazer examples/showcase.zr --open
+mazer --check --strict examples/showcase.zr
+mazer query integral
+mazer query lap --file examples/showcase.zr
+</code></pre><p>Math can also be emitted as LaTeX with <code>--target latex</code>, in a build with the <code>latex</code> feature: <code>cargo build -p mazer-cli --features latex</code>. Neovim gets diagnostics, completion, hover and a live preview from the <code>mazer-lsp</code> language server.</p><p>The rendered page can be searched by the source of its equations. Press Ctrl+K, Cmd+K or <code>/</code>, then type <code>(funcapp H t)</code> and press Enter. The first hit is the heading of the unit step section, and the arrow keys move through the others. 🔥</p><script>// mazer equation search
+// ---------------------
+// Ctrl+K (Cmd+K on macOS), `/`, or the small round button in the corner
+// opens a box that searches the equations on THIS page by their source, as
+// the author typed it: `(funcapp rho x)` finds every equation whose source
+// contains that text. Enter or a click scrolls to the equation, highlights it
+// for a moment and moves the keyboard focus there.
+//
+// It relies only on the `data-mazer-src` attribute mazer writes on every
+// rendered equation (`div.mazer-equation` for display math, the `math`
+// element for inline math, `span.mazer-math` for the LaTeX target).
+//
+// The query is compared after normalising whitespace on both sides. A form
+// copied whole from a note, `(show (tag e) (frac 1 2))`, also works: the
+// leading `(show `/`(eval `, a `(tag name)` and the form's own closing paren
+// are dropped from the query. Pasted text loses its `;` comments and its line
+// breaks become spaces. Exact matches come first, then matches that start and
+// end at token boundaries, then the rest.
+//
+// One dependency-free file that works inline in a script element, loaded by
+// a script element's `src`, and when import()-ed as a module for its side
+// effect. Loading it twice installs it once. The index is rebuilt every time
+// the box opens, so it does not matter when (or how often) the notes were
+// rendered. `window.mazerSearch = false` before it loads turns it off;
+// `window.mazerSearchButton = false` keeps only the keyboard shortcuts.
+//
+// The pure helpers are on `globalThis.__mazerSearch` (for the tests in
+// mazer-search.test.mjs, and for pages that want `open()`/`close()`).
+(() => {
+  'use strict';
+  const root = globalThis;
+  if (root.__mazerSearch || root.mazerSearch === false) return;
+
+  const MAX_ROWS = 50; // rows rendered at once; more are summarised
+  const HIGHLIGHT_MS = 2000; // how long a jumped-to equation stays highlighted
+
+  // ---- matching (pure) ----
+
+  // One space between tokens, none just inside a paren, one between `)` and
+  // `(`: `( frac  1\n2 )` and `(frac 1 2)` normalise to the same text, and
+  // so do `x)(y` and `x) (y`.
+  const normalize = (s) =>
+    String(s).replace(/\s+/g, ' ').trim().replace(/\( /g, '(').replace(/ \)/g, ')').replace(/\)\(/g, ') (');
+
+  // Removes `;` comments, to the end of their line, outside string literals
+  // (where `\"` and `\\` are escapes), as the mazer reader does.
+  function stripComments(text) {
+    let out = '';
+    let inString = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inString) {
+        out += c;
+        if (c === '\\' && i + 1 < text.length) out += text[++i];
+        else if (c === '"') inString = false;
+      } else if (c === ';') {
+        while (i + 1 < text.length && text[i + 1] !== '\n') i++;
+      } else {
+        if (c === '"') inString = true;
+        out += c;
+      }
+    }
+    return out;
+  }
+
+  // Pasted text as it goes into the one-line input: no comments, and line
+  // breaks as spaces (a browser would delete them, gluing `(funcapp` and
+  // `rho` of two lines together).
+  const pasteText = (text) => stripComments(String(text)).replace(/\r\n|[\r\n]/g, ' ');
+
+  // The balance of parens outside strings, and the lowest it gets.
+  function parens(s) {
+    let depth = 0;
+    let low = 0;
+    let inString = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inString) {
+        if (c === '\\') i++;
+        else if (c === '"') inString = false;
+      } else if (c === '"') inString = true;
+      else if (c === '(') depth++;
+      else if (c === ')') low = Math.min(low, --depth);
+    }
+    return { depth, low };
+  }
+
+  // A normalised query without what the stored sources leave out: a leading
+  // `(show ` or `(eval `, then a `(tag name)`, and the form's own `)` when it
+  // is the one paren too many. `(show` alone (or `(show (tag`) leaves
+  // nothing, which lists every equation, as an empty query does.
+  function unwrap(q) {
+    const head = /^\((?:show|eval)(?: |$)/.exec(q);
+    if (!head) return q;
+    let rest = q.slice(head[0].length);
+    const tag = /^\(tag (?:[^\s()"]+|"(?:[^"\\]|\\.)*")\)(?: |$|(?=\)))/.exec(rest);
+    if (tag) rest = rest.slice(tag[0].length);
+    else if (/^\(tag(?: [^\s()"]*)?$/.test(rest)) rest = '';
+    if (rest.endsWith(')')) {
+      const all = parens(rest);
+      const before = parens(rest.slice(0, -1));
+      if (all.depth === -1 && before.low >= 0) rest = rest.slice(0, -1).trimEnd();
+    }
+    return rest;
+  }
+
+  // Lower-cases character by character, keeping any character whose lower
+  // case has another length (a dotted capital I), so an index into the
+  // folded text is an index into the original.
+  const fold = (s) =>
+    Array.from(s, (c) => {
+      const l = c.toLowerCase();
+      return l.length === c.length ? l : c;
+    }).join('');
+
+  // Smart case: a query with an uppercase letter is case-sensitive, because
+  // `Delta` and `delta` are different names in mazer.
+  const caseSensitive = (q) => fold(q) !== q;
+
+  const DELIMITER = /[ ()]/;
+
+  // Whether the match of `needle` at `at` in `hay` neither starts nor ends
+  // in the middle of a token: each end is the end of the source, next to a
+  // space or a paren, or is itself a space or a paren.
+  function bounded(hay, needle, at) {
+    const end = at + needle.length;
+    const starts = at === 0 || DELIMITER.test(hay[at - 1]) || DELIMITER.test(needle[0]);
+    const ends = end === hay.length || DELIMITER.test(hay[end]) || DELIMITER.test(needle[needle.length - 1]);
+    return starts && ends;
+  }
+
+  // `items` are `{ src }` (or index entries that also carry `norm`/`folded`).
+  // Returns `{ item, start, end, rank }`: rank 0 for a source that is the
+  // whole query, 1 for a match on token boundaries, 2 for the rest; by rank,
+  // then in input order. `start`/`end` delimit the match in the normalised
+  // source (the first one on token boundaries, if any).
+  function search(query, items) {
+    const q = unwrap(normalize(query));
+    const sensitive = caseSensitive(q);
+    const needle = sensitive ? q : fold(q);
+    const ranks = [[], [], []];
+    for (const item of items) {
+      const norm = item.norm ?? normalize(item.src);
+      const hay = sensitive ? norm : (item.folded ?? fold(norm));
+      let at = hay.indexOf(needle);
+      if (at < 0) continue;
+      let rank = 2;
+      if (hay === needle) rank = 0;
+      else if (needle) {
+        for (let i = at; i >= 0; i = hay.indexOf(needle, i + 1)) {
+          if (bounded(hay, needle, i)) {
+            at = i;
+            rank = 1;
+            break;
+          }
+        }
+      }
+      ranks[rank].push({ item, start: at, end: at + needle.length, rank });
+    }
+    return ranks[0].concat(ranks[1], ranks[2]);
+  }
+
+  const matches = (query, src) => search(query, [{ src }]).length > 0;
+
+  // [before, matched, after]
+  const split = (text, start, end) => [text.slice(0, start), text.slice(start, end), text.slice(end)];
+
+  const api = { normalize, unwrap, stripComments, pasteText, matches, search, split, MAX_ROWS };
+  root.__mazerSearch = api;
+  if (typeof document === 'undefined') return;
+
+  // ---- the box ----
+
+  const doc = document;
+  const CSS = `
+.mazer-search-backdrop{position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483646;display:flex;justify-content:center;align-items:flex-start;padding:10vh 16px 16px;box-sizing:border-box;background:rgba(0,0,0,.35);background:color-mix(in srgb,CanvasText 30%,transparent)}
+.mazer-search-backdrop[hidden]{display:none}
+.mazer-search-backdrop *{box-sizing:border-box}
+.mazer-search-panel{display:flex;flex-direction:column;width:640px;max-width:100%;max-height:80vh;background:Canvas;color:CanvasText;border:1px solid GrayText;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.3);overflow:hidden;text-align:left;line-height:1.4}
+.mazer-search-input{display:block;width:100%;margin:0;padding:.6em .75em;font:inherit;font-size:16px;color:CanvasText;background:Canvas;border:0;border-bottom:1px solid GrayText;border-radius:0}
+.mazer-search-count,.mazer-search-note{padding:.3em .75em;font-size:.8em;color:GrayText}
+.mazer-search-note{padding:.75em}
+.mazer-search-list{flex:1 1 auto;min-height:0;margin:0;padding:0;list-style:none;overflow-y:auto;overscroll-behavior:contain}
+.mazer-search-row{margin:0;padding:.5em .75em;border-top:1px solid rgba(127,127,127,.25);cursor:pointer}
+.mazer-search-row:hover{background:rgba(127,127,127,.12)}
+.mazer-search-row[aria-selected="true"]{background:Highlight;color:HighlightText}
+.mazer-search-ctx{font-size:.8em;color:GrayText;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mazer-search-row[aria-selected="true"] .mazer-search-ctx{color:inherit}
+.mazer-search-math{overflow-x:auto;padding:.2em 0}
+.mazer-search-math>*{margin:0}
+.mazer-search-src{display:block;margin:0;padding:0;background:none;color:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8em;white-space:pre-wrap;overflow-wrap:anywhere}
+.mazer-search-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mazer-search-hit{outline:2px solid Highlight;outline-offset:3px;border-radius:4px;background-color:rgba(255,213,0,.25);background-color:color-mix(in srgb,Highlight 15%,transparent)}
+.mazer-search-fab{position:fixed;right:12px;bottom:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:2147483645;display:flex;align-items:center;justify-content:center;width:36px;height:36px;margin:0;padding:0;font:inherit;color:CanvasText;background:Canvas;border:1px solid GrayText;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);opacity:.55;cursor:pointer}
+.mazer-search-fab:hover,.mazer-search-fab:focus-visible{opacity:1}
+.mazer-search-fab svg{display:block;width:18px;height:18px}
+@media (max-width:480px){.mazer-search-backdrop{padding:8px}.mazer-search-panel{max-height:calc(100vh - 16px)}}
+@media print{.mazer-search-fab,.mazer-search-backdrop{display:none!important}}
+`;
+
+  let style = null; // the style element; added once, on first need
+  let box = null; // the backdrop; built on the first open
+  let button = null; // the floating button, once the page has equations
+  let input, list, count, note, live;
+  let entries = []; // { el, src, norm, folded, heading } in document order
+  let hits = [];
+  let active = -1; // selected row, -1 for none
+  let previous = null; // focused before the box opened
+  let pending = false; // a render is scheduled
+  let pressedOnBackdrop = false;
+  let flashed = null; // the highlighted equation and its timer
+  let tabbed = null; // the equation given a temporary tabindex to be focused
+  const later = root.requestAnimationFrame ? (f) => root.requestAnimationFrame(f) : (f) => setTimeout(f, 16);
+
+  function make(tag, className, attrs) {
+    const el = doc.createElement(tag);
+    if (className) el.className = className;
+    for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+    return el;
+  }
+
+  function addStyle() {
+    if (style && style.isConnected) return;
+    style = make('style');
+    style.textContent = CSS;
+    (doc.head || doc.documentElement).appendChild(style);
+  }
+
+  function build() {
+    addStyle();
+    box = make('div', 'mazer-search-backdrop');
+    box.hidden = true;
+    const panel = make('div', 'mazer-search-panel', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Search equations' });
+    input = make('input', 'mazer-search-input', {
+      type: 'text', role: 'combobox', 'aria-label': 'Search equations by source', 'aria-autocomplete': 'list',
+      'aria-expanded': 'true', 'aria-controls': 'mazer-search-list', placeholder: 'Search equations, e.g. (frac 1 2)',
+      autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+    });
+    count = make('div', 'mazer-search-count', { 'aria-hidden': 'true' });
+    live = make('div', 'mazer-search-sr', { role: 'status', 'aria-live': 'polite' });
+    list = make('ul', 'mazer-search-list', { id: 'mazer-search-list', role: 'listbox', 'aria-label': 'Matching equations' });
+    note = make('div', 'mazer-search-note');
+    panel.append(input, count, live, list, note);
+    box.appendChild(panel);
+
+    // Keep the focus in the input whatever is clicked inside the panel.
+    panel.addEventListener('mousedown', (e) => {
+      if (e.target !== input) e.preventDefault();
+    });
+    // Close only when the press also started on the backdrop, so a text
+    // selection dragged out of the input does not close the box.
+    box.addEventListener('mousedown', (e) => { pressedOnBackdrop = e.target === box; });
+    box.addEventListener('click', (e) => {
+      if (e.target === box && pressedOnBackdrop) close();
+    });
+    list.addEventListener('click', (e) => {
+      const row = e.target.closest && e.target.closest('.mazer-search-row');
+      if (row) jump(Number(row.getAttribute('data-index')));
+    });
+    input.addEventListener('input', schedule);
+    input.addEventListener('keydown', onInputKey);
+    input.addEventListener('paste', onPaste);
+    doc.body.appendChild(box);
+  }
+
+  const isOpen = () => box !== null && !box.hidden;
+
+  function open() {
+    if (!box) build();
+    addStyle(); // the page may have replaced its head
+    if (!box.isConnected) doc.body.appendChild(box); // ... or its body
+    if (!isOpen()) {
+      previous = doc.activeElement;
+      entries = collect();
+      box.hidden = false;
+      render();
+      input.select(); // the last query stays, selected, ready to be replaced
+    }
+    input.focus();
+  }
+
+  // Closes the box; focus goes back where it was unless `restore` is false
+  // (a jump moves it to the equation instead).
+  function close(restore) {
+    if (!isOpen()) return;
+    box.hidden = true;
+    pending = false;
+    list.replaceChildren(); // drop the clones and the references to the page
+    entries = [];
+    hits = [];
+    input.removeAttribute('aria-activedescendant');
+    input.blur();
+    const back = previous;
+    previous = null;
+    if (restore !== false && back && back !== doc.body && back.isConnected && back.focus) back.focus({ preventScroll: true });
+  }
+
+  // A heading's text, with each equation in it as its source rather than
+  // the text of its rendered math.
+  function headingText(heading) {
+    let text = '';
+    const walk = (node) => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === 3) text += child.data;
+        else if (child.nodeType === 1) {
+          const src = child.getAttribute('data-mazer-src');
+          if (src) text += src;
+          else walk(child);
+        }
+      }
+    };
+    walk(heading);
+    return text.replace(/\s+/g, ' ').trim();
+  }
+
+  // Every equation and the text of the heading before it, in document order.
+  function collect() {
+    const out = [];
+    let heading = '';
+    for (const el of doc.querySelectorAll('h1,h2,h3,h4,h5,h6,[data-mazer-src]')) {
+      if (box.contains(el)) continue;
+      if (/^h[1-6]$/i.test(el.tagName)) {
+        heading = headingText(el);
+        continue;
+      }
+      const src = el.getAttribute('data-mazer-src');
+      if (!src) continue;
+      const norm = normalize(src);
+      out.push({ el, src, norm, folded: fold(norm), heading });
+    }
+    return out;
+  }
+
+  // Typing schedules one render per frame, so a fast typist is never held
+  // up by the rendering.
+  function schedule() {
+    if (pending) return;
+    pending = true;
+    later(() => {
+      if (pending && isOpen()) render();
+    });
+  }
+
+  function render() {
+    pending = false;
+    hits = search(input.value, entries);
+    const shown = Math.min(hits.length, MAX_ROWS);
+    const rows = [];
+    for (let i = 0; i < shown; i++) rows.push(row(hits[i], i));
+    list.replaceChildren(...rows);
+    count.textContent = entries.length ? `${hits.length} of ${entries.length}` : '';
+    let message = '';
+    if (!entries.length) message = 'No equations on this page.';
+    else if (!hits.length) message = 'No equation matches.';
+    else if (hits.length > shown) message = `… and ${hits.length - shown} more, keep typing`;
+    note.textContent = message;
+    note.hidden = !message;
+    live.textContent = hits.length ? `${hits.length} of ${entries.length} equations` : message;
+    select(-1);
+  }
+
+  function row(hit, i) {
+    const li = make('li', 'mazer-search-row', { id: `mazer-search-opt-${i}`, role: 'option', 'aria-selected': 'false', 'data-index': String(i) });
+    const { el, norm, heading } = hit.item;
+    if (heading) {
+      const ctx = make('div', 'mazer-search-ctx');
+      ctx.textContent = heading;
+      li.appendChild(ctx);
+    }
+    const math = make('div', 'mazer-search-math', { 'aria-hidden': 'true' });
+    math.appendChild(preview(el));
+    const code = make('code', 'mazer-search-src');
+    const [before, found, after] = split(norm, hit.start, hit.end);
+    const mark = make('mark');
+    mark.textContent = found;
+    code.append(doc.createTextNode(before), mark, doc.createTextNode(after));
+    li.append(math, code);
+    return li;
+  }
+
+  // A copy of the rendered math: the `math` element of a display equation,
+  // otherwise the element itself (inline math, LaTeX). Ids are stripped so
+  // the page never gets a duplicate, and the source attribute so nothing
+  // counts the copy as an equation.
+  function preview(el) {
+    const isMath = el.tagName.toLowerCase() === 'math';
+    const copy = ((!isMath && el.querySelector('math')) || el).cloneNode(true);
+    for (const e of [copy, ...copy.querySelectorAll('[id],[data-mazer-src],[tabindex]')]) {
+      e.removeAttribute('id');
+      e.removeAttribute('data-mazer-src');
+      e.removeAttribute('tabindex');
+    }
+    copy.classList.remove('mazer-search-hit');
+    return copy;
+  }
+
+  function select(i) {
+    const old = list.children[active];
+    if (old) old.setAttribute('aria-selected', 'false');
+    active = i;
+    const now = list.children[i];
+    if (!now) {
+      input.removeAttribute('aria-activedescendant');
+      return;
+    }
+    now.setAttribute('aria-selected', 'true');
+    input.setAttribute('aria-activedescendant', now.id);
+    if (now.scrollIntoView) now.scrollIntoView({ block: 'nearest' });
+  }
+
+  function move(step) {
+    const n = list.children.length;
+    if (!n) return;
+    if (active < 0) select(step > 0 ? 0 : n - 1);
+    else select((active + step + n) % n);
+  }
+
+  // `i` indexes the rows on screen, which are always `hits[0..]`.
+  function jump(i) {
+    let hit = hits[i];
+    if (!hit) return; // nothing to go to; the box stays open
+    if (!hit.item.el.isConnected) {
+      // The page re-rendered while the box was open: index it again, run the
+      // query again, and go to the same source if it is still there.
+      const { src } = hit.item;
+      entries = collect();
+      render();
+      hit = hits.find((h) => h.item.src === src) || hits[0];
+      if (!hit) return; // stays open, showing what there is now
+    }
+    const target = hit.item.el;
+    close(false);
+    const still = root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+    flash(target);
+    focusOn(target);
+  }
+
+  // Moves the keyboard focus (and a screen reader) to the equation, without
+  // scrolling again. An element that cannot take focus gets `tabindex="-1"`
+  // until its highlight goes.
+  function focusOn(el) {
+    if (tabbed && tabbed !== el) untab(tabbed);
+    if (typeof el.focus !== 'function') return;
+    if (!el.hasAttribute('tabindex') && !(el.tabIndex >= 0)) {
+      el.setAttribute('tabindex', '-1');
+      tabbed = el;
+    }
+    el.focus({ preventScroll: true });
+  }
+
+  function untab(el) {
+    if (tabbed !== el) return;
+    tabbed = null;
+    el.removeAttribute('tabindex');
+  }
+
+  function flash(el) {
+    if (flashed) {
+      clearTimeout(flashed.timer);
+      flashed.el.classList.remove('mazer-search-hit');
+    }
+    el.classList.add('mazer-search-hit');
+    const timer = setTimeout(() => {
+      el.classList.remove('mazer-search-hit');
+      flashed = null;
+      // Still focused: the tabindex goes when the focus leaves, so the
+      // focus is not dropped from under the reader.
+      if (tabbed === el && doc.activeElement === el) el.addEventListener('blur', () => untab(el), { once: true });
+      else untab(el);
+    }, HIGHLIGHT_MS);
+    flashed = { el, timer };
+  }
+
+  // The composition-committing Enter arrives with `isComposing` or, in
+  // Safari, as keyCode 229.
+  const composing = (e) => e.isComposing || e.keyCode === 229;
+
+  function onInputKey(e) {
+    if (composing(e)) return;
+    // Typed and then pressed Enter (or an arrow) within one frame: bring the
+    // rows up to date with the query first.
+    if (pending && /^(Enter|ArrowDown|ArrowUp)$/.test(e.key)) render();
+    switch (e.key) {
+      case 'ArrowDown': move(1); break;
+      case 'ArrowUp': move(-1); break;
+      case 'Enter': jump(active < 0 ? 0 : active); break;
+      case 'Escape': close(); break;
+      case 'Tab': break; // the input is the only stop in the dialog
+      default: return;
+    }
+    // Handled here: the page's own key handlers (an Enter-to-click helper,
+    // say) must not act on it as well.
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  // Pastes the text without comments and with its line breaks as spaces, at
+  // the caret, then searches as for typing.
+  function onPaste(e) {
+    const data = e.clipboardData;
+    const text = data && data.getData ? data.getData('text/plain') : '';
+    if (!text) return;
+    e.preventDefault();
+    const clean = pasteText(text);
+    // `insertText` keeps the browser's undo history and fires `input`.
+    let done = false;
+    try {
+      done = typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, clean);
+    } catch (err) {
+      done = false;
+    }
+    if (done) return;
+    const value = input.value;
+    const start = input.selectionStart ?? value.length;
+    const end = input.selectionEnd ?? start;
+    if (typeof input.setRangeText === 'function') input.setRangeText(clean, start, end, 'end');
+    else input.value = value.slice(0, start) + clean + value.slice(end);
+    schedule();
+  }
+
+  const editable = (t) =>
+    !!t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName || ''));
+
+  // Listens on `document` in the bubble phase and stands aside when a
+  // handler of the page has already taken the key (`defaultPrevented`).
+  doc.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented || composing(e)) return;
+    const key = e.key || '';
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && key.toLowerCase() === 'k') {
+      e.preventDefault(); // or the browser focuses its own search bar
+      if (e.repeat) return; // held down: one toggle, not a flicker
+      if (isOpen()) close();
+      else open();
+    } else if (key === 'Escape' && isOpen()) {
+      e.preventDefault();
+      close();
+    } else if (key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat) {
+      // Inside a shadow root `e.target` is the host; the real target is
+      // the first entry of the composed path.
+      const target = (e.composedPath && e.composedPath()[0]) || e.target;
+      if (editable(target)) return;
+      // Shift is allowed: some layouts need it to type `/` at all.
+      e.preventDefault();
+      open();
+    }
+  });
+
+  // ---- the button, for devices without a keyboard ----
+
+  const wantButton = root.mazerSearchButton !== false;
+
+  function glass() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = doc.createElementNS(ns, 'svg');
+    for (const [k, v] of Object.entries({
+      viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.2',
+      'stroke-linecap': 'round', 'aria-hidden': 'true', focusable: 'false',
+    })) svg.setAttribute(k, v);
+    const circle = doc.createElementNS(ns, 'circle');
+    circle.setAttribute('cx', '10.5');
+    circle.setAttribute('cy', '10.5');
+    circle.setAttribute('r', '6.5');
+    const handle = doc.createElementNS(ns, 'path');
+    handle.setAttribute('d', 'M15.5 15.5 21 21');
+    svg.append(circle, handle);
+    return svg;
+  }
+
+  // Adds the button once the page has an equation. Returns whether it is
+  // there (or will never be).
+  function addButton() {
+    if (button || !wantButton) return true;
+    if (!doc.body || !doc.querySelector('[data-mazer-src]')) return false;
+    addStyle();
+    button = make('button', 'mazer-search-fab', { type: 'button', 'aria-label': 'Search equations', title: 'Search equations (Ctrl+K or /)' });
+    button.appendChild(glass());
+    button.addEventListener('click', () => open());
+    doc.body.appendChild(button);
+    return true;
+  }
+
+  // At load, or else at the first interaction after the notes are rendered.
+  const INTERACTIONS = ['pointerdown', 'touchstart', 'keydown', 'focusin'];
+  function onInteraction() {
+    if (addButton()) for (const type of INTERACTIONS) doc.removeEventListener(type, onInteraction, true);
+  }
+  function watchForEquations() {
+    if (addButton()) return;
+    for (const type of INTERACTIONS) doc.addEventListener(type, onInteraction, true);
+  }
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', watchForEquations);
+  else watchForEquations();
+
+  api.open = open;
+  api.close = () => close();
+})();
+</script></body></html>

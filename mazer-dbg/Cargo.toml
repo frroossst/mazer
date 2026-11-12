@@ -19,3 +19,5 @@ arboard = "3.3.0"
 smartstring = { version = "1.0.1", features = ["serde"] }
 # gimli = "0.31.1"
 
+[lints.cargo]
+missing_lints_inheritance = "allow"

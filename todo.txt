@@ -1,9 +1,1 @@
--[ ] the evaluation crate (mazer-eval, implements the Evaluator trait; `eval` is an error until then)
 
--[ ] in-browser plots and JS evaluation
-
--[ ] whole-document LaTeX output (math-only LaTeX exists: `--target latex`)
-
--[ ] trim keyword documentation out of the wasm build to reduce its size (about 24% of the module, per a twiggy measurement)
-
--[ ] pin the syntax-highlighter script (Arborium, loaded from a CDN by mazer.js) with an integrity hash

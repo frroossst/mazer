@@ -535,6 +535,7 @@ macro_rules! inspect {
             let var_name: String = stringify!($var).into();
 
             let type_name = std::any::type_name_of_val(&$var).to_string();
+            #[allow(clippy::size_of_ref)]
             let size_hint = std::mem::size_of_val(&$var);
 
             let vframe = $crate::VariableDebugFrame {
