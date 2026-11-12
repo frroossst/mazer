@@ -5,7 +5,7 @@
 //! into the box exactly as it is typed in the note (with `(show`, its tag,
 //! comments and line breaks), finds the equation it rendered.
 //!
-//! The pages are `examples/docs.md` and a note written here with the reader
+//! The pages are `examples/docs.md`, `examples/showcase.zr` and a note written here with the reader
 //! shorthands, a tag, an alias, a macro, a `let`, strings with escapes and a
 //! multi-line form with a comment.
 //!
@@ -144,6 +144,7 @@ fn search_script_tests_pass_under_node() {
     fs::create_dir_all(&dir.0).expect("create temp dir");
 
     let (docs, docs_forms) = page_and_forms(&dir.0, &repo().join("examples/docs.md"), "docs");
+    let (showcase, showcase_forms) = page_and_forms(&dir.0, &repo().join("examples/showcase.zr"), "showcase");
     let scratch_note = dir.0.join("note.zr");
     fs::write(&scratch_note, NOTE).expect("write the note");
     let (scratch, scratch_forms) = page_and_forms(&dir.0, &scratch_note, "note");
@@ -165,13 +166,13 @@ fn search_script_tests_pass_under_node() {
     let tests = repo().join("assets/mazer-search.test.mjs");
     let run = Command::new(&node)
         .arg(&tests)
-        .args([&docs, &docs_forms, &scratch, &scratch_forms])
+        .args([&docs, &docs_forms, &showcase, &showcase_forms, &scratch, &scratch_forms])
         .output()
         .expect("node runs");
     let text = show(&run);
     eprintln!("{text}");
     assert!(run.status.success(), "{text}");
     assert!(text.contains("tests passed"), "{text}");
-    // Both pages were checked, each with all of its forms.
-    assert_eq!(text.matches("each found by its form as typed").count(), 2, "{text}");
+    // All three pages were checked, each with all of its forms.
+    assert_eq!(text.matches("each found by its form as typed").count(), 3, "{text}");
 }

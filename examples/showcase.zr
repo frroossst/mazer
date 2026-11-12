@@ -1,0 +1,316 @@
+# The Dirac delta and the Laplace transform
+
+These are my working notes on impulses and how the Laplace transform treats them. :thinking:
+The aim is a damped oscillator hit by a hammer, and the answer is boxed as equation (ref result) at the end.
+I wrote the notes in mazer, so every formula below is source that the page was built from.
+
+Two spaces at the end of this line make a hard break.
+This line follows it. A single backslash does the same here.\
+And this one follows that.
+
+The **delta is not a function**, it is a _distribution_, so *what it does* matters more than what it is, and ~calling it a spike of infinite height~ is only a picture. Math sits inside styles too: **the pulse of width (show w) has area (show 1)**, and the [**Dirac delta** article](https://en.wikipedia.org/wiki/Dirac_delta_function) has the history. Why does the transform of a unit pulse tend to one? ||Because the exponential is close to one while the pulse lasts.||
+
+## Notation used below
+
+Definitions apply to the whole note, including the text above them, so I define a few names up front and picked ones that are not used for anything else. `Rline` and `Cline` are aliases, `lap` is a macro with a doc string, `pulses` collects any number of arguments, and `linear` is a macro that calls `lap`. Definitions render nothing.
+
+```scheme
+(macro (lap f s)
+    "The Laplace transform of f, evaluated at s."
+    (jux (cal L) (brace f) (paren s)))
+```
+
+(alias Rline (bb R))
+
+(alias Cline (bb C))
+
+(macro (lap f s)
+    "The Laplace transform of f, evaluated at s."
+    (jux (cal L) (brace f) (paren s)))
+
+(macro (pulses first rest...)
+    "The sum of the given pulses."
+    (+ first rest))
+
+(macro (linear f g s)
+    "Linearity of the transform."
+    (= (lap (+ f g) s) (+ (lap f s) (lap g s))))
+
+A prose parenthesis stays prose (like this one, even with f(t) = 0 for t < 0 inside it). Only a parenthesis that opens with `show`, `eval`, `let`, `alias`, `macro` or `ref` is code. To start a sentence in parentheses with one of those words, put a backslash in front: \(show that the integral converges) is prose because of the `\`.
+
+## The sifting property
+
+The delta is defined by what it does under an integral. For any smooth (show (f t)),
+
+(show (tag sifting) (= (integral (jux (f t) (delta t)) t (- infinity) infinity) (f 0)))
+
+and shifting the spike to (show a) picks out (show (f a)) instead. The next section turns this into a transform, and (ref lapdelta) is the one-line consequence. The sketch below is from `./figure.png`, a placeholder path that does not exist in the repository.
+
+![Pulses of height 1/w and width w shrinking toward the origin](./figure.png)
+
+One way to see the delta is as the limit of rectangular pulses of unit area:
+
+(show (= (funcapp (subscript p w) t) (cases ((frac 1 w) (<= 0 t w)) (0 "otherwise"))))
+
+Each pulse has area one, because its height is the reciprocal of its width:
+
+(show (= (integral (funcapp (subscript p w) t) t 0 w) (integral (frac 1 w) t 0 w) 1))
+
+and the delta is what is left when the width is sent to zero from above:
+
+(show (= (delta t) (limit w 0 (funcapp (subscript p w) t) +)))
+
+The pulse lives on the interval (show (in t (bracket (jux 0 "," w)))), and its transform is easy to write down:
+
+(show (= (lap (funcapp (subscript p w) t) s) (frac (- 1 (exp (- (jux w s)))) (jux w s))))
+
+When (show (jux w s)) is small this is close to one, which is the transform of the delta: (show (approx (frac (- 1 (exp (- (jux w s)))) (jux w s)) 1)).
+
+A narrow pulse needs a wide spectrum. With energy and angular frequency tied by (show (= E (jux hbar omega))), the pulse duration and the spread of energies obey
+
+(show (>= (jux Delta E Delta t) (frac hbar 2)))
+
+and the same rule in plain signal terms is (show (>= (jux Delta t Delta omega) (frac 1 2))). The period of a wave is (show (= T (frac (jux 2 π) ω))), typed here with the characters π and ω instead of the names `pi` and `omega`. They look the same, but they are different variables to the tool.
+
+### Unit step: (show (funcapp H t))
+
+The antiderivative of the delta is the unit step:
+
+(show (= (funcapp H t) (cases (1 (>= t 0)) (0 (< t 0)))))
+
+Written as a derivative, it says (show (= (derivative (funcapp H t) t) (delta t))), or in Leibniz form (show (= (dd H t) (delta t))), or with a prime (show (= (prime H) delta)). The step is not continuous at the origin, so the one-sided limit matters: (show (= (lim t 0 (funcapp H t) +) 1)).
+
+> **Remark.** The step needs a convention at zero.
+>
+> - Some books put (show (= (funcapp H 0) 0)).
+> - Others put (show (= (funcapp H 0) (frac 1 2))).
+>
+> The transform does not care, because a single point has no integral.
+>
+> ```python
+> def H(t):
+>     return 1.0 if t >= 0 else 0.0
+> ```
+
+## The Laplace transform
+
+The transform sends a signal to a function of a complex frequency (show s):
+
+(show (tag lapdef) (= (lap f s) (integral (jux (f t) (exp (- (jux s t)))) t (superscript 0 -) infinity)))
+
+The lower limit is (show (superscript 0 -)) so that a delta sitting at the origin is counted fully. With that, the sifting property gives the first entry of the table directly:
+
+(show (tag lapdelta) (= (lap (delta t) s) (integral (jux (delta t) (exp (- (jux s t)))) t (superscript 0 -) infinity) (evalat (exp (- (jux s t))) t 0) 1))
+
+The transform of the delta has no poles at all, (show (= (Pol 1) emptyset)). The transform itself is a map, (show (jux (cal L) ":" (cal E) to (cal F))), and a signal goes to its transform by (show (jux f mapsto (lap f s))).
+
+(show (table (style clean) (align center left) (header (f t) (F s))
+    (row (delta t) 1)
+    (row (funcapp H t) (frac 1 s))
+    (row (^ t n) (frac (fact n) (^ s (+ n 1))))
+    (row (exp (- (jux a t))) (frac 1 (+ s a)))
+    (row (sin (jux omega t)) (frac omega (+ (^ s 2) (^ omega 2))))
+    (row (cos (jux omega t)) (frac s (+ (^ s 2) (^ omega 2))))))
+
+Three properties do most of the work:
+
+1. Linearity, which the macro `linear` states: (show (linear f g s)).
+2. Differentiation in time.
+   - First order: (show (= (lap (prime f) s) (- (jux s (lap f s)) (f 0)))).
+   - Second order: (show (= (lap (prime f 2) s) (- (jux (^ s 2) (lap f s)) (jux s (f 0)) (funcapp (prime f) 0)))).
+3. Reality: for real (show f), (show (= (F (bar s)) (bar (F s)))).
+
+The bar is the complex conjugate, so the transform of a real signal takes conjugate values at conjugate points. For the derivatives of a product, such as a smooth function times a delta, the Leibniz rule is the tool. The comments inside this form explain its parts, and none of them reach the page:
+
+(show (= (derivative (paren (jux f g)) t n)   ; n-th derivative of a product
+         (sum (jux (binom n k)        ; how many ways to pick k factors
+                   (derivative f t k)
+                   (derivative g t (- n k)))
+              k 0 n)                  ; k runs over the orders
+))
+
+Integrating by parts once puts the derivative of the delta onto the test function:
+
+(show (tag dprime) (= (integral (jux (f t) (derivative (delta t) t)) t (- infinity) infinity) (- (funcapp (prime f) 0))))
+
+Each time a decaying exponential is differentiated it brings down a factor of (show (- a)), so the second derivative is (show (= (derivative (exp (- (jux a t))) t 2) (jux (^ (- a) 2) (exp (- (jux a t)))))). The parentheses around the (show (- a)) were not written in the source: the renderer adds them to a negative base. The decay rate gives a time constant, (show (= tau (/ 1 a))).
+
+### Pulse trains
+
+A train of deltas spaced by (show T) transforms to a geometric series:
+
+(show (tag comb) (= (lap (sum (delta (- t (jux k T))) k 0 infinity) s) (sum (exp (- (jux k T s))) k 0 infinity) (frac 1 (- 1 (exp (- (jux T s)))))))
+
+Its first three pulses are (show (= (subscript u 3) (pulses (delta t) (delta (- t T)) (delta (- t (* 2 T)))))). The number of pulses that have arrived by time (show t) is (show (add (floor (frac t T)) 1)), and a sampler that has to resolve a dynamic range (show (frac (subscript A max) (subscript A min))) needs (show (ceil (log 2 (frac (subscript A max) (subscript A min))))) bits.
+
+A chain of (show n) first-order filters multiplies the factors:
+
+(show (= (funcapp H s) (prod (frac 1 (+ 1 (jux s (subscript tau j)))) j 1 n)))
+
+If the stages are identical and the whole chain has a gain of (show (subscript G total)) at zero frequency, each stage has the gain (show (root n (subscript G total))).
+
+## The damped oscillator
+
+A mass on a spring with damping, hit by an impulse of size (show J), obeys
+
+(show (tag motion) (= (+ (jux m (ddot x)) (jux c (dot x)) (jux k x)) (jux J (delta t))))
+
+With zero initial conditions, (ref lapdef) turns each derivative into a power of (show s), and with (show (= m 1)) from here on the equation becomes algebra:
+
+(show (= (jux (+ (^ s 2) (jux c s) k) (funcapp X s)) J))
+
+The sum in front of (show (funcapp X s)) is wrapped in parentheses, and again they were not written: a sum under a product gets them. The roots of that sum are the poles. They depend on
+
+(show (= D (- (^ (frac c 2) 2) k)))
+
+where the renderer put parentheses around the fraction because it is raised to a power. One pole is at
+
+(show (= s (+ (- (frac c 2)) (sqrt D))))
+
+and the other has the opposite sign in front of the root. Together they form a set, (show (= (Pol H) (set (subscript p 1) (subscript p 2)))). The sign of (show D) decides what happens, and exactly one of the cases holds:
+
+(show (iff (not (< D 0)) (or (> D 0) (= D 0))))
+
+The poles are real exactly when (show D) is not negative:
+
+(show (iff (subset (Pol H) Rline) (not (< D 0))))
+
+Stability of the damped system, with a plain-words side, comes down to the signs of the coefficients:
+
+(show (iff (text the system is stable) (and (> c 0) (> k 0))))
+
+The same system in first-order form uses a state vector and a matrix. Here the state is the pair of position and velocity:
+
+(show (= (derivative (vec x1 x2) t) (jux (matrix (0 1) ((- k) (- c))) (vec x1 x2))))
+
+The matrix whose determinant matters is (show s) times the identity minus that one:
+
+(show (= (mat (s -1) (k (+ s c))) (- (jux s (matrix (1 0) (0 1))) (matrix (0 1) ((- k) (- c))))))
+
+and its determinant is the same polynomial as before:
+
+(show (= (det (s -1) (k (+ s c))) (+ (^ s 2) (jux c s) k)))
+
+For (show (< D 0)) the poles are complex, with imaginary part (show (= (subscript omega d) (sqrt (- k (frac (^ c 2) 4))))). A first-order lag with time constant (show tau) has the frequency response (show (frac 1 (+ 1 (jux i omega tau)))), whose phase lag can be written with an arcsine:
+
+(show (= phi (- (arcsin (frac (jux omega tau) (sqrt (+ 1 (^ (jux omega tau) 2))))))))
+
+The same angle is more often given by its tangent, (show (= (tan phi) (- (jux omega tau)))), or as an arctangent, (show (= phi (- (arctan (jux omega tau))))). The envelope of the oscillation shrinks to a fraction (show epsilon) of its start after
+
+(show (= (subscript t settle) (frac (jux 2 (ln (frac 1 epsilon))) c)))
+
+The result: for (show (< D 0)) and zero start, the displacement after the hammer blow is the impulse response, boxed because it is what the note was for:
+
+(show (tag result) (box (= (funcapp h t) (jux (frac 1 (subscript omega d)) (exp (- (frac (jux c t) 2))) (sin (jux (subscript omega d) t))))))
+
+Equation (ref motion) came first and (ref result) answers it. The Fourier version sets (show (= s (jux i omega))) and reads (show (= (funcapp (hat f) omega) (lap f (jux i omega)))). The same transform in space and time, for a transport equation with a source that fires once at (show (= t 0)):
+
+(show (= (+ (partial u t) (jux c (partial u x))) (jux (delta t) (g x))))
+
+and transformed in time it becomes an ordinary equation in (show x):
+
+(show (= (+ (jux s (U x s)) (jux c (partial U x))) (g x)))
+
+In three dimensions, with the position as a vector, the sifting property integrates over all of space:
+
+(show (= (integral (jux (f (arrow r)) (delta (arrow r))) (arrow r) (^ Rline 3)) (f 0)))
+
+## Aside: signs and rules
+
+The transform is only defined for signals that do not grow faster than an exponential. Let (show (cal E)) be that class:
+
+(show (iff (in f (cal E)) (exists M (exists a (forall t (implies (>= t 0) (<= (abs (f t)) (jux M (exp (jux a t))))))))))
+
+The region of convergence of a sum contains the overlap of the two regions, and the poles of a product are among the poles of its factors:
+
+(show (superset (ROC (+ f g)) (intersect (ROC f) (ROC g))))
+
+(show (subset (Pol (jux F G)) (union (Pol F) (Pol G))))
+
+Stability of the damped system is a statement with a quantifier and a hypothesis: if both coefficients are positive, every pole has a negative real part.
+
+(show (implies (and (> c 0) (> k 0)) (forall p (implies (in p (Pol H)) (< (Re p) 0)))))
+
+When the spring is present the origin is never a pole: (show (implies (!= k 0) (notin 0 (Pol H)))), because at the origin the denominator is just (show k).
+
+Typing rules for the transform are written as inference rules. The rule name goes on the right, the premises are a list above the bar:
+
+(show (ty-judge T-Lap ((in f (cal E)) (in s Cline)) (in (lap f s) Cline)))
+
+(show (ty-judge T-Delta ((in t Rline)) (jux (Gamma) turnstile (delta t) ":" (cal D))))
+
+(show (ty-judge T-Lin ((in f (cal E)) (in g (cal E)) (in s Cline)) (linear f g s)))
+
+Fonts mark the kind of object: (show (bb R)) for numbers, (show (cal L)) for operators, (show (frak S)) for signal spaces, (show (bold x)) for the state, and (show (rm e)) for the constant, as in (show (= (rm e) (exp 1))). The differential is upright too, (show (jux (rm d) t)).
+
+A bare keyword shows its sign, and a quoted one shows its name. The table below uses both spellings of quote, the apostrophe and the word:
+
+(show (table (style plain) (header (text word) (text sign))
+    (row 'in in)
+    (row (quote partial) partial)
+    (row 'arrow arrow)
+    (row 'integral integral)))
+
+## What is left
+
+-[x] the sifting property
+-[x] the table of transforms
+-[ ] the inverse transform
+- [ ] repeated poles
+
+The remaining notes are in a bullet list of their own:
+
+- Ordered by how much I trust them:
+  1. the table, checked by hand
+  2. the pole analysis
+  3. the matrix form
+- Others: :sparkles: :coffee: :brain: :heart: :eyes: :rocket: :+1: and a name :banana: that is not one of the thirteen and stays as text.
+
+---
+
+## Fixing a gain with let
+
+`let` binds a variable for the rest of the note, and every use after it is replaced by the value, so I keep it for the end and use names that appear nowhere else. A gain of 4 in front of a first-order lag:
+
+(let gain 4)
+
+(show (= (funcapp G s) (frac gain (+ s 2))))
+
+The next binding captures the value of `gain` as it is now, and then `gain` is reassigned:
+
+(let boost (* 2 gain))
+
+(let gain 10)
+
+(show (= 'gain gain))
+
+(show (= 'boost boost))
+
+The quoted name stays a name and the unquoted one shows its value. `boost` still holds the old gain, because it was captured at its `let`.
+
+## Evaluation, broken forms and tooling
+
+No evaluator ships yet, so a live form headed by `eval` would render an error box. It is written like this and has to stand alone:
+
+```scheme
+(eval (+ 1 2))
+```
+
+A form with a mistake in it, such as a keyword with the wrong number of arguments, becomes a red error box in place of that one form, with the message inside it, and the rest of the note renders as usual. The command line prints the same message with its position. This is what a broken form looks like, shown only as source:
+
+```scheme
+(show (frac 1))
+```
+
+To build this note, run `mazer examples/showcase.zr --open`. To check it without writing a page, use `--check --strict`, which fails on warnings too. To look up a keyword, a display name or one of the macros above, use `query`.
+
+```sh
+mazer examples/showcase.zr --open
+mazer --check --strict examples/showcase.zr
+mazer query integral
+mazer query lap --file examples/showcase.zr
+```
+
+Math can also be emitted as LaTeX with `--target latex`, in a build with the `latex` feature: `cargo build -p mazer-cli --features latex`. Neovim gets diagnostics, completion, hover and a live preview from the `mazer-lsp` language server.
+
+The rendered page can be searched by the source of its equations. Press Ctrl+K, Cmd+K or `/`, then type `(funcapp H t)` and press Enter. The first hit is the heading of the unit step section, and the arrow keys move through the others. :fire:

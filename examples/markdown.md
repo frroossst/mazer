@@ -1,6 +1,6 @@
 # A tour of the markdown side
 
-This file shows every markdown feature a note can use. Each feature has a one-line explanation, and most are followed by the source that produced them. The math side is in `docs.md`.
+This file shows every markdown feature a note can use. Each feature has a one-line explanation, and most are followed by the source that produced them. The math side is in `docs.md`, and `showcase.zr` is one complete note that uses both.
 
 ## Headings
 

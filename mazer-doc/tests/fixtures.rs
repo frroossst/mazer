@@ -4,7 +4,7 @@
 //! The notes directory is `$MAZER_FIXTURES`, or `fixtures/notes` at the
 //! workspace root. The notes are private and not committed, so when the
 //! directory is missing the first test passes without doing anything. The
-//! second test reads `examples/*.md`, which are always present.
+//! second test reads the tracked files in `examples/` (`*.md` and `showcase.zr`), which are always present.
 //!
 //! A clean page has no diagnostics of any severity, one non-empty
 //! `data-mazer-src` attribute per `<math` element, no element with class
@@ -194,7 +194,7 @@ fn examples_are_clean() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../examples");
     let dump = dump_dir();
     let mut all = Vec::new();
-    for file in ["markdown.md", "docs.md"] {
+    for file in ["markdown.md", "docs.md", "showcase.zr"] {
         let text = std::fs::read_to_string(dir.join(file)).expect("readable example");
         all.extend(problems(file, &text, dump.as_deref()));
     }

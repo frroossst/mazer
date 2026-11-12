@@ -1,6 +1,6 @@
 # The math side of Mazer
 
-A note is markdown with Lisp forms in it. A parenthesis is code only when it opens with `show`, `eval`, `let`, `alias`, `macro` or `ref`. Everything else in parentheses is prose. This page shows each feature as source in a code block, followed by the same form live. It is compiled by the test suite, so every live form here must produce no diagnostics. The markdown side is in `markdown.md`.
+A note is markdown with Lisp forms in it. A parenthesis is code only when it opens with `show`, `eval`, `let`, `alias`, `macro` or `ref`. Everything else in parentheses is prose. This page shows each feature as source in a code block, followed by the same form live. It is compiled by the test suite, so every live form here must produce no diagnostics. The markdown side is in `markdown.md`, and `showcase.zr` is one complete note that uses all of it together.
 
 ## Show: inline and display
 

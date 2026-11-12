@@ -122,6 +122,7 @@ fn repository_examples_parse_cleanly() {
     for text in [
         include_str!("../../examples/markdown.md"),
         include_str!("../../examples/docs.md"),
+        include_str!("../../examples/showcase.zr"),
     ] {
         let mut diags = Diags::new();
         let doc = parse(text, FileId(0), &mut diags);
