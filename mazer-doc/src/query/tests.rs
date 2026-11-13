@@ -82,26 +82,32 @@ fn comments_in_code_only() {
 
 #[test]
 fn binding_in_scope_starts_after_the_let() {
-    let src = "(let x 2)\n\n(show x)\n\n(let x (+ x 1))\n\n(show x)";
+    let src = "(let x 2)\n\n(show x)\n\n(let y (+ x 1))\n\n(show y)\n\n(let z (+ z 1))";
     let analysis = analyze(src, "t.zr");
-    let x = Sym::new("x");
-    let value_at = |needle: &str, from: usize| {
+    assert!(analysis.diags.is_empty(), "{:?}", analysis.diags);
+    let value_at = |name: &str, needle: &str, from: usize| {
         let at = src[from..].find(needle).unwrap() + from;
-        binding_at(&analysis, x, ByteOffset::from_usize(at)).map(|b| b.value.to_string())
+        binding_at(&analysis, Sym::new(name), ByteOffset::from_usize(at)).map(|b| b.value.to_string())
     };
-    assert_eq!(value_at("(let x 2)", 0), None, "nothing before the first let");
-    assert_eq!(value_at("x)", 12), Some("2".to_owned()));
-    // Inside the second let's own value: still the first binding.
-    assert_eq!(value_at("x 1)", 0), Some("2".to_owned()));
-    // After it: the new value, captured with the old one substituted.
-    assert_eq!(value_at("x)", src.rfind("(show").unwrap()), Some("(+ 2 1)".to_owned()));
+    assert_eq!(value_at("x", "(let x 2)", 0), None, "nothing before the first let");
+    assert_eq!(value_at("x", "x)", 12), Some("2".to_owned()));
+    // Inside a let's own value, its name is not bound yet.
+    assert_eq!(value_at("y", "x 1)", 0), None);
+    assert_eq!(value_at("z", "z 1)", 0), None);
+    // After it: the value, captured with x substituted.
+    assert_eq!(value_at("y", "y)", src.rfind("(show").unwrap()), Some("(+ 2 1)".to_owned()));
     let all = bindings_in_scope(&analysis, ByteOffset::from_usize(src.len()));
-    assert_eq!(all.len(), 1);
-    assert_eq!(all[0].value.to_string(), "(+ 2 1)");
-    // A rejected let binds nothing: the earlier binding stays in scope.
-    let analysis = analyze("(let y 1)\n\n(let y)\n\n(show y)", "t.zr");
-    let b = binding_at(&analysis, Sym::new("y"), ByteOffset::from_usize(20)).unwrap();
-    assert_eq!(b.value.to_string(), "1");
+    let names: Vec<String> = all.iter().map(|b| b.name.to_string()).collect();
+    assert_eq!(names, ["x", "y", "z"]);
+    // A rejected let binds nothing: the earlier binding stays in scope,
+    // whether it was malformed or a second definition.
+    for src in ["(let y 1)\n\n(let y)\n\n(show y)", "(let y 1)\n\n(let y 5)\n\n(show y)"] {
+        let analysis = analyze(src, "t.zr");
+        assert_eq!(analysis.lets.len(), 1, "{src}");
+        let b = binding_at(&analysis, Sym::new("y"), ByteOffset::from_usize(src.len())).unwrap();
+        assert_eq!(b.value.to_string(), "1", "{src}");
+        assert_eq!(bindings_in_scope(&analysis, ByteOffset::from_usize(src.len())).len(), 1);
+    }
 }
 
 #[test]

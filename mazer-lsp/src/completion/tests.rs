@@ -124,11 +124,12 @@ fn lets_in_scope_only() {
     let got = labels(src);
     assert!(got.contains(&"a".to_owned()));
     assert!(!got.contains(&"b".to_owned()), "b is bound later");
-    // A re-bound name is offered once, with its latest value.
+    // A second definition binds nothing: the name is offered once, with its
+    // first value.
     let src = "(let a 1)\n\n(let a 5)\n\n(show (+ |))";
     let all = items(src);
     assert_eq!(all.iter().filter(|i| i.label == "a").count(), 1);
-    assert_eq!(find(&all, "a").detail.as_deref(), Some("5"));
+    assert_eq!(find(&all, "a").detail.as_deref(), Some("1"));
     // Not inside a definition, where variables are not substituted.
     assert!(!labels("(let a 1)\n\n(alias B (+ |))").contains(&"a".to_owned()));
 }

@@ -149,13 +149,13 @@ pub struct Analysis {
     pub resolved: Document,
     pub macros: Macros,
     pub labels: Labels,
-    /// Every `let` that bound its variable, in document order (a name may
-    /// appear more than once), with the value as substituted. A `let` refused
-    /// by the document's node budget is included with an `Error` value (its
-    /// variable is an error from then on); a malformed `let` is not. The
-    /// binding in scope at a cursor is the last `let` of that name whose form
-    /// *ends* at or before it ([`crate::binding_at`]), so in
-    /// `(let x (+ x 1))` the inner `x` is the earlier binding.
+    /// Every `let` that bound its variable, in document order, with the value
+    /// as substituted. A variable is defined once, so a name appears at most
+    /// once. A `let` refused by the document's node budget is included with
+    /// an `Error` value (its variable is an error from then on); a malformed
+    /// `let` and a second definition of a name are not. A binding is in
+    /// scope from the *end* of its form ([`crate::binding_at`]), so in
+    /// `(let x (+ x 1))` the inner `x` is not that binding.
     pub lets: Vec<Binding>,
     pub diags: Diags,
 }

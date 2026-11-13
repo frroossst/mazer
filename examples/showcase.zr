@@ -276,17 +276,17 @@ The remaining notes are in a bullet list of their own:
 
 (show (= (funcapp G s) (frac gain (+ s 2))))
 
-The next binding captures the value of `gain` as it is now, and then `gain` is reassigned:
+The next binding captures the value of `gain` as it is now, so `boost` holds 2 times 4, not the name `gain`. A variable is defined only once per note, so a different gain gets a name of its own:
 
 (let boost (* 2 gain))
 
-(let gain 10)
-
-(show (= 'gain gain))
+(let retuned 10)
 
 (show (= 'boost boost))
 
-The quoted name stays a name and the unquoted one shows its value. `boost` still holds the old gain, because it was captured at its `let`.
+(show (= 'retuned retuned))
+
+The quoted name stays a name and the unquoted one shows its value.
 
 ## Evaluation, broken forms and tooling
 

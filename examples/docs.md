@@ -780,7 +780,7 @@ Equations are numbered in document order, and only the tagged ones. A second tag
 
 ## Variables: let
 
-`let` binds a variable. It is different from `alias`: the value is captured when the `let` is read, a variable can be rebound any number of times, and `show` substitutes the current value wherever the name appears afterwards. Quote a name to keep it as it is. The binding stays in force for the rest of the note, so this section comes last.
+`let` binds a variable. It is different from `alias`: the value is captured when the `let` is read, with the variables bound so far substituted in, and `show` substitutes it wherever the name appears afterwards. A variable can be defined only once per note; a second `let` of the same name is an error and the first value stays. Quote a name to keep it as it is. The binding stays in force for the rest of the note, so this section comes last.
 
 ```scheme
 (let x 2)
@@ -788,11 +788,11 @@ Equations are numbered in document order, and only the tagged ones. A second tag
 (show (+ x 1))    ; 2 + 1
 (eval (+ x 1))    ; 3
 (let y (+ x 1))   ; y holds (+ 2 1)
-(let x 3)         ; reassigned
-(show (= 'x x))   ; x = 3
+(show (= 'y y))   ; y = 2 + 1
+(let x 3)         ; error: x is already defined
 ```
 
-Live, without the `eval` line:
+Live, without the `eval` line and the error:
 
 (let x 2)
 
@@ -802,11 +802,9 @@ Live, without the `eval` line:
 
 (let y (+ x 1))
 
-(let x 3)
+(show (= 'y y))
 
-(show (= 'x x))
-
-After the rebinding `y` still holds the old value, because it was captured at the `let`: (show y).
+`y` holds the value `x` had when `y` was bound, not the name `x`. For another value, bind another name: (let z (* y 2)) (show (= 'z z)).
 
 ## Evaluation
 

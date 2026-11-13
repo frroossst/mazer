@@ -155,13 +155,16 @@ mod tests {
 
     #[test]
     fn lets() {
-        let src = "(let x 2)\n\n(let x 3)\n\n(show (+ |x 1))";
-        has(src, &["shown as:\n```scheme\n3\n```", "Bound on line 3"]);
-        let src = "(let x 2)\n\n(show |x)\n\n(let x 3)";
+        let src = "(let x 2)\n\n(let y (+ x 1))\n\n(show (+ |y 1))";
+        has(src, &["shown as:\n```scheme\n(+ 2 1)\n```", "Bound on line 3"]);
+        let src = "(let x 2)\n\n(show |x)";
         has(src, &["2", "Bound on line 1"]);
-        // Inside its own value, the earlier binding.
-        let src = "(let x 2)\n\n(let x (+ |x 1))";
-        has(src, &["shown as:\n```scheme\n2\n```"]);
+        // A second definition binds nothing: the first value stays.
+        let src = "(let x 2)\n\n(let x 3)\n\n(show |x)";
+        has(src, &["shown as:\n```scheme\n2\n```", "Bound on line 1"]);
+        has("(let x 2)\n\n(let |x 3)", &["`x` is not bound: this `let` has an error"]);
+        // Inside its own value, the name is not bound yet.
+        has("(let x (+ |x 1))", &["only takes effect after it is written"]);
         // Before any let: nothing bound yet.
         has("(show |y)\n\n(let y 1)", &["only takes effect after it is written"]);
         // Quoted: no substitution.

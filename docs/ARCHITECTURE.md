@@ -229,8 +229,8 @@ pub fn expand(node: &Node, macros: &Macros, diags: &mut Diags) -> Node;
 (show (+ x 1))    ; 2 + 1      show substitutes bound variables everywhere
 (eval (+ x 1))    ; 3
 (let y (+ x 1))   ; y holds (+ 2 1): captured at the let
-(let x 3)         ; reassignable any number of times; document order
-(show (= 'x x))   ; x = 3      quote shows the name itself
+(show (= 'x x))   ; x = 2      quote shows the name itself
+(let x 3)         ; error: a variable is defined once per note; x stays 2
 ```
 ```rust
 pub struct Binding { pub name: Sym, pub value: Node /* unevaluated */, pub span: Span }
@@ -239,7 +239,8 @@ pub struct Bindings { by_name: HashMap<Sym, Binding> }
 - The core owns the table, so `let` and `show` work with no evaluator.
 - One pass in document order (after macro expansion, inside `analyze`) substitutes variables into every `let`, `show` and `eval`. Afterwards trees contain no bound variables.
 - `(quote x)` / `'x` is never substituted.
-- `Analysis::lets` holds every `let` that bound its variable, in document order, including one refused by the node budget (recorded with an `Error` value). A malformed `let` is not in it. A binding is in scope from the END of its `let` form, so in `(let x (+ x 1))` the inner `x` is the earlier binding.
+- A variable is defined once per note. A second `let` of the same name is a `DuplicateDefinition` and binds nothing; the first value stays in effect.
+- `Analysis::lets` holds every `let` that bound its variable, in document order, so at most one per name, including one refused by the node budget (recorded with an `Error` value). A malformed `let` and a second definition are not in it. A binding is in scope from the END of its `let` form, so in `(let x (+ x 1))` the inner `x` is not that binding (it is a free name when nothing else defined `x`).
 
 ### Equation tags and references (`mazer-doc`)
 
@@ -277,7 +278,7 @@ pub struct Analysis {
     pub resolved: Document,    // macros expanded, let-variables substituted: render
     pub macros: Macros,
     pub labels: Labels,
-    pub lets: Vec<Binding>,    // every `let` that bound its variable, in document order (incl. one refused by the node budget, with an Error value); used by the LSP
+    pub lets: Vec<Binding>,    // every `let` that bound its variable, in document order, at most one per name (incl. one refused by the node budget, with an Error value); used by the LSP
     pub diags: Diags,
 }
 pub fn analyze(src: &str, name: &str) -> Analysis;            // LSP calls only this, on every edit
@@ -333,7 +334,7 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 3. Reserved heads and `tag` may not be nested in code. A list headed by `show`, `eval`, `let`, `alias`, `macro`, `ref` or `tag` anywhere inside a `show`, an `eval` or a `let` value (also inside `quote`), other than the one `(tag name)` that may start a display `show`, is reported once at that inner list and replaced by an `Error` node, so the enclosing form is an error box. Codes: `NestedEval` for `eval`, `MisplacedTag` for `tag`, `BadDefinition` for `let`/`alias`/`macro`, `Other` for `show`/`ref` ("`ref` can only be used in prose, not inside `show`"). An alias or macro whose template contains such a list is rejected where it is defined (same codes) and the name is not defined, so `(alias T (tag a))` cannot smuggle a tag in. A reserved word that is not a list head, as in `(show (jux show me))`, is an ordinary variable.
 4. A rest parameter is spelled `name...` in the signature and only as the last parameter; in the body it is written `name` and must stand inside a list, where the remaining arguments are spliced: `(macro (pair a rest...) (paren a rest))`.
 5. `let`, `alias` and `macro` are accepted as a block or inline anywhere (paragraph, heading, list item, block quote, link, style) and produce no output. A paragraph, heading, list item, block quote or inline style whose content is only sound definitions and whitespace produces no output at all, and a list whose items all vanish produces no list. A broken definition shows an error box instead, which keeps its container.
-6. A `let` may not reuse the name of an alias or macro (`DuplicateDefinition`, since macros are expanded first and the variable could never be used), nor a keyword, reserved word or `tag` (`ShadowsBuiltin`). Display names such as `tau` may be bound.
+6. A `let` may not reuse the name of an alias or macro (`DuplicateDefinition`, since macros are expanded first and the variable could never be used), nor a keyword, reserved word or `tag` (`ShadowsBuiltin`). Display names such as `tau` may be bound. A variable may be defined only once (see "Decisions made after the rewrite", item 3).
 7. Bound variables are substituted everywhere outside `quote`: in head position and inside binders too. So after `(let x 2)`, `(sum x x 1 n)` shows the 2 as the summation variable. Use a different variable name, or quote it (`(sum x 'x 1 n)`).
 8. A `let` value is checked once, where it is bound (after substituting earlier variables), and its keyword problems are reported at the `let`, which then shows an error box; uses of the variable still render the `<merror>` but do not report it again. A value that is a single name is not checked at the `let`. `analyze` merges diagnostics with the same code, span and message into the first.
 9. The error-box rule. A code form renders as an error box (`<pre class="mazer-error">` for a block, `<span class="mazer-error">` inside a sentence) holding the escaped messages, instead of its normal output, when:
@@ -359,7 +360,7 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 4. **Summary line:** printed whenever anything at all was reported, counting hints too (`1 error, 2 warnings, 1 hint`; zero counts are left out).
 5. **Column conventions.** The CLI and the wasm console line report 1-based **character** columns. The LSP reports **UTF-16** units, as its protocol requires. Spans themselves are **byte** offsets. Never mix them: a column is converted from a span's byte offset at the edge.
 6. **LaTeX target scope.** `--target latex` changes only how math is emitted, inside the same HTML as before: inline math is `\(\displaystyle ... \)` and a display equation is `\[ ... \]` (with `\tag{n}\label{key}` when tagged; references are `\eqref{key}`). `\label` and `\eqref` keys are sanitised: ASCII letters, digits, `:`, `_` and `-` are kept and every other character becomes `-`, the same way for the label and for each reference. A full page does not load a TeX renderer; whole-document `.tex` output is not built.
-7. **Editor scope of `let`.** A binding is in scope from the END of its `let` form, so a use inside the `let`'s own value sees the previous binding, and completion, hover and go-to-definition follow that rule.
+7. **Editor scope of `let`.** A binding is in scope from the END of its `let` form, so a use inside the `let`'s own value does not see it, and completion, hover and go-to-definition follow that rule.
 8. **Completion of reserved heads.** The reserved words (`show`, `eval`, `let`, `alias`, `macro`, and `tag` first in a `show`) are offered only at the head of a top-level form, never at the head of a nested list, where nesting them is an error.
 9. **Diagnostics printing** hands `annotate-snippets` only the lines a diagnostic's spans cover plus one line of context each side (with the real starting line number), so printing costs time proportional to the lines shown, not to the file.
 10. **LaTeX emitter** (`mazer-math/src/latex.rs`, `latex/`). A typed Unicode glyph that is a display-table character is spelled as its LaTeX command (`α` is `\alpha`, `→` is `\to`) and any other non-ASCII character goes into `\text{}`, so the output is ASCII outside `\text`. `\mathbb` and `\mathcal` are applied only to a single uppercase Latin letter and `\mathfrak` only to a single Latin letter; anything else is shown in the ordinary font with one `UnsupportedTarget` warning. A matrix wider than 10 columns (amsmath's `MaxMatrixCols`) is written as an `array` between `\left` and `\right`. The precedence levels and parenthesisation helpers are shared with the MathML emitter, so both targets parenthesise alike.
@@ -388,6 +389,8 @@ pub fn locate(analysis: &Analysis, at: ByteOffset) -> Cursor<'_>;
 
 2. **Derivative bodies.** Writing a full example note showed `(derivative (jux f g) t)` rendering as the ambiguous `d/dt f g`. The body of `derivative` and `partial`, and the numerator of `dd`, are now parenthesised unless they are a fraction or tighter (see step 1 decision 4, "Derivatives"). Both targets follow the rule.
 
+3. **A variable is defined once.** A `let` used to be reassignable any number of times. Now a name may be defined by `let` only once per note: a second `(let x ...)` is a `DuplicateDefinition` error at its name ("`x` is already defined"), labelled "first defined here" at the name in the first `let`, with the help "a variable can be defined only once; choose another name". The second `let` binds nothing, so the first value stays in effect below it; it is not in `Analysis::lets`, and it renders as an error box (step 2 decision 9). A `let` that bound nothing (malformed, a reserved name, a value too large) does not count as a definition, so a later `let` of the same name is fine; one refused by the node budget did bind its variable (to an error) and does count. The embedded prelude holds only `alias` and `macro`; its `let` forms are not processed. Capture is unchanged, so a value is still fixed where it is written; to show a later value, bind a new name.
+
 ### Public helper APIs
 
 - `mazer_syntax::reader::{read_form, read_str}`: read one form at an offset (returns a `Read`), or read a whole string as one `Node`.
@@ -408,7 +411,7 @@ The editor-facing API of `mazer-doc`, all re-exported at the crate root and all 
   - `arg_index(list, at) -> Option<usize>`: the argument position at `at`, `None` on or before the head.
   - `comment_spans(analysis) -> Vec<Span>`: the spans of the `;` comments inside code forms.
   - `binding_at(analysis, name, at) -> Option<&Binding>`: the `let` binding of `name` in scope at `at`.
-  - `bindings_in_scope(analysis, at) -> Vec<&Binding>`: one binding per name, the latest, in scope at `at`.
+  - `bindings_in_scope(analysis, at) -> Vec<&Binding>`: the bindings in scope at `at`, in document order.
   - `name_node(form) -> Option<&Node>`: the name node of a `let`, `alias`, `macro` or `tag` form.
   - `name_span(form) -> Option<Span>`: the span of that name.
   - `form_at(analysis, span) -> Option<&Node>`: the written code form whose span is exactly `span`.

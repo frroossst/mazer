@@ -2,8 +2,8 @@
 //!
 //! - A macro or alias use goes to the name in its definition. Definitions in
 //!   the embedded prelude have no file the editor could open: nothing.
-//! - A `let` variable goes to the name in the `let` in scope there (the last
-//!   one written before the use), so a re-bound name goes to the right one.
+//! - A `let` variable goes to the name in the `let` in scope there: the one
+//!   that defined it, if it ends before the use.
 //! - `(ref name)` goes to the `(tag name)` of the equation.
 //! - A macro parameter in the body goes to the parameter in the signature.
 //!
@@ -127,17 +127,19 @@ mod tests {
 
     #[test]
     fn lets_in_scope() {
-        let src = "(let x 2)\n\n(show x)\n\n(let x 3)\n\n(show (+ |x 1))";
-        assert_eq!(def(src), Some((4, "x".into())), "the re-bound x");
-        let src = "(let x 2)\n\n(show |x)\n\n(let x 3)\n\n(show x)";
+        let src = "(let x 2)\n\n(show x)\n\n(let y 3)\n\n(show (+ |x y))";
         assert_eq!(def(src), Some((0, "x".into())));
-        // In its own value: the earlier one.
-        let src = "(let x 2)\n\n(let x (+ |x 1))";
+        let src = "(let x 2)\n\n(show x)\n\n(let y 3)\n\n(show (+ x |y))";
+        assert_eq!(def(src), Some((4, "y".into())));
+        // A second definition binds nothing: uses after it go to the first.
+        let src = "(let x 2)\n\n(let x 3)\n\n(show |x)";
         assert_eq!(def(src), Some((0, "x".into())));
-        // References of the first binding only.
-        let src = "(let |x 2)\n\n(show x)\n\n(let x (+ x 1))\n\n(show x)\n\n(show 'x)";
-        assert_eq!(refs(src, true), vec![(0, "x".into()), (2, "x".into()), (4, "x".into())]);
-        assert_eq!(refs(src, false), vec![(2, "x".into()), (4, "x".into())]);
+        // In its own value the name is not bound yet.
+        assert_eq!(def("(let x (+ |x 1))"), None);
+        // References: uses after the let, not quoted ones, not before it.
+        let src = "(show x)\n\n(let |x 2)\n\n(show x)\n\n(let y (+ x 1))\n\n(show 'x)";
+        assert_eq!(refs(src, true), vec![(2, "x".into()), (4, "x".into()), (6, "x".into())]);
+        assert_eq!(refs(src, false), vec![(4, "x".into()), (6, "x".into())]);
     }
 
     #[test]

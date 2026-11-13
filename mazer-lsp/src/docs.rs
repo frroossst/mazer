@@ -189,7 +189,7 @@ pub fn reserved_signature(name: &str) -> Option<Signature> {
         ),
         "let" => (
             vec![
-                p("name", "The variable. May be rebound later; a display name such as `tau` is allowed.", ParamKind::Required),
+                p("name", "The variable. Defined once per note; a display name such as `tau` is allowed.", ParamKind::Required),
                 p("value", "Its value, kept unevaluated. Earlier variables in it are substituted now.", ParamKind::Required),
             ],
             "Binds a variable from here on: every later `show`, `eval` and `let` substitutes its value. `'name` shows the name itself. Produces no output.",

@@ -8,17 +8,22 @@
 //! (show (+ x 1))    ; 2 + 1      show substitutes bound variables everywhere
 //! (eval (+ x 1))    ; 3
 //! (let y (+ x 1))   ; y holds (+ 2 1): captured at the let
-//! (let x 3)         ; reassignable any number of times; document order
-//! (show (= 'x x))   ; x = 3      quote shows the name itself
+//! (show (= 'x x))   ; x = 2      quote shows the name itself
+//! (let x 3)         ; error: a variable is defined once; x stays 2
 //! ```
 //!
 //! Rules:
 //! - Values are stored unevaluated. Only `(eval ...)` computes.
-//! - A `let` takes effect from where it is written; a later `let` for the same
-//!   name replaces it for everything below.
+//! - A `let` takes effect from where it is written, for the rest of the note.
+//! - A variable is defined once per note. A second `let` of the same name is
+//!   a `DuplicateDefinition` and binds nothing, so the first value stays in
+//!   effect. A `let` that was rejected (malformed, a reserved name, a value
+//!   too large) defines nothing, so a later `let` of that name is fine; one
+//!   refused by the node budget does define its variable, as an error.
 //! - Capture at the `let`: when a `let` is processed, variables already bound
-//!   are substituted into its value. So `(let x (+ x 1))` works and a later
-//!   reassignment never changes an earlier definition.
+//!   are substituted into its value. So `(let y (+ x 1))` holds the value `x`
+//!   had there, and in `(let x (+ x 1))`, as the first definition of `x`, the
+//!   inner `x` is a free name.
 //! - One pass over the note in document order, after macro expansion,
 //!   substitutes variables into every `let`, `show` and `eval`. Afterwards the
 //!   trees contain no bound variables.
@@ -93,7 +98,11 @@ impl Bindings {
         self.by_name.get(&name)
     }
 
-    /// Binds or rebinds a variable, returning the previous binding if any.
+    /// Binds a variable, returning the previous binding of that name if any.
+    ///
+    /// This is the plain table operation and replaces an existing binding.
+    /// In a note a name is bound at most once: the `let` pass rejects a
+    /// second definition before it gets here.
     pub fn insert(&mut self, binding: Binding) -> Option<Binding> {
         self.by_name.insert(binding.name, binding)
     }
@@ -143,7 +152,10 @@ pub(crate) struct LetPass {
     /// carries, so a check of the surrounding expression does not report
     /// them a second time.
     known: HashMap<Span, Vec<Rc<[Problem]>>>,
-    /// Every successful `let`, in document order.
+    /// The span of the name in the `let` that defined each variable, for the
+    /// diagnostic on a second definition.
+    defined: HashMap<Sym, Span>,
+    /// Every successful `let`, in document order: at most one per name.
     pub lets: Vec<Binding>,
 }
 
@@ -225,11 +237,20 @@ impl LetPass {
     /// Processes one `(let name expr)` whose value is already macro-expanded:
     /// checks it, substitutes the variables bound so far into the value,
     /// reports the value's keyword problems (once, here) and binds it.
-    /// Returns the form with the substituted value.
+    /// Returns the form with the substituted value. A second definition of a
+    /// name is reported and binds nothing.
     pub fn bind(&mut self, form: &Node, macros: &Macros, budget: &mut Budget, diags: &mut Diags) -> Node {
-        let Some((name, value)) = let_parts(form, macros, diags) else {
+        let Some((name, name_span, value)) = let_parts(form, macros, diags) else {
             return form.clone();
         };
+        if let Some(&first) = self.defined.get(&name) {
+            diags.push(
+                Diag::error(DiagCode::DuplicateDefinition, name_span, format!("`{name}` is already defined"))
+                    .with_label(first, "first defined here")
+                    .with_help("a variable can be defined only once; choose another name"),
+            );
+            return form.clone();
+        }
         let measure = self.measure(value);
         if measure.too_big() {
             diags.push(Diag::error(
@@ -276,6 +297,7 @@ impl LetPass {
         // `Error` value: its variable is an error from here on, and editors
         // asking which binding is in scope must see that.
         self.env.insert(binding.clone());
+        self.defined.insert(name, name_span);
         self.lets.push(binding);
         let head = form.as_list().and_then(<[Node]>::first).cloned();
         let name_node = form.args().first().cloned();
@@ -283,8 +305,9 @@ impl LetPass {
     }
 }
 
-/// The name and value of a well-formed `let`, reporting what is wrong otherwise.
-fn let_parts<'a>(form: &'a Node, macros: &Macros, diags: &mut Diags) -> Option<(Sym, &'a Node)> {
+/// The name, the span of the name and the value of a well-formed `let`,
+/// reporting what is wrong otherwise.
+fn let_parts<'a>(form: &'a Node, macros: &Macros, diags: &mut Diags) -> Option<(Sym, Span, &'a Node)> {
     if walk::contains_error(form) {
         return None; // the reader already reported it
     }
@@ -320,7 +343,7 @@ fn let_parts<'a>(form: &'a Node, macros: &Macros, diags: &mut Diags) -> Option<(
         );
         return None;
     }
-    Some((sym, value))
+    Some((sym, name.span, value))
 }
 
 #[cfg(test)]

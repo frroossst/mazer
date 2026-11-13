@@ -128,33 +128,30 @@ fn form_comments(text: &str, root: &Node, out: &mut Vec<Span>) {
 
 /// The `let` binding of `name` in scope at `at`.
 ///
-/// That is the last `let` of that name whose form *ends* at or before `at`.
-/// A `let` takes effect after it is
-/// written, so inside `(let x (+ x 1))` the `x` of the value is the earlier
-/// binding. This is exactly what `analyze` substituted there, including a
-/// `let` refused by the document's node budget, whose binding is in
+/// A variable is defined once per note, so this is the one `let` of that
+/// name, if its form *ends* at or before `at`. A `let` takes effect after it
+/// is written, so inside `(let x (+ x 1))` the `x` of the value is not bound
+/// by that `let`. This is exactly what `analyze` substituted there, including
+/// a `let` refused by the document's node budget, whose binding is in
 /// [`Analysis::lets`] with an `Error` value (its variable is an error from
 /// then on). A `let` that was rejected outright (bad shape, a reserved name,
-/// a value too large) binds nothing, so the earlier binding stays in scope.
+/// a value too large, a second definition) binds nothing.
 #[must_use]
 pub fn binding_at(analysis: &Analysis, name: Sym, at: ByteOffset) -> Option<&Binding> {
     analysis
         .lets
         .iter()
-        .rev()
         .find(|b| b.name == name && b.span.file == NOTE && b.span.end <= at)
 }
 
-/// Every binding in scope at `at` (see [`binding_at`]): one per name, the
-/// latest, in document order of those bindings.
+/// Every binding in scope at `at` (see [`binding_at`]), in document order.
 #[must_use]
 pub fn bindings_in_scope(analysis: &Analysis, at: ByteOffset) -> Vec<&Binding> {
-    let mut out: Vec<&Binding> = Vec::new();
-    for binding in analysis.lets.iter().filter(|b| b.span.file == NOTE && b.span.end <= at) {
-        out.retain(|b| b.name != binding.name);
-        out.push(binding);
-    }
-    out
+    analysis
+        .lets
+        .iter()
+        .filter(|b| b.span.file == NOTE && b.span.end <= at)
+        .collect()
 }
 
 /// The name node of a definition or tag form as written: the `x` of
