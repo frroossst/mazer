@@ -6,3 +6,5 @@ out/
 # rewrite fixtures: private notes and reference output, never committed
 fixtures/notes/
 fixtures/reference/
+
+.claude/
